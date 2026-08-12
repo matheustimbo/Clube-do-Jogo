@@ -429,8 +429,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const ids = rewardGrants
       .filter(grant => grant.reward.kind === 'theme' && isThemeId(grant.reward.theme_id))
       .map(grant => grant.reward.theme_id as ThemeId);
+    // Local demo mode exposes unreleased themes for visual review without
+    // changing reward availability for authenticated members.
+    if (isDemo && !ids.includes('crossing')) ids.push('crossing');
     return Array.from(new Set(ids));
-  }, [rewardGrants]);
+  }, [isDemo, rewardGrants]);
   const pendingReward = rewardGrants.find(grant => !grant.seen_at) || null;
 
   const value = useMemo<AppContextValue>(() => ({
