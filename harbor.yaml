@@ -1,0 +1,30 @@
+schemaVersion: 1
+id: clube-do-jogo
+name: Clube do Jogo
+description: Local development environment for Clube do Jogo.
+
+environments:
+  local:
+    label: Local development
+    mode: development
+    components:
+      web:
+        label: Next.js web app
+        adapter: command
+        command: [npm, run, dev, --, --hostname, 127.0.0.1, --port, "43122"]
+        cwd: .
+        match:
+          cwd: .
+          commandIncludes: [next-server]
+        ports:
+          - host: 127.0.0.1
+            port: 43122
+        health:
+          - type: http
+            url: http://127.0.0.1:43122/
+            timeoutMs: 5000
+            bodyIncludes: Clube do Jogo
+            followRedirects: true
+        links:
+          - label: Clube do Jogo
+            url: http://127.0.0.1:43122/
