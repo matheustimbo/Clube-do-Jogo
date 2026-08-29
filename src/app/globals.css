@@ -2757,19 +2757,19 @@ iframe {
 
 /* Fogueira Cósmica — an original field-observatory poster and handmade communicator. */
 :root[data-theme='cosmic-campfire'] {
-  --background: #050d16;
+  --background: #010205;
   --foreground: #f3ead9;
-  --surface: rgb(10 24 35 / 88%);
+  --surface: rgb(6 10 14 / 91%);
   --surface-soft: rgb(225 235 232 / 5.5%);
-  --surface-deep: rgb(2 8 14 / 56%);
+  --surface-deep: rgb(0 2 5 / 66%);
   --hairline: rgb(224 187 138 / 18%);
-  --theme-header: rgb(5 14 23 / 88%);
-  --theme-nav: rgb(6 16 25 / 94%);
+  --theme-header: rgb(2 5 8 / 91%);
+  --theme-nav: rgb(3 6 9 / 96%);
   --theme-shadow: 0 20px 60px rgb(0 4 10 / 48%), inset 0 1px rgb(248 225 190 / 3%);
   --theme-pattern: url('/themes/cosmic-campfire/observatory-desktop.webp');
   --theme-pattern-size: cover;
   --theme-pattern-opacity: .54;
-  --theme-ambient: linear-gradient(180deg, rgb(3 11 19 / 18%), rgb(3 10 17 / 72%) 76%, #050d16 100%);
+  --theme-ambient: linear-gradient(180deg, rgb(0 1 3 / 12%), rgb(0 1 3 / 78%) 76%, #010205 100%);
   --primary-on: #1c1007;
   --support-vote: #a9a1d7;
   --support-completed: #69b994;
@@ -2811,7 +2811,7 @@ iframe {
 
 :root[data-theme='cosmic-campfire'] body {
   font-family: var(--font-geist-sans), sans-serif;
-  background: #050d16;
+  background: #010205;
 }
 :root[data-theme='cosmic-campfire'] .theme-pattern {
   background-position: center bottom;
@@ -2837,7 +2837,7 @@ iframe {
 /* A communicator, not a generic glass dashboard. */
 :root[data-theme='cosmic-campfire'] :where(.theme-header, .theme-nav, .app-tabs, .app-dialog, .app-popup) {
   border-color: rgb(230 192 140 / 17%) !important;
-  background-color: rgb(6 17 27 / 91%) !important;
+  background-color: rgb(3 7 10 / 93%) !important;
   background-image:
     linear-gradient(90deg, rgb(236 163 89 / 4%), transparent 35%),
     repeating-linear-gradient(0deg, transparent 0 3px, rgb(255 255 255 / 1.1%) 3px 4px) !important;
@@ -2846,6 +2846,16 @@ iframe {
 :root[data-theme='cosmic-campfire'] .theme-sidebar {
   border-right-color: rgb(233 176 110 / 20%) !important;
   box-shadow: 12px 0 50px rgb(0 4 10 / 38%) !important;
+}
+:root[data-theme='cosmic-campfire'] :where(.theme-sidebar a, .theme-nav a, .theme-nav a > span, .app-tabs, .app-tabs [role='tab']) {
+  border-radius: 2px !important;
+}
+:root[data-theme='cosmic-campfire'] :where(.theme-sidebar a[aria-current='page'], .theme-nav a[aria-current='page']) {
+  background: linear-gradient(90deg, rgb(224 137 66 / 13%), rgb(224 137 66 / 2%) 72%) !important;
+  box-shadow: inset 2px 0 #df8b47, inset 0 -1px rgb(223 139 71 / 34%);
+}
+:root[data-theme='cosmic-campfire'] .theme-nav a[aria-current='page'] > span {
+  background: transparent !important;
 }
 :root[data-theme='cosmic-campfire'] .theme-logo {
   position: relative;
@@ -2951,7 +2961,7 @@ iframe {
 
 :root[data-theme='cosmic-campfire'] main :where(article, section[class*='border'], .comment-composer, .notes-panel) {
   border-color: rgb(228 188 136 / 17%) !important;
-  background-color: rgb(9 23 33 / 84%) !important;
+  background-color: rgb(5 10 14 / 88%) !important;
   background-image:
     linear-gradient(125deg, rgb(238 180 111 / 3.5%), transparent 34%),
     repeating-linear-gradient(87deg, transparent 0 7px, rgb(255 255 255 / .65%) 7px 8px) !important;
@@ -2959,7 +2969,7 @@ iframe {
   backdrop-filter: blur(12px);
 }
 :root[data-theme='cosmic-campfire'] :where(.ranking-card, .game-list-card, .profile-hero, .participation-card, .comment-card, .comment-composer, .notes-panel, .game-detail-surface, .club-progress-card) {
-  border-radius: 15px 18px 14px 17px / 17px 14px 18px 15px !important;
+  border-radius: 3px !important;
 }
 :root[data-theme='cosmic-campfire'] :where(.ranking-card, .game-list-card, .comment-card, .comment-composer) {
   position: relative;
@@ -2985,14 +2995,81 @@ iframe {
   background-image: radial-gradient(circle at 96% 8%, rgb(232 143 61 / 13%), transparent 25%), linear-gradient(125deg, rgb(238 180 111 / 5%), transparent 44%) !important;
 }
 :root[data-theme='cosmic-campfire'] .ranking-medal {
-  border-color: rgb(252 214 165 / 30%) !important;
-  background: #172029 !important;
-  color: #e9a25d !important;
-  box-shadow: inset 0 0 0 2px #0a131a, 0 5px 16px rgb(0 0 0 / 35%) !important;
+  position: relative;
+  isolation: isolate;
+  overflow: visible;
+  border: 1px solid rgb(255 232 190 / 38%) !important;
+  border-radius: 50% !important;
+  background: #131a1e !important;
+  color: #fff8e8 !important;
+  box-shadow: inset -8px -9px 14px rgb(0 0 0 / 55%), inset 4px 3px 8px rgb(255 255 255 / 12%), 0 5px 18px rgb(0 0 0 / 48%) !important;
 }
-:root[data-theme='cosmic-campfire'] .ranking-medal-1 { box-shadow: inset 0 0 0 2px #0a131a, 0 0 20px rgb(231 142 61 / 18%) !important; }
+:root[data-theme='cosmic-campfire'] .ranking-medal::before {
+  position: absolute;
+  inset: -5px;
+  z-index: -2;
+  border: 1px solid rgb(173 211 215 / 20%);
+  border-radius: 50%;
+  content: '';
+}
+:root[data-theme='cosmic-campfire'] .ranking-planet-surface {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  border-radius: inherit;
+}
+:root[data-theme='cosmic-campfire'] .ranking-placement-label {
+  display: grid;
+  min-width: 2.05rem;
+  height: 1.45rem;
+  place-items: center;
+  border: 1px solid rgb(255 245 222 / 46%);
+  border-radius: 2px;
+  background: rgb(1 3 5 / 76%);
+  color: #fff8e8;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10px;
+  letter-spacing: .04em;
+  text-shadow: 0 1px 2px #000;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 50%);
+}
+:root[data-theme='cosmic-campfire'] .ranking-medal-1 {
+  border-color: rgb(255 197 122 / 48%) !important;
+  box-shadow: inset -9px -10px 15px rgb(45 9 2 / 62%), inset 4px 3px 8px rgb(255 240 185 / 16%), 0 0 22px rgb(227 118 38 / 24%) !important;
+}
+:root[data-theme='cosmic-campfire'] .ranking-medal-1 .ranking-planet-surface {
+  background:
+    radial-gradient(circle at 27% 30%, transparent 0 8%, rgb(70 24 9 / 75%) 9% 11%, transparent 12%),
+    linear-gradient(68deg, transparent 43%, rgb(79 23 8 / 72%) 44% 47%, transparent 48%),
+    radial-gradient(circle at 34% 27%, #ffd07a, #db7133 38%, #7f2717 70%, #2a0b0c 100%);
+}
+:root[data-theme='cosmic-campfire'] .ranking-medal-2 {
+  border-color: rgb(151 232 227 / 52%) !important;
+  box-shadow: inset -9px -10px 15px rgb(0 24 33 / 68%), inset 4px 3px 8px rgb(225 255 246 / 18%), 0 0 22px rgb(61 192 190 / 22%) !important;
+}
+:root[data-theme='cosmic-campfire'] .ranking-medal-2 .ranking-planet-surface {
+  background:
+    repeating-linear-gradient(9deg, transparent 0 7px, rgb(210 255 235 / 24%) 8px 10px, transparent 11px 17px),
+    radial-gradient(circle at 32% 25%, #adf1d9, #27a7a7 38%, #0f596a 72%, #071f35 100%);
+}
+:root[data-theme='cosmic-campfire'] .ranking-medal-3 {
+  border-color: rgb(176 215 129 / 46%) !important;
+  box-shadow: inset -9px -10px 15px rgb(3 24 19 / 68%), inset 4px 3px 8px rgb(241 255 211 / 16%), 0 0 20px rgb(115 177 92 / 20%) !important;
+}
+:root[data-theme='cosmic-campfire'] .ranking-medal-3 .ranking-planet-surface {
+  background:
+    radial-gradient(ellipse at 68% 63%, rgb(21 62 34 / 90%) 0 13%, transparent 14%),
+    radial-gradient(ellipse at 34% 42%, rgb(37 91 44 / 92%) 0 18%, transparent 19%),
+    radial-gradient(circle at 31% 25%, #b9d581, #528b5c 42%, #28535b 68%, #102838 100%);
+}
+:root[data-theme='cosmic-campfire'] .ranking-position {
+  border-radius: 2px !important;
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+}
 
 :root[data-theme='cosmic-campfire'] button.bg-violet-600:not(:disabled) {
+  border-radius: 2px !important;
   border: 1px solid rgb(255 202 136 / 34%);
   background: linear-gradient(180deg, #e99b52, #c66f31) !important;
   color: #241306 !important;
@@ -3005,9 +3082,10 @@ iframe {
   box-shadow: inset 0 1px rgb(255 235 206 / 2%);
 }
 :root[data-theme='cosmic-campfire'] .app-tabs [data-state='active'] {
-  background: rgb(218 130 61 / 13%) !important;
+  border-radius: 0 !important;
+  background: linear-gradient(180deg, rgb(218 130 61 / 8%), transparent) !important;
   color: #f3bd83 !important;
-  box-shadow: inset 0 -2px #d7833e;
+  box-shadow: inset 0 -2px #d7833e, inset 1px 0 rgb(215 132 65 / 20%), inset -1px 0 rgb(215 132 65 / 20%);
 }
 :root[data-theme='cosmic-campfire'] :where(.app-dialog, .app-popup) {
   border-color: rgb(231 181 119 / 24%) !important;
@@ -3017,8 +3095,8 @@ iframe {
 /* Hero is a framed expedition poster; supporting cards stay quiet. */
 :root[data-theme='cosmic-campfire'] .game-month-hero {
   border: 1px solid rgb(244 194 129 / 31%) !important;
-  border-radius: 19px 15px 22px 16px / 15px 22px 16px 20px !important;
-  background: #08141e !important;
+  border-radius: 3px !important;
+  background: #04090d !important;
   box-shadow: 0 30px 85px rgb(0 3 9 / 62%), 0 0 0 5px rgb(5 13 21 / 55%), 0 0 0 6px rgb(227 166 96 / 10%) !important;
 }
 :root[data-theme='cosmic-campfire'] .game-month-hero::after,
@@ -3027,7 +3105,7 @@ iframe {
   inset: 9px;
   z-index: 1;
   border: 1px dashed rgb(242 198 143 / 16%);
-  border-radius: 12px 9px 15px 10px;
+  border-radius: 0;
   content: '';
   pointer-events: none;
 }
@@ -3042,6 +3120,7 @@ iframe {
   font-family: var(--font-geist-mono), monospace;
   letter-spacing: .07em;
   box-shadow: 0 7px 18px rgb(0 0 0 / 40%), inset 0 1px rgb(255 234 201 / 38%) !important;
+  border-radius: 2px !important;
 }
 :root[data-theme='cosmic-campfire'] .game-month-cover,
 :root[data-theme='cosmic-campfire'] .game-detail-cover {
@@ -3052,6 +3131,15 @@ iframe {
 :root[data-theme='cosmic-campfire'] .game-month-description { color: #c9c0b1 !important; }
 
 /* Discussion reads as a sequence of received transmissions. */
+:root[data-theme='cosmic-campfire'] .thread-transmission {
+  cursor: pointer;
+  outline: none;
+  transition:
+    border-color 140ms cubic-bezier(.22, 1, .36, 1),
+    background-color 140ms cubic-bezier(.22, 1, .36, 1),
+    box-shadow 160ms cubic-bezier(.22, 1, .36, 1),
+    color 140ms cubic-bezier(.22, 1, .36, 1);
+}
 :root[data-theme='cosmic-campfire'] .comment-card { padding-top: 2rem; }
 :root[data-theme='cosmic-campfire'] .comment-card::before {
   position: absolute;
@@ -3075,36 +3163,106 @@ iframe {
 }
 :root[data-theme='cosmic-campfire'] .thread-branch {
   position: relative;
-  margin-left: 1.9rem !important;
-  padding-left: 2rem !important;
+  margin-left: 1.65rem !important;
+  padding-left: 2.65rem !important;
 }
 :root[data-theme='cosmic-campfire'] .thread-branch::before {
   position: absolute;
-  top: -7px;
-  bottom: 18px;
-  left: 4px;
-  width: 26px;
-  border-bottom: 1px solid rgb(178 165 210 / 44%);
-  border-left: 1px solid rgb(178 165 210 / 44%);
-  border-radius: 0 0 0 22px;
+  top: -13px;
+  bottom: 22px;
+  left: 5px;
+  width: 33px;
+  border-bottom: 2px solid rgb(185 174 230 / 36%);
+  border-left: 2px solid rgb(185 174 230 / 36%);
+  border-bottom-left-radius: 30px 42px;
   content: '';
+  filter: drop-shadow(0 0 3px rgb(185 174 230 / 10%));
+  pointer-events: none;
+  transition: border-color 150ms ease-out, filter 150ms ease-out;
 }
 :root[data-theme='cosmic-campfire'] .thread-branch::after {
   position: absolute;
-  bottom: 14px;
-  left: 25px;
-  width: 7px;
-  height: 7px;
-  border: 1px solid #c5b9df;
-  border-radius: 50%;
-  background: #101b27;
-  box-shadow: 0 0 10px rgb(181 168 216 / 45%);
+  bottom: 10px;
+  left: 27px;
+  width: 17px;
+  height: 17px;
+  border: 2px solid rgb(197 185 223 / 66%);
+  border-right-color: transparent;
+  border-radius: 52% 48% 55% 45%;
+  background: transparent;
+  box-shadow: inset 0 0 5px rgb(185 174 230 / 12%), 0 0 7px rgb(181 168 216 / 18%);
   content: '';
+  pointer-events: none;
+  transform: rotate(-32deg);
+  transition: border-color 150ms ease-out, box-shadow 150ms ease-out;
+}
+:root[data-theme='cosmic-campfire'] .thread-path {
+  position: relative;
+}
+:root[data-theme='cosmic-campfire'] .thread-path::before {
+  position: absolute;
+  top: 17px;
+  left: -20px;
+  width: 20px;
+  height: 24px;
+  border-top: 1.5px solid rgb(185 174 230 / 32%);
+  border-right: 1.5px solid rgb(185 174 230 / 32%);
+  border-radius: 0 20px 0 0;
+  content: '';
+  pointer-events: none;
+  transform: rotate(18deg) skewX(-9deg);
+  transform-origin: top left;
+  transition: border-color 150ms ease-out, filter 150ms ease-out;
 }
 :root[data-theme='cosmic-campfire'] .thread-reply {
   position: relative;
   border: 1px solid rgb(177 164 210 / 17%);
-  background: rgb(13 25 37 / 80%) !important;
+  border-radius: 3px !important;
+  background: rgb(6 12 17 / 86%) !important;
+}
+:root[data-theme='cosmic-campfire'] .thread-reply::before {
+  position: absolute;
+  top: 13px;
+  left: -13px;
+  width: 13px;
+  height: 13px;
+  border: 1.5px solid rgb(185 174 230 / 42%);
+  border-left-color: transparent;
+  border-radius: 50%;
+  content: '';
+  pointer-events: none;
+  transform: rotate(22deg);
+  transition: border-color 150ms ease-out, box-shadow 150ms ease-out;
+}
+:root[data-theme='cosmic-campfire'] .thread-group:has(> .comment-card:hover) > .comment-card,
+:root[data-theme='cosmic-campfire'] .thread-group:has(.thread-path:hover) > .comment-card,
+:root[data-theme='cosmic-campfire'] .thread-group[data-thread-path-active='true'] > .comment-card,
+:root[data-theme='cosmic-campfire'] .thread-transmission:focus-visible,
+:root[data-theme='cosmic-campfire'] .thread-transmission[data-thread-selected='true'] {
+  border-color: rgb(205 193 236 / 48%) !important;
+  background-color: rgb(11 15 24 / 94%) !important;
+  box-shadow: 0 0 0 1px rgb(185 174 230 / 10%), 0 0 22px rgb(185 174 230 / 16%), inset 0 0 18px rgb(185 174 230 / 4%) !important;
+}
+:root[data-theme='cosmic-campfire'] .thread-path:hover .thread-reply,
+:root[data-theme='cosmic-campfire'] .thread-path[data-thread-path-active='true'] .thread-reply {
+  border-color: rgb(205 193 236 / 58%) !important;
+  background-color: rgb(12 15 25 / 96%) !important;
+  box-shadow: 0 0 0 1px rgb(185 174 230 / 12%), 0 0 24px rgb(185 174 230 / 19%), inset 0 0 20px rgb(185 174 230 / 5%) !important;
+}
+:root[data-theme='cosmic-campfire'] .thread-group:has(.thread-path:hover) .thread-branch::before,
+:root[data-theme='cosmic-campfire'] .thread-group[data-thread-path-active='true'] .thread-branch::before,
+:root[data-theme='cosmic-campfire'] .thread-path:hover::before,
+:root[data-theme='cosmic-campfire'] .thread-path[data-thread-path-active='true']::before {
+  border-color: rgb(218 207 246 / 88%);
+  filter: drop-shadow(0 0 5px rgb(185 174 230 / 62%));
+}
+:root[data-theme='cosmic-campfire'] .thread-group:has(.thread-path:hover) .thread-branch::after,
+:root[data-theme='cosmic-campfire'] .thread-group[data-thread-path-active='true'] .thread-branch::after,
+:root[data-theme='cosmic-campfire'] .thread-path:hover .thread-reply::before,
+:root[data-theme='cosmic-campfire'] .thread-path[data-thread-path-active='true'] .thread-reply::before {
+  border-color: #e3daf8;
+  border-right-color: transparent;
+  box-shadow: inset 0 0 6px rgb(185 174 230 / 28%), 0 0 11px rgb(185 174 230 / 62%);
 }
 :root[data-theme='cosmic-campfire'] .comment-composer::before {
   position: absolute;
@@ -3131,11 +3289,24 @@ iframe {
   background: radial-gradient(ellipse at 50% 0%, rgb(227 138 61 / 12%), transparent 70%);
 }
 
-.cosmic-sound-setting { background: rgb(6 17 26 / 72%); }
+.cosmic-sound-setting { border-radius: 3px !important; background: rgb(3 8 12 / 82%); }
 .cosmic-sound-icon { background: rgb(113 194 204 / 10%); color: #75c3cc; box-shadow: inset 0 0 0 1px rgb(113 194 204 / 16%); }
 .cosmic-sound-toggle { border-color: rgb(230 181 119 / 22%); background: rgb(11 26 36 / 90%); color: #8aa0a1; }
 .cosmic-sound-toggle[aria-checked='true'] { border-color: rgb(116 201 210 / 36%); background: rgb(54 117 126 / 25%); color: #a9e1e5; box-shadow: 0 0 14px rgb(116 201 210 / 10%); }
 :root[data-theme='cosmic-campfire'] .theme-option[aria-checked='true'] { border-color: rgb(238 163 88 / 38%) !important; background: rgb(216 126 53 / 12%) !important; box-shadow: inset 3px 0 #da873f; }
+:root[data-theme='cosmic-campfire'] :where(.theme-option, .cosmic-sound-setting, .game-action, .preference-choice, .library-filter-chip, .notes-panel, .app-dialog, .app-popup) {
+  border-radius: 3px !important;
+}
+
+@media (max-width: 520px) {
+  :root[data-theme='cosmic-campfire'] .thread-branch {
+    margin-left: .9rem !important;
+    padding-left: 2rem !important;
+  }
+  :root[data-theme='cosmic-campfire'] .thread-branch::before { left: 3px; width: 24px; }
+  :root[data-theme='cosmic-campfire'] .thread-branch::after { left: 18px; }
+  :root[data-theme='cosmic-campfire'] .thread-path::before { left: -13px; width: 14px; }
+}
 
 @media (max-width: 959px) {
   :root[data-theme='cosmic-campfire'] {

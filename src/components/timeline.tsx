@@ -33,6 +33,7 @@ export function Timeline({ game }: { game: Game }) {
   const [deleteTarget, setDeleteTarget] = useState<{ comment: ClubComment; rootId: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [reactionTarget, setReactionTarget] = useState<ClubComment | null>(null);
+  const [focusedCommentId, setFocusedCommentId] = useState<string | null>(null);
   const reactionHold = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressReactionClick = useRef(false);
   const [commentsParent] = useAutoAnimate<HTMLDivElement>({ duration: 160, easing: 'cubic-bezier(.22, 1, .36, 1)' });
@@ -183,9 +184,22 @@ export function Timeline({ game }: { game: Game }) {
     );
   }
 
-  function Comment({ comment, rootId, nested = false }: { comment: ClubComment; rootId: string; nested?: boolean }) {
+  function Comment({ comment, rootId, nested = false, pathActive = false }: { comment: ClubComment; rootId: string; nested?: boolean; pathActive?: boolean }) {
     return (
-      <article className={nested ? 'thread-reply flex gap-2.5 rounded-2xl bg-white/[0.025] px-3 py-3' : 'comment-card rounded-2xl bg-white/[0.025] p-4'}>
+      <article
+        className={nested ? 'thread-transmission thread-reply flex gap-2.5 rounded-2xl bg-white/[0.025] px-3 py-3' : 'thread-transmission comment-card rounded-2xl bg-white/[0.025] p-4'}
+        data-thread-active={pathActive || undefined}
+        data-thread-selected={focusedCommentId === comment.id || undefined}
+        tabIndex={0}
+        aria-label={`Focar transmissão de ${comment.profile?.name || 'membro'}`}
+        onClick={() => setFocusedCommentId(comment.id)}
+        onFocus={() => setFocusedCommentId(comment.id)}
+        onKeyDown={event => {
+          if (event.currentTarget !== event.target || (event.key !== 'Enter' && event.key !== ' ')) return;
+          event.preventDefault();
+          setFocusedCommentId(comment.id);
+        }}
+      >
         <Avatar src={comment.profile?.avatar_url} name={comment.profile?.name} className={`comment-avatar ${nested ? 'size-8' : 'size-9'}`} />
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-2"><span className="truncate text-xs font-extrabold text-zinc-200">{comment.profile?.name || 'Membro'}</span><time className="shrink-0 rounded-full border border-white/[0.06] bg-white/[0.045] px-2 py-1 text-[10px] font-semibold text-zinc-400">{formatDateTime(comment.created_at)}</time></div>
@@ -205,14 +219,17 @@ export function Timeline({ game }: { game: Game }) {
     <div ref={commentsParent} className="space-y-4">
       {!isHistorical && <div className="comment-composer rounded-2xl bg-white/[0.025] p-3"><div className="flex items-start gap-3"><Avatar src={profile?.avatar_url} name={profile?.name} className="comment-avatar size-9" /><textarea value={body} onChange={event => setBody(event.target.value)} rows={2} placeholder="O que você está achando do jogo?" className="min-h-16 min-w-0 flex-1 resize-none bg-transparent py-1 text-sm leading-relaxed outline-none placeholder:text-zinc-600" /></div><div className="mt-2 flex justify-end"><button disabled={!body.trim() || sending} onClick={() => void post(null)} className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl bg-violet-600 px-4 text-xs font-bold transition active:scale-95 disabled:bg-zinc-800 disabled:text-zinc-600"><Send className="size-3.5" />Comentar</button></div></div>}
       {reactionNotice && <div className="rounded-xl bg-amber-500/10 px-3 py-2 text-xs text-amber-200">{reactionNotice}</div>}
-      {query.isInitialLoading ? <div className="space-y-3">{Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className="h-32 w-full" />)}</div> : comments.length === 0 ? <div className="grid min-h-56 place-items-center rounded-3xl border border-dashed border-white/10 p-8 text-center"><div><MessageCircle className="mx-auto size-8 text-zinc-700" /><h3 className="mt-3 text-sm font-bold text-zinc-300">A conversa ainda não começou</h3><p className="mt-1 text-xs text-zinc-500">Compartilhe a primeira impressão sobre o jogo.</p></div></div> : comments.map(comment => (
-        <div key={comment.id}>
-          <Comment comment={comment} rootId={comment.id} />
-          {(comment.replies.length > 0 || replyingTo === comment.id) && <div className="thread-branch ml-9 mt-3 space-y-2 pl-4 sm:ml-12">{comment.replies.map(reply => <Comment key={reply.id} comment={reply} rootId={comment.id} nested />)}
+      {query.isInitialLoading ? <div className="space-y-3">{Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className="h-32 w-full" />)}</div> : comments.length === 0 ? <div className="grid min-h-56 place-items-center rounded-3xl border border-dashed border-white/10 p-8 text-center"><div><MessageCircle className="mx-auto size-8 text-zinc-700" /><h3 className="mt-3 text-sm font-bold text-zinc-300">A conversa ainda não começou</h3><p className="mt-1 text-xs text-zinc-500">Compartilhe a primeira impressão sobre o jogo.</p></div></div> : comments.map(comment => {
+        const focusedReply = comment.replies.find(reply => reply.id === focusedCommentId);
+        const pathActive = focusedCommentId === comment.id || Boolean(focusedReply);
+        return (
+        <div key={comment.id} className="thread-group" data-thread-path-active={pathActive || undefined}>
+          <Comment comment={comment} rootId={comment.id} pathActive={pathActive} />
+          {(comment.replies.length > 0 || replyingTo === comment.id) && <div className="thread-branch ml-9 mt-3 space-y-2 pl-4 sm:ml-12">{comment.replies.map(reply => <div key={reply.id} className="thread-path" data-thread-path-active={focusedCommentId === reply.id || undefined}><Comment comment={reply} rootId={comment.id} nested pathActive={focusedCommentId === reply.id} /></div>)}
             {replyingTo === comment.id && <div className="mt-2 flex items-center gap-2"><input autoFocus value={replyBody} onChange={event => setReplyBody(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void post(comment.id); }} placeholder={`Responder a ${comment.profile?.name || 'membro'}…`} className="h-10 min-w-0 flex-1 rounded-xl border border-white/10 bg-white/5 px-3 text-xs outline-none focus:border-violet-500" /><button aria-label="Enviar resposta" disabled={!replyBody.trim()} onClick={() => void post(comment.id)} className="grid size-10 shrink-0 place-items-center rounded-xl bg-violet-600 disabled:bg-zinc-800"><Send className="size-3.5" /></button></div>}
           </div>}
         </div>
-      ))}
+      );})}
     </div>
     <Dialog.Root open={Boolean(deleteTarget)} onOpenChange={open => { if (!open && !deleting) setDeleteTarget(null); }}>
       <Dialog.Portal>
