@@ -22,7 +22,7 @@ let graph: AmbienceGraph | null = null;
 const DEFAULT_AMBIENCE_VOLUME = 0.8;
 const MODE_GAIN: Record<CosmicBackdropMode, number> = {
   hearth: 1.12,
-  spaceflight: 0.88,
+  spaceflight: 1.04,
 };
 
 export function isCosmicAmbienceEnabled() {
@@ -85,19 +85,24 @@ function createNoiseSource(context: AudioContext, seconds = 5) {
 }
 
 function buildHearth(context: AudioContext, master: GainNode, sources: AudioScheduledSourceNode[]) {
-  const bed = createNoiseSource(context, 7);
+  const bed = createNoiseSource(context, 13);
   const bedLowpass = context.createBiquadFilter();
   const bedHighpass = context.createBiquadFilter();
   const bedGain = context.createGain();
   const sway = context.createOscillator();
   const swayDepth = context.createGain();
+  const texture = createNoiseSource(context, 19);
+  const textureBandpass = context.createBiquadFilter();
+  const textureGain = context.createGain();
+  const textureSway = context.createOscillator();
+  const textureSwayDepth = context.createGain();
 
   bedLowpass.type = 'lowpass';
   bedLowpass.frequency.value = 430;
   bedLowpass.Q.value = 0.42;
   bedHighpass.type = 'highpass';
   bedHighpass.frequency.value = 48;
-  bedGain.gain.value = 0.024;
+  bedGain.gain.value = 0.027;
   sway.type = 'sine';
   sway.frequency.value = 0.11;
   swayDepth.gain.value = 0.006;
@@ -109,67 +114,109 @@ function buildHearth(context: AudioContext, master: GainNode, sources: AudioSche
   bedGain.connect(master);
   bed.start();
   sway.start();
-  sources.push(bed, sway);
+  texture.playbackRate.value = 0.73;
+  textureBandpass.type = 'bandpass';
+  textureBandpass.frequency.value = 760;
+  textureBandpass.Q.value = 0.48;
+  textureGain.gain.value = 0.007;
+  textureSway.type = 'sine';
+  textureSway.frequency.value = 0.067;
+  textureSwayDepth.gain.value = 0.0025;
+  texture.connect(textureBandpass);
+  textureBandpass.connect(textureGain);
+  textureGain.connect(master);
+  textureSway.connect(textureSwayDepth);
+  textureSwayDepth.connect(textureGain.gain);
+  texture.start();
+  textureSway.start();
+  sources.push(bed, sway, texture, textureSway);
 
-  const scheduleCrackle = () => {
+  const emitCrackle = (kind: 'snap' | 'wood') => {
     if (!graph || graph.context !== context || graph.mode !== 'hearth') return;
-    const duration = 0.022 + Math.random() * 0.055;
+    const duration = kind === 'snap' ? 0.014 + Math.random() * 0.036 : 0.075 + Math.random() * 0.12;
     const buffer = context.createBuffer(1, Math.ceil(context.sampleRate * duration), context.sampleRate);
     const data = buffer.getChannelData(0);
     for (let index = 0; index < data.length; index += 1) {
-      const envelope = Math.pow(1 - index / data.length, 3);
-      data[index] = (Math.random() * 2 - 1) * envelope;
+      const progress = index / data.length;
+      const attack = Math.min(1, progress / 0.045);
+      const decay = Math.pow(1 - progress, kind === 'snap' ? 3.8 : 2.1);
+      const grain = kind === 'wood' ? 0.58 + 0.42 * Math.sin(index * 0.19) : 1;
+      data[index] = (Math.random() * 2 - 1) * attack * decay * grain;
     }
     const source = context.createBufferSource();
-    const bandpass = context.createBiquadFilter();
+    const filter = context.createBiquadFilter();
     const gain = context.createGain();
     source.buffer = buffer;
-    bandpass.type = 'bandpass';
-    bandpass.frequency.value = 680 + Math.random() * 920;
-    bandpass.Q.value = 0.72;
-    gain.gain.value = 0.006 + Math.random() * 0.013;
-    source.connect(bandpass);
-    bandpass.connect(gain);
+    filter.type = kind === 'snap' ? 'bandpass' : 'lowpass';
+    filter.frequency.value = kind === 'snap' ? 1100 + Math.random() * 2300 : 480 + Math.random() * 720;
+    filter.Q.value = kind === 'snap' ? 0.85 + Math.random() * 0.8 : 0.35;
+    gain.gain.value = kind === 'snap' ? 0.01 + Math.random() * 0.019 : 0.006 + Math.random() * 0.011;
+    source.connect(filter);
+    filter.connect(gain);
     gain.connect(master);
     source.start();
     source.stop(context.currentTime + duration);
-    graph.crackleTimer = window.setTimeout(scheduleCrackle, 520 + Math.random() * 1700);
   };
-  graph!.crackleTimer = window.setTimeout(scheduleCrackle, 380);
+
+  const scheduleCrackle = () => {
+    if (!graph || graph.context !== context || graph.mode !== 'hearth') return;
+    const chance = Math.random();
+    const count = chance < 0.16 ? 3 : chance < 0.42 ? 2 : 1;
+    for (let index = 0; index < count; index += 1) {
+      window.setTimeout(() => emitCrackle(index === 0 && Math.random() < 0.34 ? 'wood' : 'snap'), index * (55 + Math.random() * 150));
+    }
+    graph.crackleTimer = window.setTimeout(scheduleCrackle, 780 + Math.random() * 3900);
+  };
+  graph!.crackleTimer = window.setTimeout(scheduleCrackle, 620);
 }
 
 function buildSpace(context: AudioContext, master: GainNode, sources: AudioScheduledSourceNode[]) {
-  const fundamentals = [43.65, 65.41, 98];
+  const fundamentals = [43.65, 65.41, 98, 146.83, 174.61];
   fundamentals.forEach((frequency, index) => {
     const oscillator = context.createOscillator();
     const gain = context.createGain();
     oscillator.type = index === 1 ? 'triangle' : 'sine';
     oscillator.frequency.value = frequency;
-    gain.gain.value = [0.018, 0.008, 0.0025][index];
+    oscillator.detune.value = [-3, 2, -5, 4, -2][index];
+    gain.gain.value = [0.052, 0.024, 0.011, 0.006, 0.0035][index];
     oscillator.connect(gain);
     gain.connect(master);
     oscillator.start();
     sources.push(oscillator);
   });
 
-  const wash = createNoiseSource(context, 9);
+  const wash = createNoiseSource(context, 17);
   const lowpass = context.createBiquadFilter();
   const washGain = context.createGain();
   lowpass.type = 'lowpass';
-  lowpass.frequency.value = 170;
+  lowpass.frequency.value = 240;
   lowpass.Q.value = 0.28;
-  washGain.gain.value = 0.007;
+  washGain.gain.value = 0.019;
   wash.connect(lowpass);
   lowpass.connect(washGain);
   washGain.connect(master);
   wash.start();
   sources.push(wash);
 
+  const air = createNoiseSource(context, 23);
+  const airBandpass = context.createBiquadFilter();
+  const airGain = context.createGain();
+  air.playbackRate.value = 0.67;
+  airBandpass.type = 'bandpass';
+  airBandpass.frequency.value = 520;
+  airBandpass.Q.value = 0.32;
+  airGain.gain.value = 0.01;
+  air.connect(airBandpass);
+  airBandpass.connect(airGain);
+  airGain.connect(master);
+  air.start();
+  sources.push(air);
+
   const pulse = context.createOscillator();
   const pulseDepth = context.createGain();
   pulse.type = 'sine';
   pulse.frequency.value = 0.035;
-  pulseDepth.gain.value = 0.005;
+  pulseDepth.gain.value = 0.012;
   pulse.connect(pulseDepth);
   pulseDepth.connect(master.gain);
   pulse.start();
