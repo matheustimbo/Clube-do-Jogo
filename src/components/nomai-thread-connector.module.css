@@ -1,0 +1,104 @@
+/*
+ * Conector Nomai — duas camadas com a mesma geometria:
+ * `.glow` (desfocada, atrás) e `.strand` (traço nítido, à frente).
+ *
+ * Cores são lidas com fallback, então qualquer ancestral pode retematizar
+ * definindo --nomai-thread-idle / --nomai-thread-active / --nomai-glow-idle /
+ * --nomai-glow-active / --nomai-halo, sem tocar neste módulo.
+ *
+ * Posição, largura e altura ficam a cargo de quem integra: aqui só existe
+ * `position: absolute`, para não competir com utilitários do consumidor.
+ */
+
+.connector {
+  position: absolute;
+  display: block;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.glow path,
+.strand path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  shape-rendering: geometricPrecision;
+  transition:
+    stroke 180ms cubic-bezier(.22, 1, .36, 1),
+    stroke-width 180ms cubic-bezier(.22, 1, .36, 1);
+}
+
+.glow circle,
+.strand circle {
+  transition: fill 180ms cubic-bezier(.22, 1, .36, 1);
+}
+
+/* Camada de brilho: mesma silhueta, desfocada e independente do traço. */
+.glow {
+  filter: blur(2.2px);
+  transition: opacity 200ms cubic-bezier(.22, 1, .36, 1), filter 200ms cubic-bezier(.22, 1, .36, 1);
+}
+
+.glow path {
+  stroke: var(--nomai-glow-idle, rgb(185 174 230 / 16%));
+  stroke-width: 3.2px;
+}
+
+.glow circle {
+  fill: var(--nomai-glow-idle, rgb(185 174 230 / 16%));
+}
+
+/* Traço principal: fio constante, discreto em repouso. */
+.strand path {
+  stroke: var(--nomai-thread-idle, rgb(185 174 230 / 34%));
+  stroke-width: 1.35px;
+}
+
+.strand circle {
+  fill: var(--nomai-thread-idle, rgb(185 174 230 / 34%));
+}
+
+/* Estado ativo: só este conector acende, em lilás quente. */
+.active .glow {
+  filter: blur(2.6px) drop-shadow(0 0 5px var(--nomai-halo, rgb(226 183 240 / 42%)));
+  animation: nomai-ember 3.4s cubic-bezier(.42, 0, .58, 1) infinite;
+}
+
+.active .glow path {
+  stroke: var(--nomai-glow-active, rgb(199 173 250 / 72%));
+  stroke-width: 4.2px;
+}
+
+.active .glow circle {
+  fill: var(--nomai-glow-active, rgb(199 173 250 / 72%));
+}
+
+.active .strand path {
+  stroke: var(--nomai-thread-active, #efe4ff);
+  stroke-width: 1.6px;
+}
+
+.active .strand circle {
+  fill: var(--nomai-thread-active, #efe4ff);
+}
+
+@keyframes nomai-ember {
+  0%,
+  100% { opacity: .74; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glow,
+  .glow path,
+  .strand path,
+  .glow circle,
+  .strand circle {
+    transition: none;
+  }
+
+  .active .glow {
+    opacity: .92;
+    animation: none;
+  }
+}

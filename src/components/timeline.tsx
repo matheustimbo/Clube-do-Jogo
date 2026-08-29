@@ -14,6 +14,7 @@ import { useStaleQuery } from '@/hooks/use-stale-query';
 import { useApp } from './app-provider';
 import { Avatar } from './ui/avatar';
 import { Skeleton } from './ui/skeleton';
+import { NomaiThreadConnector } from './nomai-thread-connector';
 
 type RawComment = Omit<ClubComment, 'profile' | 'reactions' | 'replies'>;
 type RawReaction = { comment_id: string; emoji: string; user_id: string };
@@ -225,7 +226,7 @@ export function Timeline({ game }: { game: Game }) {
         return (
         <div key={comment.id} className="thread-group" data-thread-path-active={pathActive || undefined}>
           <Comment comment={comment} rootId={comment.id} pathActive={pathActive} />
-          {(comment.replies.length > 0 || replyingTo === comment.id) && <div className="thread-branch ml-9 mt-3 space-y-2 pl-4 sm:ml-12">{comment.replies.map(reply => <div key={reply.id} className="thread-path" data-thread-path-active={focusedCommentId === reply.id || undefined}><Comment comment={reply} rootId={comment.id} nested pathActive={focusedCommentId === reply.id} /></div>)}
+          {(comment.replies.length > 0 || replyingTo === comment.id) && <div className="thread-branch ml-9 mt-3 space-y-2 pl-4 sm:ml-12">{comment.replies.map(reply => <div key={reply.id} className="thread-path" data-thread-path-active={focusedCommentId === reply.id || undefined}><NomaiThreadConnector active={focusedCommentId === reply.id} className="nomai-thread-connector" /><Comment comment={reply} rootId={comment.id} nested pathActive={focusedCommentId === reply.id} /></div>)}
             {replyingTo === comment.id && <div className="mt-2 flex items-center gap-2"><input autoFocus value={replyBody} onChange={event => setReplyBody(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void post(comment.id); }} placeholder={`Responder a ${comment.profile?.name || 'membro'}…`} className="h-10 min-w-0 flex-1 rounded-xl border border-white/10 bg-white/5 px-3 text-xs outline-none focus:border-violet-500" /><button aria-label="Enviar resposta" disabled={!replyBody.trim()} onClick={() => void post(comment.id)} className="grid size-10 shrink-0 place-items-center rounded-xl bg-violet-600 disabled:bg-zinc-800"><Send className="size-3.5" /></button></div>}
           </div>}
         </div>

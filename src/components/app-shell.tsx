@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Compass, Gamepad2, Library, Trophy, UserRound } from 'lucide-react';
+import { ArrowLeft, Compass, Gamepad2, Library, Telescope, Trophy, UserRound } from 'lucide-react';
 import { useApp } from './app-provider';
 import { AuthScreen } from './auth-screen';
 import { MonthSelector } from './month-selector';
@@ -12,8 +12,9 @@ import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { fetchGameOfMonth, fetchProfileWithGames, fetchRankingData } from '@/lib/data';
 import { prefetchStaleQuery } from '@/hooks/use-stale-query';
-import { playCosmicSignal } from '@/lib/cosmic-sound';
-import { CosmicSpaceflight } from './cosmic-spaceflight';
+import { CosmicAmbienceController } from './cosmic-ambience-controller';
+import { CosmicBackdrop } from './cosmic-backdrop';
+import { CosmicInteractionSounds } from './cosmic-interaction-sounds';
 
 const navigation: Array<{ href: string; label: string; mobileLabel?: string; icon: typeof Gamepad2 }> = [
   { href: '/jogo-do-mes', label: 'Jogo do mês', icon: Gamepad2 },
@@ -49,9 +50,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, authLoading, isDemo, selectedMonth, isHistorical, clubRevision, cycles, theme } = useApp();
   const [navVisible, setNavVisible] = useState(true);
+  const [backgroundOnly, setBackgroundOnly] = useState(false);
   const lastScroll = useRef(0);
   const previousPath = useRef(pathname);
-  const previousSoundPath = useRef(pathname);
 
   useEffect(() => {
     if (previousPath.current !== pathname) {
@@ -59,13 +60,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       previousPath.current = pathname;
     }
   }, [pathname]);
-
-  useEffect(() => {
-    if (previousSoundPath.current !== pathname) {
-      if (theme === 'cosmic-campfire') playCosmicSignal('navigate');
-      previousSoundPath.current = pathname;
-    }
-  }, [pathname, theme]);
 
   useEffect(() => {
     const onScroll = () => {
@@ -80,6 +74,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+
+  useEffect(() => {
+    if (!backgroundOnly) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setBackgroundOnly(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [backgroundOnly]);
 
   useEffect(() => {
     if (!user) return;
@@ -116,9 +119,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const detailRoute = pathname.startsWith('/jogos/') || pathname.startsWith('/perfil/');
 
+  if (backgroundOnly && theme === 'cosmic-campfire') {
+    return (
+      <div className="theme-shell cosmic-background-only relative isolate min-h-dvh overflow-hidden text-zinc-100">
+        <CosmicBackdrop />
+        <CosmicAmbienceController />
+        <CosmicInteractionSounds />
+        <button type="button" onClick={() => setBackgroundOnly(false)} aria-label="Voltar para o aplicativo" title="Voltar para o aplicativo" className="cosmic-background-return fixed right-4 top-[max(1rem,env(safe-area-inset-top))] z-50 grid size-10 place-items-center border"><ArrowLeft className="size-4" /></button>
+      </div>
+    );
+  }
+
   return (
     <div className="theme-shell relative isolate min-h-dvh text-zinc-100">
-      <CosmicSpaceflight />
+      <CosmicBackdrop />
+      <CosmicAmbienceController />
+      <CosmicInteractionSounds />
       <div className="theme-pattern pointer-events-none fixed inset-0 z-0" aria-hidden="true" />
       <div className="theme-ambient pointer-events-none fixed inset-x-0 top-0 z-0 h-80 min-[960px]:bottom-0 min-[960px]:left-56 min-[960px]:h-auto" aria-hidden="true" />
       <div className="theme-effects pointer-events-none fixed inset-0 z-20 overflow-hidden" aria-hidden="true">
@@ -184,6 +200,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <main className="relative z-10 mx-auto w-full max-w-5xl px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-5 sm:px-8 sm:pt-7 min-[960px]:ml-56 min-[960px]:w-[calc(100%-14rem)] min-[960px]:max-w-none min-[960px]:pb-12 min-[960px]:pt-8">{children}</main>
+      {theme === 'cosmic-campfire' && <button type="button" onClick={() => setBackgroundOnly(true)} aria-label="Apreciar plano de fundo" title="Apreciar plano de fundo" className="cosmic-background-view fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-4 z-40 grid size-10 place-items-center border min-[960px]:bottom-5"><Telescope className="size-4" /></button>}
       <nav aria-label="Navegação principal" className={cn('theme-nav fixed inset-x-0 bottom-0 z-50 mx-auto w-full max-w-2xl border-t border-white/[0.08] pb-[max(.35rem,env(safe-area-inset-bottom))] pt-1.5 backdrop-blur-2xl transition-transform duration-150 ease-[cubic-bezier(.22,1,.36,1)] min-[960px]:hidden', navVisible ? 'translate-y-0' : 'translate-y-[calc(100%+env(safe-area-inset-bottom))]')}>
         <div className="grid grid-cols-5">
           {navigation.map(item => {
