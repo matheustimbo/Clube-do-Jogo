@@ -9,7 +9,7 @@ export function CosmicSpaceflight() {
         <i className="spaceflight-ring-body" />
         <i className="spaceflight-ring-front" />
       </span>
-      <span className="spaceflight-planet spaceflight-planet-giant"><i /></span>
+      <span className="spaceflight-planet spaceflight-planet-giant" />
       <span className="spaceflight-planet spaceflight-planet-cinder" />
       <span className="spaceflight-moon" />
       <span className="spaceflight-streak spaceflight-streak-a" />
