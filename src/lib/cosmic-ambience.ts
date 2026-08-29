@@ -14,15 +14,18 @@ type AmbienceGraph = {
   master: GainNode;
   sources: AudioScheduledSourceNode[];
   crackleTimer: number | null;
+  spaceTimer: number | null;
+  giantGain: GainNode | null;
   mode: CosmicBackdropMode;
 };
 
 let graph: AmbienceGraph | null = null;
+let spaceflightGiantPresence = 0;
 
 const DEFAULT_AMBIENCE_VOLUME = 0.8;
 const MODE_GAIN: Record<CosmicBackdropMode, number> = {
   hearth: 1.12,
-  spaceflight: 1.04,
+  spaceflight: 1.22,
 };
 
 export function isCosmicAmbienceEnabled() {
@@ -62,6 +65,15 @@ export function setCosmicAmbienceVolume(volume: number) {
 
 function targetGain(mode: CosmicBackdropMode) {
   return Math.max(0.0001, MODE_GAIN[mode] * getCosmicAmbienceVolume());
+}
+
+export function setSpaceflightGiantPresence(presence: number) {
+  spaceflightGiantPresence = Math.min(1, Math.max(0, presence));
+  if (!graph?.giantGain || graph.mode !== 'spaceflight') return;
+  const now = graph.context.currentTime;
+  const target = 0.0001 + Math.pow(spaceflightGiantPresence, 0.82) * 0.026;
+  graph.giantGain.gain.cancelScheduledValues(now);
+  graph.giantGain.gain.setTargetAtTime(target, now, 0.9);
 }
 
 function createBrownNoise(context: AudioContext, seconds = 5) {
@@ -171,56 +183,117 @@ function buildHearth(context: AudioContext, master: GainNode, sources: AudioSche
 }
 
 function buildSpace(context: AudioContext, master: GainNode, sources: AudioScheduledSourceNode[]) {
-  const fundamentals = [43.65, 65.41, 98, 146.83, 174.61];
-  fundamentals.forEach((frequency, index) => {
+  const voices = [
+    { frequency: 43.65, gain: 0.05, pan: -0.42, drift: 1.4 },
+    { frequency: 65.41, gain: 0.021, pan: 0.36, drift: 2.1 },
+    { frequency: 87.31, gain: 0.009, pan: -0.2, drift: 2.8 },
+    { frequency: 130.81, gain: 0.004, pan: 0.5, drift: 3.8 },
+    { frequency: 196.31, gain: 0.002, pan: 0.06, drift: 4.6 },
+  ];
+  voices.forEach(({ frequency, gain: level, pan, drift }, index) => {
     const oscillator = context.createOscillator();
     const gain = context.createGain();
+    const panner = context.createStereoPanner();
+    const driftOscillator = context.createOscillator();
+    const driftDepth = context.createGain();
+    const panOscillator = context.createOscillator();
+    const panDepth = context.createGain();
     oscillator.type = index === 1 ? 'triangle' : 'sine';
     oscillator.frequency.value = frequency;
-    oscillator.detune.value = [-3, 2, -5, 4, -2][index];
-    gain.gain.value = [0.052, 0.024, 0.011, 0.006, 0.0035][index];
+    oscillator.detune.value = [-3, 2, -5, 7, -8][index];
+    gain.gain.value = level;
+    panner.pan.value = pan;
+    driftOscillator.frequency.value = 0.004 + index * 0.0017;
+    driftDepth.gain.value = drift;
+    panOscillator.frequency.value = 0.003 + index * 0.0011;
+    panDepth.gain.value = 0.08 + index * 0.014;
+    driftOscillator.connect(driftDepth);
+    driftDepth.connect(oscillator.detune);
+    panOscillator.connect(panDepth);
+    panDepth.connect(panner.pan);
     oscillator.connect(gain);
-    gain.connect(master);
+    gain.connect(panner);
+    panner.connect(master);
     oscillator.start();
-    sources.push(oscillator);
+    driftOscillator.start();
+    panOscillator.start();
+    sources.push(oscillator, driftOscillator, panOscillator);
   });
 
   const wash = createNoiseSource(context, 17);
   const lowpass = context.createBiquadFilter();
+  const highpass = context.createBiquadFilter();
   const washGain = context.createGain();
   lowpass.type = 'lowpass';
-  lowpass.frequency.value = 240;
-  lowpass.Q.value = 0.28;
-  washGain.gain.value = 0.019;
+  lowpass.frequency.value = 118;
+  lowpass.Q.value = 0.2;
+  highpass.type = 'highpass';
+  highpass.frequency.value = 24;
+  washGain.gain.value = 0.0045;
   wash.connect(lowpass);
-  lowpass.connect(washGain);
+  lowpass.connect(highpass);
+  highpass.connect(washGain);
   washGain.connect(master);
   wash.start();
   sources.push(wash);
 
-  const air = createNoiseSource(context, 23);
-  const airBandpass = context.createBiquadFilter();
-  const airGain = context.createGain();
-  air.playbackRate.value = 0.67;
-  airBandpass.type = 'bandpass';
-  airBandpass.frequency.value = 520;
-  airBandpass.Q.value = 0.32;
-  airGain.gain.value = 0.01;
-  air.connect(airBandpass);
-  airBandpass.connect(airGain);
-  airGain.connect(master);
-  air.start();
-  sources.push(air);
+  const giantGain = context.createGain();
+  giantGain.gain.value = 0.0001;
+  giantGain.connect(master);
+  [36.71, 55, 82.41, 123.47].forEach((frequency, index) => {
+    const oscillator = context.createOscillator();
+    const mix = context.createGain();
+    oscillator.type = 'sine';
+    oscillator.frequency.value = frequency;
+    oscillator.detune.value = [-4, 3, -7, 5][index];
+    mix.gain.value = [0.5, 0.27, 0.16, 0.07][index];
+    oscillator.connect(mix);
+    mix.connect(giantGain);
+    oscillator.start();
+    sources.push(oscillator);
+  });
+  graph!.giantGain = giantGain;
+  setSpaceflightGiantPresence(spaceflightGiantPresence);
 
-  const pulse = context.createOscillator();
-  const pulseDepth = context.createGain();
-  pulse.type = 'sine';
-  pulse.frequency.value = 0.035;
-  pulseDepth.gain.value = 0.012;
-  pulse.connect(pulseDepth);
-  pulseDepth.connect(master.gain);
-  pulse.start();
-  sources.push(pulse);
+  const delay = context.createDelay(2.4);
+  const feedback = context.createGain();
+  const echoFilter = context.createBiquadFilter();
+  delay.delayTime.value = 1.72;
+  feedback.gain.value = 0.24;
+  echoFilter.type = 'lowpass';
+  echoFilter.frequency.value = 940;
+  delay.connect(feedback);
+  feedback.connect(echoFilter);
+  echoFilter.connect(delay);
+  delay.connect(master);
+
+  const emitBloom = () => {
+    if (!graph || graph.context !== context || graph.mode !== 'spaceflight') return;
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    const panner = context.createStereoPanner();
+    const frequencies = [207.65, 233.08, 293.66, 311.13];
+    const now = context.currentTime;
+    oscillator.type = 'sine';
+    oscillator.frequency.value = frequencies[Math.floor(Math.random() * frequencies.length)];
+    oscillator.detune.value = -11 + Math.random() * 22;
+    panner.pan.value = -0.72 + Math.random() * 1.44;
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.0022 + Math.random() * 0.0016, now + 3.8 + Math.random() * 1.7);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 13 + Math.random() * 4);
+    oscillator.connect(gain);
+    gain.connect(panner);
+    panner.connect(master);
+    panner.connect(delay);
+    oscillator.start(now);
+    oscillator.stop(now + 18);
+  };
+  const scheduleBloom = () => {
+    if (!graph || graph.context !== context || graph.mode !== 'spaceflight') return;
+    emitBloom();
+    graph.spaceTimer = window.setTimeout(scheduleBloom, 11000 + Math.random() * 19000);
+  };
+  graph!.spaceTimer = window.setTimeout(scheduleBloom, 6500 + Math.random() * 6500);
 }
 
 export function startCosmicAmbience(mode: CosmicBackdropMode) {
@@ -240,7 +313,7 @@ export function startCosmicAmbience(mode: CosmicBackdropMode) {
   master.gain.setValueAtTime(0.0001, context.currentTime);
   master.gain.exponentialRampToValueAtTime(targetGain(mode), context.currentTime + 0.8);
   master.connect(context.destination);
-  graph = { context, master, sources, crackleTimer: null, mode };
+  graph = { context, master, sources, crackleTimer: null, spaceTimer: null, giantGain: null, mode };
   if (mode === 'hearth') buildHearth(context, master, sources);
   else buildSpace(context, master, sources);
   if (context.state === 'suspended') void context.resume();
@@ -251,6 +324,7 @@ export function stopCosmicAmbience() {
   graph = null;
   if (!active) return;
   if (active.crackleTimer !== null) window.clearTimeout(active.crackleTimer);
+  if (active.spaceTimer !== null) window.clearTimeout(active.spaceTimer);
   const now = active.context.currentTime;
   active.master.gain.cancelScheduledValues(now);
   active.master.gain.setValueAtTime(Math.max(active.master.gain.value, 0.0001), now);

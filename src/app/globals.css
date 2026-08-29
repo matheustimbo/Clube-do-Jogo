@@ -3660,26 +3660,30 @@ iframe {
   width: min(66vmax, 920px);
   aspect-ratio: 1;
   background: url('/themes/cosmic-campfire/spaceflight-giant-v2.webp') center / contain no-repeat;
-  opacity: .9;
-  filter: blur(.62px) brightness(.7) saturate(.72) contrast(.9);
+  opacity: 1;
+  filter: blur(1.55px) brightness(.34) saturate(.56) contrast(.8);
+  -webkit-mask-image: radial-gradient(circle, #000 0 69%, rgb(0 0 0 / 78%) 79%, rgb(0 0 0 / 30%) 91%, transparent 99%);
+  mask-image: radial-gradient(circle, #000 0 69%, rgb(0 0 0 / 78%) 79%, rgb(0 0 0 / 30%) 91%, transparent 99%);
   animation: spaceflight-giant-pass 220s linear -74s infinite;
 }
 .spaceflight-planet-giant::before {
   position: absolute;
-  inset: 2.8%;
+  inset: 2.5%;
   border-radius: 50%;
-  background: radial-gradient(circle at 34% 29%, transparent 0 55%, rgb(0 3 8 / 8%) 72%, rgb(0 1 5 / 36%) 97%);
+  background: radial-gradient(ellipse at 20% 15%, transparent 0 6%, rgb(0 2 6 / 30%) 22%, rgb(0 2 6 / 82%) 55%, #010205 80%);
   content: '';
   mix-blend-mode: multiply;
 }
 .spaceflight-planet-giant::after {
   position: absolute;
-  inset: 2.8%;
+  inset: 2.5%;
   border-radius: 50%;
-  background: radial-gradient(ellipse at 31% 25%, rgb(205 235 218 / 7%) 0 4%, transparent 26%);
+  background:
+    radial-gradient(ellipse at 82% 28%, rgb(0 1 5 / 58%) 0 15%, transparent 43%),
+    radial-gradient(ellipse at 43% 91%, rgb(0 1 5 / 68%) 0 17%, transparent 46%),
+    radial-gradient(ellipse at 28% 21%, rgb(188 220 207 / 5%) 0 4%, transparent 24%);
   content: '';
-  filter: blur(1.8px);
-  mix-blend-mode: screen;
+  filter: blur(2.6vmax);
 }
 @keyframes spaceflight-giant-pass {
   0%, 18% { transform: translate3d(130vw, 10vh, 0) scale(.91); }
@@ -3694,8 +3698,8 @@ iframe {
   z-index: 2;
   width: clamp(88px, 16vmax, 230px);
   aspect-ratio: 1;
-  opacity: .88;
-  filter: blur(.78px) brightness(.74) saturate(.72) contrast(.9);
+  opacity: 1;
+  filter: blur(1.22px) brightness(.32) saturate(.56) contrast(.8);
   animation: spaceflight-ringed-pass 178s linear -104s infinite;
 }
 .spaceflight-ring-back,
@@ -3706,6 +3710,7 @@ iframe {
   border-right-color: rgb(66 43 39 / 20%);
   border-left-color: rgb(228 180 124 / 42%);
   border-radius: 50%;
+  filter: blur(.7px);
   transform: rotate(-17deg) skewX(-14deg);
 }
 .spaceflight-ring-back { z-index: 0; }
@@ -3714,6 +3719,19 @@ iframe {
   inset: 0;
   z-index: 1;
   background: url('/themes/cosmic-campfire/spaceflight-ringed-body-v2.webp') center / contain no-repeat;
+  -webkit-mask-image: radial-gradient(circle, #000 0 72%, rgb(0 0 0 / 70%) 84%, transparent 99%);
+  mask-image: radial-gradient(circle, #000 0 72%, rgb(0 0 0 / 70%) 84%, transparent 99%);
+}
+.spaceflight-ring-body::after {
+  position: absolute;
+  inset: 2.8%;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 24% 18%, transparent 0 12%, rgb(0 1 4 / 20%) 34%, rgb(0 1 4 / 78%) 72%, #010205 96%),
+    radial-gradient(ellipse at 75% 32%, rgb(0 1 4 / 31%), transparent 43%);
+  content: '';
+  filter: blur(1.2px);
+  mix-blend-mode: multiply;
 }
 .spaceflight-ring-front {
   z-index: 2;
@@ -3738,8 +3756,8 @@ iframe {
     radial-gradient(circle at 67% 38%, transparent 0 7%, rgb(66 20 18 / 54%) 8% 10%, transparent 12%),
     radial-gradient(circle at 29% 25%, #e79858, #913f2c 37%, #3c1b21 65%, #07060a 100%);
   box-shadow: inset -2.4vmax -2vmax 3.7vmax rgb(0 0 0 / 82%), 0 0 2.8vmax rgb(197 76 40 / 11%);
-  opacity: .78;
-  filter: blur(.66px) brightness(.72) saturate(.7) contrast(.88);
+  opacity: 1;
+  filter: blur(.92px) brightness(.38) saturate(.62) contrast(.84);
   animation: spaceflight-cinder-pass 118s linear -72s infinite;
 }
 @keyframes spaceflight-cinder-pass {
