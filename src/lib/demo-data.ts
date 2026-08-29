@@ -123,18 +123,66 @@ export const demoComments: ClubComment[] = [
   {
     id: 'comment-1', user_id: 'bia', game_id: 'hades', club_month: monthKey(), parent_id: null,
     body: 'O ritmo da progressão me pegou de surpresa. Mesmo depois de perder, sempre tem uma conversa nova esperando no salão.',
-    created_at: new Date(Date.now() - 7200000).toISOString(), updated_at: new Date(Date.now() - 7200000).toISOString(), profile: demoProfiles[1],
+    created_at: new Date(Date.now() - 18_000_000).toISOString(), updated_at: new Date(Date.now() - 18_000_000).toISOString(), profile: demoProfiles[1],
     reactions: [{ emoji: '🔥', users: demoProfiles.slice(0, 3), reactedByMe: true }, { emoji: '💜', users: demoProfiles.slice(2, 4), reactedByMe: false }],
-    replies: [{
-      id: 'reply-1', user_id: 'caio', game_id: 'hades', club_month: monthKey(), parent_id: 'comment-1',
-      body: 'Sim! O jogo transforma cada tentativa em parte da história, não só em repetição.',
-      created_at: new Date(Date.now() - 3600000).toISOString(), updated_at: new Date(Date.now() - 3600000).toISOString(), profile: demoProfiles[2], reactions: [], replies: [],
-    }],
+    replies: [
+      {
+        id: 'reply-1', user_id: 'caio', game_id: 'hades', club_month: monthKey(), parent_id: 'comment-1',
+        body: 'Sim! O jogo transforma cada tentativa em parte da história, não só em repetição.',
+        created_at: new Date(Date.now() - 16_200_000).toISOString(), updated_at: new Date(Date.now() - 16_200_000).toISOString(), profile: demoProfiles[2],
+        reactions: [{ emoji: '🎯', users: [demoProfiles[1], demoProfiles[3]], reactedByMe: false }], replies: [],
+      },
+      {
+        id: 'reply-2', user_id: 'leo', game_id: 'hades', club_month: monthKey(), parent_id: 'comment-1',
+        body: 'E os diálogos lembram até das escolhas pequenas. Achei que uma fala fosse se repetir, mas veio outra completamente diferente.',
+        created_at: new Date(Date.now() - 14_400_000).toISOString(), updated_at: new Date(Date.now() - 14_400_000).toISOString(), profile: demoProfiles[4],
+        reactions: [{ emoji: '👀', users: demoProfiles.slice(0, 2), reactedByMe: true }], replies: [],
+      },
+      {
+        id: 'reply-3', user_id: 'demo-user', game_id: 'hades', club_month: monthKey(), parent_id: 'comment-1',
+        body: 'Foi isso que me convenceu a continuar depois da primeira parede de dificuldade. Perder deixou de parecer tempo desperdiçado.',
+        created_at: new Date(Date.now() - 12_600_000).toISOString(), updated_at: new Date(Date.now() - 12_600_000).toISOString(), profile: demoProfiles[0],
+        reactions: [{ emoji: '✨', users: demoProfiles.slice(1, 4), reactedByMe: false }], replies: [],
+      },
+    ],
   },
   {
     id: 'comment-2', user_id: 'luiza', game_id: 'hades', club_month: monthKey(), parent_id: null,
     body: 'A direção de arte é absurda. Cada personagem parece ter saído de uma graphic novel.',
-    created_at: new Date(Date.now() - 1200000).toISOString(), updated_at: new Date(Date.now() - 1200000).toISOString(), profile: demoProfiles[3], reactions: [{ emoji: '😍', users: [demoProfiles[0]], reactedByMe: true }], replies: [],
+    created_at: new Date(Date.now() - 10_800_000).toISOString(), updated_at: new Date(Date.now() - 10_800_000).toISOString(), profile: demoProfiles[3],
+    reactions: [{ emoji: '😍', users: [demoProfiles[0]], reactedByMe: true }],
+    replies: [
+      {
+        id: 'reply-4', user_id: 'bia', game_id: 'hades', club_month: monthKey(), parent_id: 'comment-2',
+        body: 'A paleta do Tártaro já seria linda sozinha, mas adoro como cada região muda completamente a temperatura das cores.',
+        created_at: new Date(Date.now() - 9_000_000).toISOString(), updated_at: new Date(Date.now() - 9_000_000).toISOString(), profile: demoProfiles[1],
+        reactions: [{ emoji: '🎨', users: demoProfiles.slice(0, 4), reactedByMe: true }], replies: [],
+      },
+      {
+        id: 'reply-5', user_id: 'caio', game_id: 'hades', club_month: monthKey(), parent_id: 'comment-2',
+        body: 'E ainda funciona em movimento. Mesmo com a tela cheia de efeitos, quase sempre consigo entender o que está acontecendo.',
+        created_at: new Date(Date.now() - 7_200_000).toISOString(), updated_at: new Date(Date.now() - 7_200_000).toISOString(), profile: demoProfiles[2],
+        reactions: [], replies: [],
+      },
+    ],
+  },
+  {
+    id: 'comment-3', user_id: 'leo', game_id: 'hades', club_month: monthKey(), parent_id: null,
+    body: 'Qual arma acabou virando a favorita de vocês? Comecei gostando do arco, mas o escudo ficou muito mais divertido quando desbloqueei novos aspectos.',
+    created_at: new Date(Date.now() - 5_400_000).toISOString(), updated_at: new Date(Date.now() - 5_400_000).toISOString(), profile: demoProfiles[4],
+    reactions: [{ emoji: '🛡️', users: [demoProfiles[2]], reactedByMe: false }],
+    replies: [{
+      id: 'reply-6', user_id: 'demo-user', game_id: 'hades', club_month: monthKey(), parent_id: 'comment-3',
+      body: 'As manoplas. O alcance curto parecia uma desvantagem, mas mudou completamente o ritmo das minhas tentativas.',
+      created_at: new Date(Date.now() - 3_600_000).toISOString(), updated_at: new Date(Date.now() - 3_600_000).toISOString(), profile: demoProfiles[0],
+      reactions: [{ emoji: '🥊', users: [demoProfiles[4], demoProfiles[1]], reactedByMe: false }], replies: [],
+    }],
+  },
+  {
+    id: 'comment-4', user_id: 'caio', game_id: 'hades', club_month: monthKey(), parent_id: null,
+    body: 'Cheguei ao chefe final pela primeira vez hoje. Não passei, mas agora a luta parece possível — e isso já foi uma vitória.',
+    created_at: new Date(Date.now() - 1_800_000).toISOString(), updated_at: new Date(Date.now() - 1_800_000).toISOString(), profile: demoProfiles[2],
+    reactions: [{ emoji: '👏', users: demoProfiles.slice(0, 5), reactedByMe: true }], replies: [],
   },
 ];
 

@@ -1,7 +1,7 @@
 schemaVersion: 1
-id: clube-do-jogo-codex
-name: Clube do Jogo — Fogueira Cósmica
-description: Unified Cosmic Campfire theme with woodland-hearth and first-person deep-space backgrounds.
+id: clube-do-jogo
+name: Clube do Jogo
+description: Local development environment for Clube do Jogo.
 
 environments:
   local:
@@ -11,7 +11,7 @@ environments:
       web:
         label: Next.js web app
         adapter: command
-        command: [npm, run, dev, --, --webpack, --hostname, 127.0.0.1, --port, "43124"]
+        command: [npm, run, dev, --, --webpack, --hostname, 127.0.0.1, --port, "43122"]
         cwd: .
         env:
           NEXT_PUBLIC_AUTO_OPEN_PRODUCT_UPDATE: "false"
@@ -20,13 +20,13 @@ environments:
           commandIncludes: [next-server]
         ports:
           - host: 127.0.0.1
-            port: 43124
+            port: 43122
         health:
           - type: http
-            url: http://127.0.0.1:43124/
+            url: http://127.0.0.1:43122/
             timeoutMs: 5000
             bodyIncludes: Clube do Jogo
             followRedirects: true
         links:
-          - label: Clube do Jogo — Fogueira Cósmica
-            url: http://127.0.0.1:43124/
+          - label: Clube do Jogo
+            url: http://127.0.0.1:43122/
