@@ -1,7 +1,7 @@
 schemaVersion: 1
 id: clube-do-jogo-codex
-name: Clube do Jogo — Codex
-description: Codex implementation of the Cosmic Campfire theme.
+name: Clube do Jogo — Travessia Espacial
+description: Cosmic Campfire theme with a first-person deep-space background.
 
 environments:
   local:
@@ -26,5 +26,5 @@ environments:
             bodyIncludes: Clube do Jogo
             followRedirects: true
         links:
-          - label: Clube do Jogo — Codex
+          - label: Clube do Jogo — Travessia Espacial
             url: http://127.0.0.1:43124/
