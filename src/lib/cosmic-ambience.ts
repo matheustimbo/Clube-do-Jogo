@@ -71,11 +71,11 @@ export function setSpaceflightGiantPresence(presence: number) {
   spaceflightGiantPresence = Math.min(1, Math.max(0, presence));
   if (!graph?.giantGain || graph.mode !== 'spaceflight') return;
   const now = graph.context.currentTime;
-  const target = spaceflightGiantPresence > 0.002
-    ? 0.011 + Math.pow(spaceflightGiantPresence, 0.72) * 0.034
+  const target = spaceflightGiantPresence > 0
+    ? 0.05 + Math.pow(spaceflightGiantPresence, 0.72) * 0.035
     : 0.0001;
   graph.giantGain.gain.cancelScheduledValues(now);
-  graph.giantGain.gain.setTargetAtTime(target, now, spaceflightGiantPresence > 0.002 ? 0.62 : 1.15);
+  graph.giantGain.gain.setTargetAtTime(target, now, spaceflightGiantPresence > 0 ? 0.45 : 0.9);
 }
 
 function createBrownNoise(context: AudioContext, seconds = 5) {
@@ -241,24 +241,40 @@ function buildSpace(context: AudioContext, master: GainNode, sources: AudioSched
 
   const giantGain = context.createGain();
   const giantFilter = context.createBiquadFilter();
+  const giantRumble = createNoiseSource(context, 23);
+  const giantRumbleHighpass = context.createBiquadFilter();
+  const giantRumbleLowpass = context.createBiquadFilter();
+  const giantRumbleMix = context.createGain();
   giantGain.gain.value = 0.0001;
   giantFilter.type = 'lowpass';
-  giantFilter.frequency.value = 185;
+  giantFilter.frequency.value = 340;
   giantFilter.Q.value = 0.38;
   giantGain.connect(giantFilter);
   giantFilter.connect(master);
-  [36.71, 55, 82.41, 83.25, 123.47].forEach((frequency, index) => {
+  [55, 82.41, 83.25, 110, 164.81, 220].forEach((frequency, index) => {
     const oscillator = context.createOscillator();
     const mix = context.createGain();
-    oscillator.type = 'sine';
+    oscillator.type = index === 3 ? 'triangle' : 'sine';
     oscillator.frequency.value = frequency;
-    oscillator.detune.value = [-4, 3, -7, 0, 5][index];
-    mix.gain.value = [0.46, 0.25, 0.14, 0.105, 0.055][index];
+    oscillator.detune.value = [-4, 3, -7, 0, 5, -3][index];
+    mix.gain.value = [0.29, 0.18, 0.14, 0.13, 0.065, 0.028][index];
     oscillator.connect(mix);
     mix.connect(giantGain);
     oscillator.start();
     sources.push(oscillator);
   });
+  giantRumbleHighpass.type = 'highpass';
+  giantRumbleHighpass.frequency.value = 46;
+  giantRumbleLowpass.type = 'lowpass';
+  giantRumbleLowpass.frequency.value = 260;
+  giantRumbleLowpass.Q.value = 0.3;
+  giantRumbleMix.gain.value = 0.105;
+  giantRumble.connect(giantRumbleHighpass);
+  giantRumbleHighpass.connect(giantRumbleLowpass);
+  giantRumbleLowpass.connect(giantRumbleMix);
+  giantRumbleMix.connect(giantGain);
+  giantRumble.start();
+  sources.push(giantRumble);
   graph!.giantGain = giantGain;
   setSpaceflightGiantPresence(spaceflightGiantPresence);
 

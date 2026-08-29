@@ -13,7 +13,6 @@ export function CosmicHearthScene() {
     <div className="hearth-scene pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
       <div className="hearth-landscape" />
       <span className="hearth-passing-planet hearth-passing-planet-a" />
-      <span className="hearth-passing-planet hearth-passing-planet-b" />
       <div className="hearth-fire-glow" />
       <div className="hearth-fire">
         <span className="hearth-log hearth-log-a" />

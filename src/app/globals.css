@@ -3428,34 +3428,24 @@ iframe {
   position: absolute;
   z-index: 1;
   display: block;
-  border-radius: 50%;
-  opacity: .58;
+  left: 0;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  opacity: .52;
+  will-change: transform;
 }
 .hearth-passing-planet-a {
   top: 12%;
-  left: 13%;
-  width: clamp(38px, 5.7vmax, 92px);
-  aspect-ratio: 1;
-  background: radial-gradient(circle at 28% 28%, rgb(236 197 139 / 22%), transparent 9%), radial-gradient(circle at 33% 30%, #c27a4d, #633737 43%, #1a1721 73%, #040509);
-  box-shadow: inset -1.7vmax -1.3vmax 2.7vmax rgb(0 0 0 / 88%), 0 0 1.4vmax rgb(204 121 67 / 10%);
-  animation: hearth-planet-a 54s ease-in-out infinite alternate;
-}
-.hearth-passing-planet-b {
-  top: 37%;
-  right: 15%;
-  width: clamp(22px, 3.2vmax, 50px);
-  aspect-ratio: 1;
-  background: radial-gradient(circle at 30% 27%, #89d2c3, #246b72 39%, #102f48 67%, #03060b);
-  box-shadow: inset -1vmax -.8vmax 1.7vmax rgb(0 0 0 / 86%), 0 0 1vmax rgb(92 193 186 / 10%);
-  animation: hearth-planet-b 38s ease-in-out infinite alternate;
+  width: clamp(60px, 8vmax, 128px);
+  aspect-ratio: 1.16;
+  background-image: url('/themes/cosmic-campfire/timber-hearth-v1.webp');
+  filter: blur(.7px) brightness(.62) saturate(.78) drop-shadow(-4px -4px 10px rgb(106 201 166 / 11%));
+  animation: hearth-planet-a 168s linear -72s infinite;
 }
 @keyframes hearth-planet-a {
-  from { transform: translate3d(-9vw, 2vh, 0) scale(.88); }
-  to { transform: translate3d(14vw, -3vh, 0) scale(1.08); }
-}
-@keyframes hearth-planet-b {
-  from { transform: translate3d(7vw, -2vh, 0) scale(.9); }
-  to { transform: translate3d(-11vw, 4vh, 0) scale(1.12); }
+  0%, 16% { transform: translate3d(-24vw, 0, 0); }
+  76%, 100% { transform: translate3d(112vw, 0, 0); }
 }
 .hearth-fire-glow {
   position: absolute;
@@ -3478,7 +3468,7 @@ iframe {
 .hearth-fire {
   position: absolute;
   right: 50%;
-  bottom: max(6.2vh, 52px);
+  bottom: max(6.2vh, 62px);
   z-index: 3;
   width: 112px;
   height: 126px;
@@ -3631,182 +3621,139 @@ iframe {
   transform-origin: center;
   will-change: transform;
 }
-.spaceflight-planet-far {
+.spaceflight-dark-bramble {
   top: 19%;
   left: 0;
   z-index: 1;
-  width: clamp(28px, 4vmax, 64px);
+  width: clamp(34px, 4.8vmax, 74px);
   aspect-ratio: 1;
-  border-radius: 50%;
-  background: url('/themes/cosmic-campfire/spaceflight-rocky-v1.webp') center / contain no-repeat;
+  background: url('/themes/cosmic-campfire/dark-bramble-v1.webp') center / contain no-repeat;
   opacity: 1;
-  filter: blur(1.62px) grayscale(.18) sepia(.12) brightness(.44) saturate(.5) contrast(.8) drop-shadow(-2px -2px 5px rgb(225 178 108 / 8%));
-  -webkit-mask-image: radial-gradient(circle, #000 0 69%, rgb(0 0 0 / 66%) 82%, transparent 100%);
-  mask-image: radial-gradient(circle, #000 0 69%, rgb(0 0 0 / 66%) 82%, transparent 100%);
-  animation: spaceflight-far-planet-pass 220s linear -116s infinite;
+  filter: blur(1.7px) brightness(.34) saturate(.52) contrast(.82) drop-shadow(-2px -2px 6px rgb(126 196 211 / 7%));
+  animation: spaceflight-dark-bramble-pass 220s linear -116s infinite;
 }
-.spaceflight-planet-far::after {
+.spaceflight-dark-bramble::after {
   position: absolute;
   inset: 0;
-  border-radius: 50%;
-  background: radial-gradient(circle at 24% 19%, transparent 0 7%, rgb(1 2 5 / 28%) 22%, rgb(1 2 5 / 88%) 55%, #010205 78%);
+  background: radial-gradient(circle at 26% 21%, transparent 0 8%, rgb(1 2 5 / 18%) 24%, rgb(1 2 5 / 78%) 59%, #010205 84%);
   content: '';
+  -webkit-mask: url('/themes/cosmic-campfire/dark-bramble-v1.webp') center / contain no-repeat;
+  mask: url('/themes/cosmic-campfire/dark-bramble-v1.webp') center / contain no-repeat;
 }
-@keyframes spaceflight-far-planet-pass {
+@keyframes spaceflight-dark-bramble-pass {
   0%, 18% { transform: translate3d(125vw, 0, 0); }
-  36% { transform: translate3d(77vw, 0, 0); }
-  55% { transform: translate3d(25vw, 0, 0); }
   74%, 100% { transform: translate3d(-32vw, 0, 0); }
 }
-.spaceflight-planet-giant {
+.spaceflight-giants-deep {
   --spaceflight-giant-exit: calc(-45vw - 110%);
-  top: -15vmax;
+  top: -7vmax;
   left: 0;
   z-index: 3;
   width: min(66vmax, 920px);
   aspect-ratio: 1;
-  background: url('/themes/cosmic-campfire/spaceflight-giant-v3.webp') center / contain no-repeat;
+  background: url('/themes/cosmic-campfire/giants-deep-v1.webp') center / contain no-repeat;
   opacity: 1;
   filter: blur(1.08px) brightness(.82) saturate(1.18) contrast(.98) drop-shadow(-1.1vmax -.8vmax 2.2vmax rgb(79 205 198 / 13%));
-  -webkit-mask-image: radial-gradient(circle, #000 0 66%, rgb(0 0 0 / 76%) 78%, rgb(0 0 0 / 24%) 91%, transparent 99%);
-  mask-image: radial-gradient(circle, #000 0 66%, rgb(0 0 0 / 76%) 78%, rgb(0 0 0 / 24%) 91%, transparent 99%);
   animation: spaceflight-giant-pass 220s linear -74s infinite;
 }
-.spaceflight-planet-giant::before {
+.spaceflight-giants-deep::before {
   position: absolute;
-  inset: 2.5%;
-  border-radius: 50%;
-  background: radial-gradient(ellipse at 20% 15%, transparent 0 7%, rgb(1 2 5 / 15%) 18%, rgb(1 2 5 / 76%) 43%, rgb(1 2 5 / 96%) 62%, #010205 76%);
+  inset: 0;
+  background: radial-gradient(ellipse at 19% 14%, transparent 0 9%, rgb(1 2 5 / 12%) 21%, rgb(1 2 5 / 72%) 47%, rgb(1 2 5 / 96%) 66%, #010205 80%);
   content: '';
+  -webkit-mask: url('/themes/cosmic-campfire/giants-deep-v1.webp') center / contain no-repeat;
+  mask: url('/themes/cosmic-campfire/giants-deep-v1.webp') center / contain no-repeat;
 }
-.spaceflight-planet-giant::after {
+.spaceflight-giants-deep::after {
   position: absolute;
-  inset: 2.5%;
-  border-radius: 50%;
+  inset: 0;
   background:
     radial-gradient(ellipse at 82% 28%, rgb(1 2 5 / 88%) 0 15%, transparent 42%),
     radial-gradient(ellipse at 43% 91%, rgb(1 2 5 / 92%) 0 18%, transparent 45%),
     radial-gradient(ellipse at 27% 20%, rgb(188 229 215 / 11%) 0 4%, transparent 23%);
   content: '';
   filter: blur(2.6vmax);
+  -webkit-mask: url('/themes/cosmic-campfire/giants-deep-v1.webp') center / contain no-repeat;
+  mask: url('/themes/cosmic-campfire/giants-deep-v1.webp') center / contain no-repeat;
 }
 @keyframes spaceflight-giant-pass {
   0%, 18% { transform: translate3d(130vw, 0, 0); }
-  34% { transform: translate3d(79vw, 0, 0); }
-  51% { transform: translate3d(24vw, 0, 0); }
   73%, 100% { transform: translate3d(var(--spaceflight-giant-exit), 0, 0); }
 }
-.spaceflight-planet-ringed {
-  --spaceflight-ringed-exit: calc(-52vw - 125%);
+.spaceflight-brittle-hollow {
+  --spaceflight-brittle-exit: calc(-52vw - 125%);
   top: 58%;
   left: 0;
   z-index: 2;
-  width: clamp(88px, 16vmax, 230px);
+  width: clamp(104px, 18vmax, 260px);
   aspect-ratio: 1;
+  background: url('/themes/cosmic-campfire/brittle-hollow-v1.webp') center / contain no-repeat;
   opacity: 1;
-  filter: blur(1.18px) brightness(.7) saturate(1.04) contrast(.9);
-  animation: spaceflight-ringed-pass 178s linear -104s infinite;
+  filter: blur(1.16px) brightness(.58) saturate(.9) contrast(.92) drop-shadow(-.55vmax -.4vmax 1vmax rgb(139 112 219 / 11%));
+  animation: spaceflight-brittle-pass 178s linear -104s infinite;
 }
-.spaceflight-ring-back,
-.spaceflight-ring-front {
-  position: absolute;
-  inset: 35% -46%;
-  border: clamp(4px, .8vmax, 11px) solid rgb(201 157 113 / 31%);
-  border-right-color: rgb(66 43 39 / 20%);
-  border-left-color: rgb(228 180 124 / 42%);
-  border-radius: 50%;
-  filter: blur(.7px);
-  transform: rotate(-17deg) skewX(-14deg);
-}
-.spaceflight-ring-back { z-index: 0; }
-.spaceflight-ring-body {
+.spaceflight-brittle-hollow::after {
   position: absolute;
   inset: 0;
-  z-index: 1;
-  background: url('/themes/cosmic-campfire/spaceflight-ringed-body-v3.webp') center / contain no-repeat;
-  filter: drop-shadow(-.45vmax -.35vmax .85vmax rgb(238 139 59 / 16%));
-  -webkit-mask-image: radial-gradient(circle, #000 0 72%, rgb(0 0 0 / 70%) 84%, transparent 99%);
-  mask-image: radial-gradient(circle, #000 0 72%, rgb(0 0 0 / 70%) 84%, transparent 99%);
-}
-.spaceflight-ring-body::after {
-  position: absolute;
-  inset: 2.8%;
-  border-radius: 50%;
   background:
-    radial-gradient(ellipse at 18% 13%, transparent 0 12%, rgb(1 2 5 / 12%) 24%, rgb(1 2 5 / 79%) 43%, rgb(1 2 5 / 98%) 58%, #010205 69%),
-    radial-gradient(ellipse at 78% 34%, #010205 0 28%, rgb(1 2 5 / 91%) 39%, transparent 57%);
+    radial-gradient(ellipse at 22% 16%, transparent 0 11%, rgb(1 2 5 / 16%) 26%, rgb(1 2 5 / 76%) 49%, rgb(1 2 5 / 97%) 68%, #010205 82%),
+    radial-gradient(circle at 55% 58%, transparent 0 9%, rgb(37 19 66 / 22%) 15%, transparent 26%);
   content: '';
-  filter: blur(1.2px);
+  filter: blur(.9px);
+  -webkit-mask: url('/themes/cosmic-campfire/brittle-hollow-v1.webp') center / contain no-repeat;
+  mask: url('/themes/cosmic-campfire/brittle-hollow-v1.webp') center / contain no-repeat;
 }
-.spaceflight-ring-front {
-  z-index: 2;
-  clip-path: inset(50% -10% -25% -10%);
-  border-color: rgb(220 170 115 / 38%);
-  border-right-color: rgb(86 53 45 / 30%);
-}
-@keyframes spaceflight-ringed-pass {
+@keyframes spaceflight-brittle-pass {
   0%, 19% { transform: translate3d(124vw, 0, 0); }
-  38% { transform: translate3d(76vw, 0, 0); }
-  56% { transform: translate3d(27vw, 0, 0); }
-  74%, 100% { transform: translate3d(var(--spaceflight-ringed-exit), 0, 0); }
+  74%, 100% { transform: translate3d(var(--spaceflight-brittle-exit), 0, 0); }
 }
-.spaceflight-planet-cinder {
+.spaceflight-hourglass-twins {
   top: 72%;
   left: 0;
   z-index: 4;
-  width: clamp(54px, 9vmax, 140px);
+  width: clamp(68px, 11vmax, 170px);
   aspect-ratio: 1;
-  border-radius: 50%;
-  background: url('/themes/cosmic-campfire/spaceflight-rocky-v1.webp') center / contain no-repeat;
+  background: url('/themes/cosmic-campfire/hourglass-twins-v1.webp') center / contain no-repeat;
   opacity: 1;
-  filter: blur(.64px) brightness(.86) saturate(1.42) contrast(1.04) drop-shadow(-.45vmax -.35vmax 1vmax rgb(255 124 50 / 17%));
-  -webkit-mask-image: radial-gradient(circle, #000 0 76%, rgb(0 0 0 / 72%) 88%, transparent 100%);
-  mask-image: radial-gradient(circle, #000 0 76%, rgb(0 0 0 / 72%) 88%, transparent 100%);
-  animation: spaceflight-cinder-pass 118s linear -72s infinite;
+  filter: blur(.7px) brightness(.78) saturate(1.2) contrast(1.02) drop-shadow(-.45vmax -.35vmax 1vmax rgb(255 151 62 / 14%));
+  animation: spaceflight-twins-pass 118s linear -72s infinite;
 }
-.spaceflight-planet-cinder::after {
+.spaceflight-hourglass-twins::after {
   position: absolute;
   inset: 0;
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at 25% 20%, transparent 0 8%, rgb(1 2 5 / 18%) 23%, rgb(1 2 5 / 78%) 55%, rgb(1 2 5 / 97%) 76%, #010205 91%),
-    radial-gradient(circle at 72% 34%, rgb(1 2 5 / 48%), transparent 43%);
+  background: linear-gradient(135deg, transparent 0 27%, rgb(1 2 5 / 12%) 45%, rgb(1 2 5 / 74%) 72%, #010205 100%);
   content: '';
-  filter: blur(.8px);
+  filter: blur(.65px);
+  -webkit-mask: url('/themes/cosmic-campfire/hourglass-twins-v1.webp') center / contain no-repeat;
+  mask: url('/themes/cosmic-campfire/hourglass-twins-v1.webp') center / contain no-repeat;
 }
-@keyframes spaceflight-cinder-pass {
+@keyframes spaceflight-twins-pass {
   0%, 17% { transform: translate3d(122vw, 0, 0); }
-  35% { transform: translate3d(77vw, 0, 0); }
-  54% { transform: translate3d(29vw, 0, 0); }
   73%, 100% { transform: translate3d(-38vw, 0, 0); }
 }
-.spaceflight-moon {
+.spaceflight-quantum-moon {
   position: absolute;
   top: 42%;
   left: 0;
   z-index: 5;
-  width: clamp(18px, 2.4vmax, 38px);
+  width: clamp(20px, 3vmax, 46px);
   aspect-ratio: 1;
-  border-radius: 50%;
-  background: url('/themes/cosmic-campfire/spaceflight-rocky-v1.webp') center / contain no-repeat;
+  background: url('/themes/cosmic-campfire/quantum-moon-v1.webp') center / contain no-repeat;
   opacity: 1;
-  filter: blur(.42px) grayscale(.62) sepia(.16) brightness(.82) saturate(.58) contrast(.94) drop-shadow(-3px -3px 7px rgb(255 221 158 / 16%));
-  -webkit-mask-image: radial-gradient(circle, #000 0 78%, rgb(0 0 0 / 76%) 90%, transparent 100%);
-  mask-image: radial-gradient(circle, #000 0 78%, rgb(0 0 0 / 76%) 90%, transparent 100%);
-  animation: spaceflight-moon-pass 86s linear -25s infinite;
+  filter: blur(.52px) brightness(.6) saturate(.62) contrast(.9) drop-shadow(-3px -3px 7px rgb(136 210 213 / 11%));
+  animation: spaceflight-quantum-pass 86s linear -25s infinite;
 }
-.spaceflight-moon::after {
+.spaceflight-quantum-moon::after {
   position: absolute;
   inset: 0;
-  border-radius: 50%;
   background: radial-gradient(circle at 26% 21%, transparent 0 8%, rgb(1 2 5 / 22%) 24%, rgb(1 2 5 / 82%) 58%, #010205 82%);
   content: '';
   filter: blur(.45px);
+  -webkit-mask: url('/themes/cosmic-campfire/quantum-moon-v1.webp') center / contain no-repeat;
+  mask: url('/themes/cosmic-campfire/quantum-moon-v1.webp') center / contain no-repeat;
 }
-@keyframes spaceflight-moon-pass {
+@keyframes spaceflight-quantum-pass {
   0%, 16% { transform: translate3d(116vw, 0, 0); }
-  34% { transform: translate3d(76vw, 0, 0); }
-  53% { transform: translate3d(32vw, 0, 0); }
   72%, 100% { transform: translate3d(-24vw, 0, 0); }
 }
 .spaceflight-streak {
@@ -3843,13 +3790,12 @@ iframe {
   .hearth-landscape { background-image: url('/themes/cosmic-campfire/hearth-mobile-v1.webp'); background-position: center calc(100% - 58px); opacity: .74; }
   .hearth-fire { bottom: calc(7.4rem + env(safe-area-inset-bottom)); transform: translateX(50%) scale(.82); }
   .hearth-fire-glow { bottom: calc(3.4rem + env(safe-area-inset-bottom)); width: 112vw; height: 37vh; }
-  .hearth-passing-planet-a { top: 16%; left: 2%; width: 14vw; }
-  .hearth-passing-planet-b { top: 42%; right: 4%; width: 8vw; }
-  .spaceflight-planet-far { top: 13%; animation-delay: -22s; }
-  .spaceflight-planet-giant { top: -12vmax; left: 0; width: 94vmax; animation-delay: -77s; }
-  .spaceflight-planet-ringed { top: 77%; left: 0; width: 26vmax; animation-delay: -142s; }
-  .spaceflight-planet-cinder { top: 58%; animation-delay: -59s; }
-  .spaceflight-moon { top: 35%; left: 0; animation-delay: -82s; }
+  .hearth-passing-planet-a { top: 16%; width: 22vw; }
+  .spaceflight-dark-bramble { top: 13%; animation-delay: -22s; }
+  .spaceflight-giants-deep { top: -6vmax; left: 0; width: 94vmax; animation-delay: -77s; }
+  .spaceflight-brittle-hollow { top: 76%; left: 0; width: 29vmax; animation-delay: -142s; }
+  .spaceflight-hourglass-twins { top: 57%; animation-delay: -59s; }
+  .spaceflight-quantum-moon { top: 34%; left: 0; animation-delay: -82s; }
 }
 
 @media (max-width: 959px) {
@@ -3875,7 +3821,7 @@ iframe {
   :root[data-theme='cosmic-campfire'] .hearth-ember,
   :root[data-theme='cosmic-campfire'] .spaceflight-stars,
   :root[data-theme='cosmic-campfire'] .spaceflight-planet,
-  :root[data-theme='cosmic-campfire'] .spaceflight-moon,
+  :root[data-theme='cosmic-campfire'] .spaceflight-quantum-moon,
   :root[data-theme='cosmic-campfire'] .spaceflight-streak { animation: none !important; }
 }
 :root[data-theme='cosmic-campfire'][data-reduce-motion='true'] .cosmic-orbit-glyph,
@@ -3888,7 +3834,7 @@ iframe {
 :root[data-theme='cosmic-campfire'][data-reduce-motion='true'] .hearth-ember,
 :root[data-theme='cosmic-campfire'][data-reduce-motion='true'] .spaceflight-stars,
 :root[data-theme='cosmic-campfire'][data-reduce-motion='true'] .spaceflight-planet,
-:root[data-theme='cosmic-campfire'][data-reduce-motion='true'] .spaceflight-moon,
+:root[data-theme='cosmic-campfire'][data-reduce-motion='true'] .spaceflight-quantum-moon,
 :root[data-theme='cosmic-campfire'][data-reduce-motion='true'] .spaceflight-streak { animation: none !important; }
 
 @media (prefers-reduced-motion: reduce) {
