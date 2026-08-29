@@ -13,7 +13,7 @@ export function CosmicSpaceflight() {
         const visibleWidth = Math.max(0, Math.min(rect.right, window.innerWidth) - Math.max(rect.left, 0));
         const visibleHeight = Math.max(0, Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0));
         const coverage = (visibleWidth * visibleHeight) / (window.innerWidth * window.innerHeight);
-        setSpaceflightGiantPresence(Math.min(1, Math.max(0, (coverage - 0.04) / 0.54)));
+        setSpaceflightGiantPresence(Math.min(1, Math.max(0, (coverage - 0.005) / 0.48)));
       }
     };
     sample();

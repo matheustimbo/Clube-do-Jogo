@@ -16,6 +16,8 @@ import {
 import { demoGames } from '@/lib/demo-data';
 import { cn } from '@/lib/utils';
 
+const AUTO_OPEN_PRODUCT_UPDATE = process.env.NEXT_PUBLIC_AUTO_OPEN_PRODUCT_UPDATE !== 'false';
+
 export function openCurrentProductUpdate() {
   window.dispatchEvent(new CustomEvent(PRODUCT_UPDATE_EVENT, { detail: currentProductUpdate.id }));
 }
@@ -44,7 +46,7 @@ export function ProductUpdateDialog({ update = currentProductUpdate }: { update?
         setStepIndex(initialStep);
         setOpen(true);
       });
-    } else if (window.localStorage.getItem(storageKey) !== 'true') {
+    } else if (AUTO_OPEN_PRODUCT_UPDATE && window.localStorage.getItem(storageKey) !== 'true') {
       queueMicrotask(showUpdate);
     }
     const handleOpen = (event: Event) => {

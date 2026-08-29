@@ -3638,13 +3638,9 @@ iframe {
   width: clamp(28px, 4vmax, 64px);
   aspect-ratio: 1;
   border-radius: 50%;
-  background:
-    radial-gradient(circle at 61% 39%, transparent 0 5%, rgb(34 18 20 / 48%) 6% 8%, transparent 9%),
-    radial-gradient(circle at 43% 66%, transparent 0 7%, rgb(43 27 25 / 38%) 8% 10%, transparent 11%),
-    radial-gradient(circle at 28% 23%, rgb(255 226 158 / 58%), transparent 13%),
-    radial-gradient(circle at 30% 27%, #d4a56a, #79503c 43%, #21171b 72%, #010205);
+  background: url('/themes/cosmic-campfire/spaceflight-rocky-v1.webp') center / contain no-repeat;
   opacity: 1;
-  filter: blur(1.48px) brightness(.54) saturate(.58) contrast(.76) drop-shadow(-2px -2px 5px rgb(225 178 108 / 8%));
+  filter: blur(1.62px) grayscale(.18) sepia(.12) brightness(.44) saturate(.5) contrast(.8) drop-shadow(-2px -2px 5px rgb(225 178 108 / 8%));
   -webkit-mask-image: radial-gradient(circle, #000 0 69%, rgb(0 0 0 / 66%) 82%, transparent 100%);
   mask-image: radial-gradient(circle, #000 0 69%, rgb(0 0 0 / 66%) 82%, transparent 100%);
   animation: spaceflight-far-planet-pass 220s linear -116s infinite;
@@ -3657,10 +3653,10 @@ iframe {
   content: '';
 }
 @keyframes spaceflight-far-planet-pass {
-  0%, 18% { transform: translate3d(125vw, 7vh, 0) scale(.86); }
-  36% { transform: translate3d(77vw, 1vh, 0) scale(.9); }
-  55% { transform: translate3d(25vw, -2vh, 0) scale(.95); }
-  74%, 100% { transform: translate3d(-28vw, 5vh, 0) scale(1); }
+  0%, 18% { transform: translate3d(125vw, 0, 0); }
+  36% { transform: translate3d(77vw, 0, 0); }
+  55% { transform: translate3d(25vw, 0, 0); }
+  74%, 100% { transform: translate3d(-32vw, 0, 0); }
 }
 .spaceflight-planet-giant {
   --spaceflight-giant-exit: calc(-45vw - 110%);
@@ -3669,7 +3665,7 @@ iframe {
   z-index: 3;
   width: min(66vmax, 920px);
   aspect-ratio: 1;
-  background: url('/themes/cosmic-campfire/spaceflight-giant-v2.webp') center / contain no-repeat;
+  background: url('/themes/cosmic-campfire/spaceflight-giant-v3.webp') center / contain no-repeat;
   opacity: 1;
   filter: blur(1.08px) brightness(.82) saturate(1.18) contrast(.98) drop-shadow(-1.1vmax -.8vmax 2.2vmax rgb(79 205 198 / 13%));
   -webkit-mask-image: radial-gradient(circle, #000 0 66%, rgb(0 0 0 / 76%) 78%, rgb(0 0 0 / 24%) 91%, transparent 99%);
@@ -3695,13 +3691,13 @@ iframe {
   filter: blur(2.6vmax);
 }
 @keyframes spaceflight-giant-pass {
-  0%, 18% { transform: translate3d(130vw, 10vh, 0) scale(.91); }
-  34% { transform: translate3d(79vw, 1vh, 0) scale(.95); }
-  51% { transform: translate3d(24vw, -5vh, 0) scale(.99); }
-  73%, 100% { transform: translate3d(var(--spaceflight-giant-exit), 12vh, 0) scale(1.06); }
+  0%, 18% { transform: translate3d(130vw, 0, 0); }
+  34% { transform: translate3d(79vw, 0, 0); }
+  51% { transform: translate3d(24vw, 0, 0); }
+  73%, 100% { transform: translate3d(var(--spaceflight-giant-exit), 0, 0); }
 }
 .spaceflight-planet-ringed {
-  --spaceflight-ringed-exit: calc(-20vw - 115%);
+  --spaceflight-ringed-exit: calc(-52vw - 125%);
   top: 58%;
   left: 0;
   z-index: 2;
@@ -3727,7 +3723,7 @@ iframe {
   position: absolute;
   inset: 0;
   z-index: 1;
-  background: url('/themes/cosmic-campfire/spaceflight-ringed-body-v2.webp') center / contain no-repeat;
+  background: url('/themes/cosmic-campfire/spaceflight-ringed-body-v3.webp') center / contain no-repeat;
   filter: drop-shadow(-.45vmax -.35vmax .85vmax rgb(238 139 59 / 16%));
   -webkit-mask-image: radial-gradient(circle, #000 0 72%, rgb(0 0 0 / 70%) 84%, transparent 99%);
   mask-image: radial-gradient(circle, #000 0 72%, rgb(0 0 0 / 70%) 84%, transparent 99%);
@@ -3737,8 +3733,8 @@ iframe {
   inset: 2.8%;
   border-radius: 50%;
   background:
-    radial-gradient(ellipse at 20% 14%, transparent 0 7%, rgb(1 2 5 / 19%) 16%, rgb(1 2 5 / 84%) 38%, rgb(1 2 5 / 98%) 55%, #010205 68%),
-    radial-gradient(ellipse at 76% 32%, #010205 0 24%, rgb(1 2 5 / 88%) 36%, transparent 55%);
+    radial-gradient(ellipse at 18% 13%, transparent 0 12%, rgb(1 2 5 / 12%) 24%, rgb(1 2 5 / 79%) 43%, rgb(1 2 5 / 98%) 58%, #010205 69%),
+    radial-gradient(ellipse at 78% 34%, #010205 0 28%, rgb(1 2 5 / 91%) 39%, transparent 57%);
   content: '';
   filter: blur(1.2px);
 }
@@ -3749,10 +3745,10 @@ iframe {
   border-right-color: rgb(86 53 45 / 30%);
 }
 @keyframes spaceflight-ringed-pass {
-  0%, 19% { transform: translate3d(124vw, 8vh, 0) scale(.87); }
-  38% { transform: translate3d(76vw, 1vh, 0) scale(.92); }
-  56% { transform: translate3d(27vw, -3vh, 0) scale(.98); }
-  74%, 100% { transform: translate3d(var(--spaceflight-ringed-exit), 4vh, 0) scale(1.04); }
+  0%, 19% { transform: translate3d(124vw, 0, 0); }
+  38% { transform: translate3d(76vw, 0, 0); }
+  56% { transform: translate3d(27vw, 0, 0); }
+  74%, 100% { transform: translate3d(var(--spaceflight-ringed-exit), 0, 0); }
 }
 .spaceflight-planet-cinder {
   top: 72%;
@@ -3761,14 +3757,9 @@ iframe {
   width: clamp(54px, 9vmax, 140px);
   aspect-ratio: 1;
   border-radius: 50%;
-  background:
-    radial-gradient(circle at 67% 38%, transparent 0 7%, rgb(66 20 18 / 54%) 8% 10%, transparent 12%),
-    radial-gradient(circle at 48% 62%, transparent 0 5%, rgb(71 22 22 / 62%) 6% 9%, transparent 10%),
-    radial-gradient(ellipse at 22% 54%, rgb(255 166 74 / 12%) 0 8%, transparent 17%),
-    radial-gradient(ellipse at 72% 72%, rgb(38 11 20 / 56%) 0 9%, transparent 18%),
-    radial-gradient(circle at 29% 25%, #ffab55, #b44828 37%, #431923 65%, #010205 100%);
+  background: url('/themes/cosmic-campfire/spaceflight-rocky-v1.webp') center / contain no-repeat;
   opacity: 1;
-  filter: blur(.62px) brightness(.88) saturate(1.22) contrast(1.02) drop-shadow(-.45vmax -.35vmax 1vmax rgb(255 124 50 / 17%));
+  filter: blur(.64px) brightness(.86) saturate(1.42) contrast(1.04) drop-shadow(-.45vmax -.35vmax 1vmax rgb(255 124 50 / 17%));
   -webkit-mask-image: radial-gradient(circle, #000 0 76%, rgb(0 0 0 / 72%) 88%, transparent 100%);
   mask-image: radial-gradient(circle, #000 0 76%, rgb(0 0 0 / 72%) 88%, transparent 100%);
   animation: spaceflight-cinder-pass 118s linear -72s infinite;
@@ -3784,10 +3775,10 @@ iframe {
   filter: blur(.8px);
 }
 @keyframes spaceflight-cinder-pass {
-  0%, 17% { transform: translate3d(122vw, 10vh, 0) scale(.78); }
-  35% { transform: translate3d(77vw, 2vh, 0) scale(.87); }
-  54% { transform: translate3d(29vw, -4vh, 0) scale(1); }
-  73%, 100% { transform: translate3d(-30vw, 5vh, 0) scale(1.16); }
+  0%, 17% { transform: translate3d(122vw, 0, 0); }
+  35% { transform: translate3d(77vw, 0, 0); }
+  54% { transform: translate3d(29vw, 0, 0); }
+  73%, 100% { transform: translate3d(-38vw, 0, 0); }
 }
 .spaceflight-moon {
   position: absolute;
@@ -3797,13 +3788,9 @@ iframe {
   width: clamp(18px, 2.4vmax, 38px);
   aspect-ratio: 1;
   border-radius: 50%;
-  background:
-    radial-gradient(circle at 63% 37%, transparent 0 7%, rgb(52 36 31 / 58%) 8% 11%, transparent 12%),
-    radial-gradient(circle at 43% 67%, transparent 0 9%, rgb(48 34 31 / 46%) 10% 13%, transparent 14%),
-    radial-gradient(circle at 22% 48%, rgb(255 235 183 / 12%) 0 7%, transparent 15%),
-    radial-gradient(circle at 30% 25%, #ffe4a6, #9c7545 42%, #291b1d 72%, #010205 100%);
+  background: url('/themes/cosmic-campfire/spaceflight-rocky-v1.webp') center / contain no-repeat;
   opacity: 1;
-  filter: blur(.38px) brightness(.86) saturate(1.02) contrast(.96) drop-shadow(-3px -3px 7px rgb(255 221 158 / 16%));
+  filter: blur(.42px) grayscale(.62) sepia(.16) brightness(.82) saturate(.58) contrast(.94) drop-shadow(-3px -3px 7px rgb(255 221 158 / 16%));
   -webkit-mask-image: radial-gradient(circle, #000 0 78%, rgb(0 0 0 / 76%) 90%, transparent 100%);
   mask-image: radial-gradient(circle, #000 0 78%, rgb(0 0 0 / 76%) 90%, transparent 100%);
   animation: spaceflight-moon-pass 86s linear -25s infinite;
@@ -3817,10 +3804,10 @@ iframe {
   filter: blur(.45px);
 }
 @keyframes spaceflight-moon-pass {
-  0%, 16% { transform: translate3d(116vw, 7vh, 0) scale(.72); }
-  34% { transform: translate3d(76vw, -1vh, 0) scale(.84); }
-  53% { transform: translate3d(32vw, -5vh, 0) scale(1.02); }
-  72%, 100% { transform: translate3d(-15vw, 5vh, 0) scale(1.22); }
+  0%, 16% { transform: translate3d(116vw, 0, 0); }
+  34% { transform: translate3d(76vw, 0, 0); }
+  53% { transform: translate3d(32vw, 0, 0); }
+  72%, 100% { transform: translate3d(-24vw, 0, 0); }
 }
 .spaceflight-streak {
   position: absolute;

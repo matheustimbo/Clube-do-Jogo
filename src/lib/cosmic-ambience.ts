@@ -71,9 +71,11 @@ export function setSpaceflightGiantPresence(presence: number) {
   spaceflightGiantPresence = Math.min(1, Math.max(0, presence));
   if (!graph?.giantGain || graph.mode !== 'spaceflight') return;
   const now = graph.context.currentTime;
-  const target = 0.0001 + Math.pow(spaceflightGiantPresence, 0.82) * 0.026;
+  const target = spaceflightGiantPresence > 0.002
+    ? 0.011 + Math.pow(spaceflightGiantPresence, 0.72) * 0.034
+    : 0.0001;
   graph.giantGain.gain.cancelScheduledValues(now);
-  graph.giantGain.gain.setTargetAtTime(target, now, 0.9);
+  graph.giantGain.gain.setTargetAtTime(target, now, spaceflightGiantPresence > 0.002 ? 0.62 : 1.15);
 }
 
 function createBrownNoise(context: AudioContext, seconds = 5) {
@@ -238,15 +240,20 @@ function buildSpace(context: AudioContext, master: GainNode, sources: AudioSched
   sources.push(wash);
 
   const giantGain = context.createGain();
+  const giantFilter = context.createBiquadFilter();
   giantGain.gain.value = 0.0001;
-  giantGain.connect(master);
-  [36.71, 55, 82.41, 123.47].forEach((frequency, index) => {
+  giantFilter.type = 'lowpass';
+  giantFilter.frequency.value = 185;
+  giantFilter.Q.value = 0.38;
+  giantGain.connect(giantFilter);
+  giantFilter.connect(master);
+  [36.71, 55, 82.41, 83.25, 123.47].forEach((frequency, index) => {
     const oscillator = context.createOscillator();
     const mix = context.createGain();
     oscillator.type = 'sine';
     oscillator.frequency.value = frequency;
-    oscillator.detune.value = [-4, 3, -7, 5][index];
-    mix.gain.value = [0.5, 0.27, 0.16, 0.07][index];
+    oscillator.detune.value = [-4, 3, -7, 0, 5][index];
+    mix.gain.value = [0.46, 0.25, 0.14, 0.105, 0.055][index];
     oscillator.connect(mix);
     mix.connect(giantGain);
     oscillator.start();
