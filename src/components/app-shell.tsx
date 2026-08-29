@@ -77,11 +77,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!backgroundOnly) return;
+    document.querySelector<HTMLButtonElement>("button[aria-label='Fechar novidades']")?.click();
+    document.documentElement.dataset.cosmicBackgroundOnly = 'true';
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setBackgroundOnly(false);
     };
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    return () => {
+      delete document.documentElement.dataset.cosmicBackgroundOnly;
+      window.removeEventListener('keydown', onKeyDown);
+    };
   }, [backgroundOnly]);
 
   useEffect(() => {

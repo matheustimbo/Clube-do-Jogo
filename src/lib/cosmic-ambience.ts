@@ -1,7 +1,9 @@
 import type { CosmicBackdropMode } from './cosmic-backdrop';
 
 export const COSMIC_AMBIENCE_STORAGE_KEY = 'clube-do-jogo:cosmic-ambience';
+export const COSMIC_AMBIENCE_VOLUME_STORAGE_KEY = 'clube-do-jogo:cosmic-ambience-volume';
 export const COSMIC_AMBIENCE_EVENT = 'clube-do-jogo:cosmic-ambience-change';
+export const COSMIC_AMBIENCE_VOLUME_EVENT = 'clube-do-jogo:cosmic-ambience-volume-change';
 
 type WebkitWindow = Window & typeof globalThis & {
   webkitAudioContext?: typeof AudioContext;
@@ -17,6 +19,12 @@ type AmbienceGraph = {
 
 let graph: AmbienceGraph | null = null;
 
+const DEFAULT_AMBIENCE_VOLUME = 0.8;
+const MODE_GAIN: Record<CosmicBackdropMode, number> = {
+  hearth: 1.12,
+  spaceflight: 0.88,
+};
+
 export function isCosmicAmbienceEnabled() {
   try {
     return window.localStorage.getItem(COSMIC_AMBIENCE_STORAGE_KEY) === 'true';
@@ -28,6 +36,32 @@ export function isCosmicAmbienceEnabled() {
 export function setCosmicAmbienceEnabled(enabled: boolean) {
   window.localStorage.setItem(COSMIC_AMBIENCE_STORAGE_KEY, String(enabled));
   window.dispatchEvent(new CustomEvent(COSMIC_AMBIENCE_EVENT, { detail: enabled }));
+}
+
+export function getCosmicAmbienceVolume() {
+  try {
+    const raw = window.localStorage.getItem(COSMIC_AMBIENCE_VOLUME_STORAGE_KEY);
+    if (raw === null) return DEFAULT_AMBIENCE_VOLUME;
+    const stored = Number(raw);
+    return Number.isFinite(stored) && stored >= 0 && stored <= 1 ? stored : DEFAULT_AMBIENCE_VOLUME;
+  } catch {
+    return DEFAULT_AMBIENCE_VOLUME;
+  }
+}
+
+export function setCosmicAmbienceVolume(volume: number) {
+  const next = Math.min(1, Math.max(0, volume));
+  window.localStorage.setItem(COSMIC_AMBIENCE_VOLUME_STORAGE_KEY, String(next));
+  if (graph) {
+    const now = graph.context.currentTime;
+    graph.master.gain.cancelScheduledValues(now);
+    graph.master.gain.setTargetAtTime(MODE_GAIN[graph.mode] * next, now, 0.045);
+  }
+  window.dispatchEvent(new CustomEvent(COSMIC_AMBIENCE_VOLUME_EVENT, { detail: next }));
+}
+
+function targetGain(mode: CosmicBackdropMode) {
+  return Math.max(0.0001, MODE_GAIN[mode] * getCosmicAmbienceVolume());
 }
 
 function createBrownNoise(context: AudioContext, seconds = 5) {
@@ -146,6 +180,7 @@ export function startCosmicAmbience(mode: CosmicBackdropMode) {
   if (!isCosmicAmbienceEnabled()) return;
   if (graph?.mode === mode) {
     if (graph.context.state === 'suspended') void graph.context.resume();
+    graph.master.gain.setTargetAtTime(targetGain(mode), graph.context.currentTime, 0.045);
     return;
   }
   stopCosmicAmbience();
@@ -156,7 +191,7 @@ export function startCosmicAmbience(mode: CosmicBackdropMode) {
   const master = context.createGain();
   const sources: AudioScheduledSourceNode[] = [];
   master.gain.setValueAtTime(0.0001, context.currentTime);
-  master.gain.exponentialRampToValueAtTime(mode === 'hearth' ? 0.52 : 0.38, context.currentTime + 0.8);
+  master.gain.exponentialRampToValueAtTime(targetGain(mode), context.currentTime + 0.8);
   master.connect(context.destination);
   graph = { context, master, sources, crackleTimer: null, mode };
   if (mode === 'hearth') buildHearth(context, master, sources);

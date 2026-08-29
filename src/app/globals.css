@@ -3030,20 +3030,24 @@ iframe {
   font-size: 11px;
   font-weight: 900;
   letter-spacing: .04em;
-  -webkit-text-stroke: 3px rgb(0 0 0 / 94%);
-  paint-order: stroke fill;
-  text-shadow: 0 1px 4px #000, 0 0 8px rgb(0 0 0 / 82%);
+  -webkit-text-stroke: 0;
+  paint-order: normal;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 96%), 0 0 3px rgb(0 0 0 / 88%);
   box-shadow: none;
 }
 :root[data-theme='cosmic-campfire'] .ranking-medal-1 {
-  border-color: rgb(255 197 122 / 48%) !important;
-  box-shadow: inset -9px -10px 15px rgb(45 9 2 / 62%), inset 4px 3px 8px rgb(255 240 185 / 16%), 0 0 22px rgb(227 118 38 / 24%) !important;
+  border-color: rgb(255 202 132 / 54%) !important;
+  background: #170b09 !important;
+  box-shadow: inset -8px -10px 14px rgb(40 7 4 / 68%), inset 3px 2px 7px rgb(255 240 185 / 15%), 0 0 17px rgb(227 118 38 / 20%) !important;
 }
 :root[data-theme='cosmic-campfire'] .ranking-medal-1 .ranking-planet-surface {
   background:
-    radial-gradient(circle at 27% 30%, transparent 0 8%, rgb(70 24 9 / 75%) 9% 11%, transparent 12%),
-    linear-gradient(68deg, transparent 43%, rgb(79 23 8 / 72%) 44% 47%, transparent 48%),
-    radial-gradient(circle at 34% 27%, #ffd07a, #db7133 38%, #7f2717 70%, #2a0b0c 100%);
+    radial-gradient(circle at 68% 33%, transparent 0 6%, rgb(70 24 12 / 66%) 7% 9%, transparent 10%),
+    radial-gradient(ellipse at 34% 64%, rgb(96 31 15 / 72%) 0 8%, transparent 9%),
+    radial-gradient(circle at 26% 24%, rgb(255 239 186 / 62%) 0 2%, transparent 8%),
+    repeating-linear-gradient(164deg, rgb(255 211 148 / 7%) 0 1px, transparent 2px 8px),
+    radial-gradient(circle at 31% 27%, #f6c476, #d97136 35%, #75291b 68%, #16090d 100%);
+  box-shadow: inset -8px -9px 13px rgb(0 0 0 / 48%), inset 2px 2px 3px rgb(255 235 191 / 12%);
 }
 :root[data-theme='cosmic-campfire'] .ranking-medal-2 {
   border-color: rgb(151 232 227 / 52%) !important;
@@ -3315,6 +3319,44 @@ iframe {
 .cosmic-sound-icon { background: rgb(113 194 204 / 10%); color: #75c3cc; box-shadow: inset 0 0 0 1px rgb(113 194 204 / 16%); }
 .cosmic-sound-toggle { border-color: rgb(230 181 119 / 22%); background: rgb(11 26 36 / 90%); color: #8aa0a1; }
 .cosmic-sound-toggle[aria-checked='true'] { border-color: rgb(116 201 210 / 36%); background: rgb(54 117 126 / 25%); color: #a9e1e5; box-shadow: 0 0 14px rgb(116 201 210 / 10%); }
+.cosmic-volume-slider {
+  height: 20px;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.cosmic-volume-slider::-webkit-slider-runnable-track {
+  height: 3px;
+  border: 1px solid rgb(225 184 132 / 15%);
+  border-radius: 0;
+  background: linear-gradient(90deg, rgb(92 180 190 / 52%), rgb(224 145 75 / 42%));
+}
+.cosmic-volume-slider::-webkit-slider-thumb {
+  width: 12px;
+  height: 12px;
+  margin-top: -5px;
+  appearance: none;
+  border: 1px solid rgb(255 210 150 / 58%);
+  border-radius: 50%;
+  background: #d9813f;
+  box-shadow: 0 0 8px rgb(223 128 59 / 24%);
+}
+.cosmic-volume-slider::-moz-range-track {
+  height: 2px;
+  border: 1px solid rgb(225 184 132 / 15%);
+  border-radius: 0;
+  background: linear-gradient(90deg, rgb(92 180 190 / 52%), rgb(224 145 75 / 42%));
+}
+.cosmic-volume-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 1px solid rgb(255 210 150 / 58%);
+  border-radius: 50%;
+  background: #d9813f;
+  box-shadow: 0 0 8px rgb(223 128 59 / 24%);
+}
+.cosmic-volume-slider:focus-visible { outline: 2px solid #76c8d1; outline-offset: 3px; }
 :root[data-theme='cosmic-campfire'] .theme-option[aria-checked='true'] { border-color: rgb(238 163 88 / 38%) !important; background: linear-gradient(0deg, rgb(216 126 53 / 17%), rgb(216 126 53 / 4%) 70%) !important; box-shadow: inset 0 -2px #da873f, inset 0 -18px 22px -20px rgb(239 147 72 / 90%); }
 :root[data-theme='cosmic-campfire'] :where(.theme-option, .cosmic-sound-setting, .cosmic-backdrop-setting, .game-action, .preference-choice, .library-filter-chip, .notes-panel, .app-dialog, .app-popup) {
   border-radius: 3px !important;
@@ -3347,6 +3389,15 @@ iframe {
 .cosmic-background-return:active { transform: scale(.96); }
 .cosmic-background-view:focus-visible,
 .cosmic-background-return:focus-visible { outline: 2px solid #76c8d1; outline-offset: 3px; }
+:root[data-cosmic-background-only='true'] {
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
+:root[data-cosmic-background-only='true'] body { overflow: hidden; }
+:root[data-cosmic-background-only='true'] .cosmic-background-only {
+  width: 100vw;
+  height: 100dvh;
+}
 
 /* The Recanto keeps its fire above mobile chrome and lets the upper canvas fall to black. */
 .hearth-scene { display: none; }
@@ -3589,15 +3640,18 @@ iframe {
   border-radius: 50%;
   background: radial-gradient(circle at 30% 27%, #c9b389, #6d4c3e 44%, #1a1720 73%, #030407);
   box-shadow: inset -1.2vmax -1vmax 2vmax rgb(0 0 0 / 82%), 0 0 1vmax rgb(191 139 93 / 8%);
-  opacity: .44;
-  filter: blur(.35px);
-  animation: spaceflight-far-planet-pass 168s linear -83s infinite;
+  opacity: .56;
+  filter: blur(.65px);
+  animation: spaceflight-far-planet-pass 220s linear -116s infinite;
 }
 @keyframes spaceflight-far-planet-pass {
-  from { transform: translate3d(112vw, -3vh, 0) scale(.86); }
-  to { transform: translate3d(-18vw, 4vh, 0) scale(1); }
+  0%, 18% { transform: translate3d(125vw, 7vh, 0) scale(.86); }
+  36% { transform: translate3d(77vw, 1vh, 0) scale(.9); }
+  55% { transform: translate3d(25vw, -2vh, 0) scale(.95); }
+  74%, 100% { transform: translate3d(-28vw, 5vh, 0) scale(1); }
 }
 .spaceflight-planet-giant {
+  --spaceflight-giant-exit: calc(-45vw - 110%);
   top: -15vmax;
   left: 0;
   z-index: 3;
@@ -3609,8 +3663,9 @@ iframe {
     repeating-linear-gradient(9deg, transparent 0 7%, rgb(144 207 189 / 7%) 8% 10%, transparent 11% 16%),
     radial-gradient(circle at 34% 33%, #4f877e, #1b4e56 31%, #0b2735 58%, #02070c 76%);
   box-shadow: inset -8vmax -4vmax 12vmax rgb(0 0 0 / 88%), -2px 2px 0 rgb(136 218 208 / 26%), 0 0 5vmax rgb(68 151 151 / 8%);
-  opacity: .62;
-  animation: spaceflight-giant-pass 88s linear -24s infinite;
+  opacity: 1;
+  filter: blur(.28px);
+  animation: spaceflight-giant-pass 220s linear -74s infinite;
 }
 .spaceflight-planet-giant::before {
   position: absolute;
@@ -3628,8 +3683,10 @@ iframe {
   filter: blur(3px);
 }
 @keyframes spaceflight-giant-pass {
-  from { transform: translate3d(112vw, -3vh, 0) scale(.92) rotate(-2deg); }
-  to { transform: translate3d(-78vw, 7vh, 0) scale(1.05) rotate(3deg); }
+  0%, 18% { transform: translate3d(130vw, 10vh, 0) scale(.91) rotate(-2deg); }
+  34% { transform: translate3d(79vw, 1vh, 0) scale(.95) rotate(-1deg); }
+  51% { transform: translate3d(24vw, -5vh, 0) scale(.99) rotate(1deg); }
+  73%, 100% { transform: translate3d(var(--spaceflight-giant-exit), 12vh, 0) scale(1.06) rotate(4deg); }
 }
 .spaceflight-planet-ringed {
   top: 58%;
@@ -3637,8 +3694,9 @@ iframe {
   z-index: 2;
   width: clamp(88px, 16vmax, 230px);
   aspect-ratio: 1;
-  opacity: .64;
-  animation: spaceflight-ringed-pass 122s linear -74s infinite;
+  opacity: .78;
+  filter: blur(.48px);
+  animation: spaceflight-ringed-pass 178s linear -104s infinite;
 }
 .spaceflight-ring-back,
 .spaceflight-ring-front {
@@ -3666,8 +3724,10 @@ iframe {
   border-right-color: rgb(86 53 45 / 30%);
 }
 @keyframes spaceflight-ringed-pass {
-  from { transform: translate3d(115vw, 3vh, 0) scale(.88); }
-  to { transform: translate3d(-34vw, -5vh, 0) scale(1.04); }
+  0%, 19% { transform: translate3d(124vw, 8vh, 0) scale(.87) rotate(-1deg); }
+  38% { transform: translate3d(76vw, 1vh, 0) scale(.92) rotate(-.5deg); }
+  56% { transform: translate3d(27vw, -3vh, 0) scale(.98) rotate(.5deg); }
+  74%, 100% { transform: translate3d(-38vw, 4vh, 0) scale(1.04) rotate(2deg); }
 }
 .spaceflight-planet-cinder {
   top: 72%;
@@ -3678,12 +3738,15 @@ iframe {
   border-radius: 50%;
   background: radial-gradient(circle at 29% 25%, #f0a05d, #9b432d 37%, #411c21 65%, #07060a 100%);
   box-shadow: inset -2.4vmax -2vmax 3.7vmax rgb(0 0 0 / 82%), 0 0 2.8vmax rgb(197 76 40 / 11%);
-  opacity: .72;
-  animation: spaceflight-cinder-pass 64s linear -47s infinite;
+  opacity: .86;
+  filter: blur(.24px);
+  animation: spaceflight-cinder-pass 118s linear -72s infinite;
 }
 @keyframes spaceflight-cinder-pass {
-  from { transform: translate3d(112vw, 4vh, 0) scale(.78); }
-  to { transform: translate3d(-24vw, -7vh, 0) scale(1.16); }
+  0%, 17% { transform: translate3d(122vw, 10vh, 0) scale(.78); }
+  35% { transform: translate3d(77vw, 2vh, 0) scale(.87); }
+  54% { transform: translate3d(29vw, -4vh, 0) scale(1); }
+  73%, 100% { transform: translate3d(-30vw, 5vh, 0) scale(1.16); }
 }
 .spaceflight-moon {
   position: absolute;
@@ -3695,12 +3758,15 @@ iframe {
   border-radius: 50%;
   background: radial-gradient(circle at 32% 28%, #d5c99f, #696252 45%, #111318 78%);
   box-shadow: inset -9px -7px 12px rgb(0 0 0 / 76%), 0 0 12px rgb(239 217 170 / 10%);
-  opacity: .72;
-  animation: spaceflight-moon-pass 46s linear -12s infinite;
+  opacity: .9;
+  filter: blur(.14px);
+  animation: spaceflight-moon-pass 86s linear -25s infinite;
 }
 @keyframes spaceflight-moon-pass {
-  from { transform: translate3d(106vw, -4vh, 0) scale(.72); }
-  to { transform: translate3d(-12vw, 8vh, 0) scale(1.22); }
+  0%, 16% { transform: translate3d(116vw, 7vh, 0) scale(.72); }
+  34% { transform: translate3d(76vw, -1vh, 0) scale(.84); }
+  53% { transform: translate3d(32vw, -5vh, 0) scale(1.02); }
+  72%, 100% { transform: translate3d(-15vw, 5vh, 0) scale(1.22); }
 }
 .spaceflight-streak {
   position: absolute;
@@ -3738,7 +3804,7 @@ iframe {
   .hearth-fire-glow { bottom: calc(3.4rem + env(safe-area-inset-bottom)); width: 112vw; height: 37vh; }
   .hearth-passing-planet-a { top: 16%; left: 2%; width: 14vw; }
   .hearth-passing-planet-b { top: 42%; right: 4%; width: 8vw; }
-  .spaceflight-planet-giant { top: -8vmax; left: 0; width: 94vmax; opacity: .52; }
+  .spaceflight-planet-giant { top: -8vmax; left: 0; width: 94vmax; }
   .spaceflight-planet-ringed { top: 66%; left: 0; width: 31vmax; }
   .spaceflight-moon { top: 38%; left: 0; }
 }

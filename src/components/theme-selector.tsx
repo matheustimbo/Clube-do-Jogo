@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Check, Flame, Orbit, Palette, Radio, Volume2, VolumeX, Waves } from 'lucide-react';
 import { motion } from 'motion/react';
 import { getSelectableThemes } from '@/lib/themes';
-import { COSMIC_AMBIENCE_EVENT, isCosmicAmbienceEnabled, setCosmicAmbienceEnabled } from '@/lib/cosmic-ambience';
+import { COSMIC_AMBIENCE_EVENT, COSMIC_AMBIENCE_VOLUME_EVENT, getCosmicAmbienceVolume, isCosmicAmbienceEnabled, setCosmicAmbienceEnabled, setCosmicAmbienceVolume } from '@/lib/cosmic-ambience';
 import { COSMIC_BACKDROP_EVENT, getCosmicBackdrop, setCosmicBackdrop, type CosmicBackdropMode } from '@/lib/cosmic-backdrop';
 import { COSMIC_SOUND_EVENT, isCosmicSoundEnabled, playCosmicSignal, setCosmicSoundEnabled } from '@/lib/cosmic-sound';
 import { useApp } from './app-provider';
@@ -14,6 +14,7 @@ export function ThemeSelector({ compact = false }: { compact?: boolean }) {
   const selectableThemes = getSelectableThemes(unlockedThemeIds);
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [ambienceEnabled, setAmbienceEnabled] = useState(false);
+  const [ambienceVolume, setAmbienceVolumeState] = useState(0.8);
   const [backdrop, setBackdropState] = useState<CosmicBackdropMode>('hearth');
 
   useEffect(() => {
@@ -30,14 +31,17 @@ export function ThemeSelector({ compact = false }: { compact?: boolean }) {
   useEffect(() => {
     const sync = () => {
       setAmbienceEnabled(isCosmicAmbienceEnabled());
+      setAmbienceVolumeState(getCosmicAmbienceVolume());
       setBackdropState(getCosmicBackdrop());
     };
     sync();
     window.addEventListener(COSMIC_AMBIENCE_EVENT, sync);
+    window.addEventListener(COSMIC_AMBIENCE_VOLUME_EVENT, sync);
     window.addEventListener(COSMIC_BACKDROP_EVENT, sync);
     window.addEventListener('storage', sync);
     return () => {
       window.removeEventListener(COSMIC_AMBIENCE_EVENT, sync);
+      window.removeEventListener(COSMIC_AMBIENCE_VOLUME_EVENT, sync);
       window.removeEventListener(COSMIC_BACKDROP_EVENT, sync);
       window.removeEventListener('storage', sync);
     };
@@ -59,6 +63,12 @@ export function ThemeSelector({ compact = false }: { compact?: boolean }) {
     const next = !ambienceEnabled;
     setCosmicAmbienceEnabled(next);
     setAmbienceEnabled(next);
+  };
+
+  const changeAmbienceVolume = (value: number) => {
+    const next = value / 100;
+    setCosmicAmbienceVolume(next);
+    setAmbienceVolumeState(next);
   };
 
   return (
@@ -89,14 +99,21 @@ export function ThemeSelector({ compact = false }: { compact?: boolean }) {
             </div>
           </div>
 
-          <div className="cosmic-sound-setting flex items-center justify-between gap-4 rounded-2xl border border-white/8 p-3">
-            <div className="flex min-w-0 items-center gap-3">
-              <span className="cosmic-sound-icon grid size-9 shrink-0 place-items-center rounded-full" aria-hidden="true"><Waves className="size-4" /></span>
-              <span className="min-w-0"><strong className="block text-xs text-zinc-200">{backdrop === 'hearth' ? 'Fogueira ambiente' : 'Ambiente espacial'}</strong><span className="block text-[10px] text-zinc-500">{backdrop === 'hearth' ? 'Crepitar baixo e orgânico.' : 'Um vazio calmo e inquietante.'}</span></span>
+          <div className="cosmic-sound-setting grid gap-3 rounded-2xl border border-white/8 p-3">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="cosmic-sound-icon grid size-9 shrink-0 place-items-center rounded-full" aria-hidden="true"><Waves className="size-4" /></span>
+                <span className="min-w-0"><strong className="block text-xs text-zinc-200">{backdrop === 'hearth' ? 'Fogueira ambiente' : 'Ambiente espacial'}</strong><span className="block text-[10px] text-zinc-500">{backdrop === 'hearth' ? 'Crepitar baixo e orgânico.' : 'Um vazio calmo e inquietante.'}</span></span>
+              </div>
+              <button type="button" role="switch" aria-checked={ambienceEnabled} aria-label={backdrop === 'hearth' ? 'Fogueira ambiente' : 'Ambiente espacial'} onClick={toggleAmbience} className="cosmic-sound-toggle grid size-10 shrink-0 place-items-center rounded-full border transition">
+                {ambienceEnabled ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
+              </button>
             </div>
-            <button type="button" role="switch" aria-checked={ambienceEnabled} aria-label={backdrop === 'hearth' ? 'Fogueira ambiente' : 'Ambiente espacial'} onClick={toggleAmbience} className="cosmic-sound-toggle grid size-10 shrink-0 place-items-center rounded-full border transition">
-              {ambienceEnabled ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
-            </button>
+            <label className="cosmic-volume-control grid grid-cols-[auto_1fr_auto] items-center gap-2 text-[10px] text-zinc-500">
+              <Volume2 className="size-3.5" aria-hidden="true" />
+              <input type="range" min="0" max="100" step="1" value={Math.round(ambienceVolume * 100)} onChange={event => changeAmbienceVolume(Number(event.target.value))} aria-label="Volume do som ambiente" className="cosmic-volume-slider min-w-0" />
+              <span className="w-8 text-right font-mono text-zinc-400">{Math.round(ambienceVolume * 100)}%</span>
+            </label>
           </div>
 
           <div className="cosmic-sound-setting flex items-center justify-between gap-4 rounded-2xl border border-white/8 p-3">
