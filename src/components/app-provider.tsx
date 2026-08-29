@@ -432,6 +432,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // Local demo mode exposes unreleased themes for visual review without
     // changing reward availability for authenticated members.
     if (isDemo && !ids.includes('crossing')) ids.push('crossing');
+    if (isDemo && !ids.includes('cosmic-campfire')) ids.push('cosmic-campfire');
     return Array.from(new Set(ids));
   }, [isDemo, rewardGrants]);
   const pendingReward = rewardGrants.find(grant => !grant.seen_at) || null;

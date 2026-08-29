@@ -3198,6 +3198,19 @@ iframe {
 :root[data-theme='cosmic-campfire'] .thread-path {
   position: relative;
 }
+:root[data-theme='cosmic-campfire'] .thread-path:has(+ .thread-path)::after {
+  position: absolute;
+  top: -10px;
+  bottom: 2px;
+  left: -34px;
+  z-index: 1;
+  width: 2px;
+  border-left: 1.5px solid rgb(185 174 230 / 34%);
+  content: '';
+  filter: drop-shadow(0 0 3px rgb(185 174 230 / 13%));
+  pointer-events: none;
+  transition: border-color 150ms ease-out, filter 150ms ease-out;
+}
 :root[data-theme='cosmic-campfire'] .thread-path::before {
   position: absolute;
   top: 17px;
@@ -3282,6 +3295,11 @@ iframe {
   --nomai-glow-idle: rgb(199 173 250 / 72%);
   --nomai-halo: rgb(226 183 240 / 42%);
   filter: drop-shadow(0 0 5px rgb(185 174 230 / 52%));
+}
+:root[data-theme='cosmic-campfire'] .thread-path:has(~ .thread-path:hover)::after,
+:root[data-theme='cosmic-campfire'] .thread-path:has(~ .thread-path[data-thread-path-active='true'])::after {
+  border-color: rgb(218 207 246 / 88%);
+  filter: drop-shadow(0 0 5px rgb(185 174 230 / 62%));
 }
 :root[data-theme='cosmic-campfire'] .comment-composer::before {
   position: absolute;
@@ -3781,6 +3799,7 @@ iframe {
     padding-left: 2rem !important;
   }
   :root[data-theme='cosmic-campfire'] .nomai-thread-connector { top: -10px; left: -30px; width: 29px; height: 67px; }
+  :root[data-theme='cosmic-campfire'] .thread-path:has(+ .thread-path)::after { top: -8px; bottom: 0; left: -26px; }
   .hearth-landscape { background-image: url('/themes/cosmic-campfire/hearth-mobile-v1.webp'); background-position: center calc(100% - 58px); opacity: .74; }
   .hearth-fire { bottom: calc(7.4rem + env(safe-area-inset-bottom)); transform: translateX(50%) scale(.82); }
   .hearth-fire-glow { bottom: calc(3.4rem + env(safe-area-inset-bottom)); width: 112vw; height: 37vh; }

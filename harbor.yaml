@@ -15,6 +15,7 @@ environments:
         cwd: .
         env:
           NEXT_PUBLIC_AUTO_OPEN_PRODUCT_UPDATE: "false"
+          NEXT_PUBLIC_SHOW_COSMIC_BACKGROUND_VIEW: "false"
         match:
           cwd: .
           commandIncludes: [next-server]

@@ -4,7 +4,7 @@ export const themes = [
   { id: 'nier', name: 'NieR: Automata', colors: ['#4b413d', '#6f5148', '#c7c1aa'], background: '#c7c1aa', availability: 'public' },
   { id: 'crossing', name: 'Animal Crossing', colors: ['#58b6a6', '#77b96a', '#fff6d8'], background: '#e7dcc0', availability: 'reward' },
   { id: 'ori', name: 'Floresta de Nibel', colors: ['#ddfbff', '#55ddf4', '#071a35'], background: '#030a16', availability: 'reward' },
-  { id: 'cosmic-campfire', name: 'Fogueira Cósmica', colors: ['#f0a35a', '#77c9d4', '#071522'], background: '#050d16', availability: 'public' },
+  { id: 'cosmic-campfire', name: 'Fogueira Cósmica', colors: ['#f0a35a', '#77c9d4', '#071522'], background: '#050d16', availability: 'reward' },
 ] as const;
 
 export type ThemeId = (typeof themes)[number]['id'];

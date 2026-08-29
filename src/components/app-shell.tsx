@@ -24,6 +24,10 @@ const navigation: Array<{ href: string; label: string; mobileLabel?: string; ico
   { href: '/perfil', label: 'Perfil', icon: UserRound },
 ];
 
+// Mantém o modo de contemplação implementado, mas fora da interface até que
+// decidamos reativá-lo em um build futuro.
+const SHOW_COSMIC_BACKGROUND_VIEW = process.env.NEXT_PUBLIC_SHOW_COSMIC_BACKGROUND_VIEW === 'true';
+
 const atmosphereLights = [
   { left: '7%', top: '12%', size: '3px', duration: '12s', delay: '-4s', drift: '18px' },
   { left: '15%', top: '38%', size: '5px', duration: '15s', delay: '-9s', drift: '-14px' },
@@ -205,7 +209,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <main className="relative z-10 mx-auto w-full max-w-5xl px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-5 sm:px-8 sm:pt-7 min-[960px]:ml-56 min-[960px]:w-[calc(100%-14rem)] min-[960px]:max-w-none min-[960px]:pb-12 min-[960px]:pt-8">{children}</main>
-      {theme === 'cosmic-campfire' && <button type="button" onClick={() => setBackgroundOnly(true)} aria-label="Apreciar plano de fundo" title="Apreciar plano de fundo" className="cosmic-background-view fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-4 z-40 grid size-10 place-items-center border min-[960px]:bottom-5"><Telescope className="size-4" /></button>}
+      {SHOW_COSMIC_BACKGROUND_VIEW && theme === 'cosmic-campfire' && <button type="button" onClick={() => setBackgroundOnly(true)} aria-label="Apreciar plano de fundo" title="Apreciar plano de fundo" className="cosmic-background-view fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-4 z-40 grid size-10 place-items-center border min-[960px]:bottom-5"><Telescope className="size-4" /></button>}
       <nav aria-label="Navegação principal" className={cn('theme-nav fixed inset-x-0 bottom-0 z-50 mx-auto w-full max-w-2xl border-t border-white/[0.08] pb-[max(.35rem,env(safe-area-inset-bottom))] pt-1.5 backdrop-blur-2xl transition-transform duration-150 ease-[cubic-bezier(.22,1,.36,1)] min-[960px]:hidden', navVisible ? 'translate-y-0' : 'translate-y-[calc(100%+env(safe-area-inset-bottom))]')}>
         <div className="grid grid-cols-5">
           {navigation.map(item => {
