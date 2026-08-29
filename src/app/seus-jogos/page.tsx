@@ -51,7 +51,7 @@ function rebuild(data: ProfileWithGames, library: LibraryGame[]): ProfileWithGam
   };
 }
 
-export function YourGamesPanel() {
+function YourGamesPanel() {
   const supabase = useMemo(() => createClient(), []);
   const { user, isDemo, runOptimistic } = useApp();
   const query = useStaleQuery(`profile-games:${user?.id}`, () => fetchProfileWithGames(supabase, user!.id, isDemo), Boolean(user), { staleTime: 120_000 });

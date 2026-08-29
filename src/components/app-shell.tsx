@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { fetchGameOfMonth, fetchProfileWithGames, fetchRankingData } from '@/lib/data';
 import { prefetchStaleQuery } from '@/hooks/use-stale-query';
+import { playCosmicSignal } from '@/lib/cosmic-sound';
 
 const navigation: Array<{ href: string; label: string; mobileLabel?: string; icon: typeof Gamepad2 }> = [
   { href: '/jogo-do-mes', label: 'Jogo do mês', icon: Gamepad2 },
@@ -45,10 +46,11 @@ function isNavigationActive(pathname: string, href: string) {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, authLoading, isDemo, selectedMonth, isHistorical, clubRevision, cycles } = useApp();
+  const { user, authLoading, isDemo, selectedMonth, isHistorical, clubRevision, cycles, theme } = useApp();
   const [navVisible, setNavVisible] = useState(true);
   const lastScroll = useRef(0);
   const previousPath = useRef(pathname);
+  const previousSoundPath = useRef(pathname);
 
   useEffect(() => {
     if (previousPath.current !== pathname) {
@@ -56,6 +58,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       previousPath.current = pathname;
     }
   }, [pathname]);
+
+  useEffect(() => {
+    if (previousSoundPath.current !== pathname) {
+      if (theme === 'cosmic-campfire') playCosmicSignal('navigate');
+      previousSoundPath.current = pathname;
+    }
+  }, [pathname, theme]);
 
   useEffect(() => {
     const onScroll = () => {
@@ -111,6 +120,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="theme-pattern pointer-events-none fixed inset-0 z-0" aria-hidden="true" />
       <div className="theme-ambient pointer-events-none fixed inset-x-0 top-0 z-0 h-80 min-[960px]:bottom-0 min-[960px]:left-56 min-[960px]:h-auto" aria-hidden="true" />
       <div className="theme-effects pointer-events-none fixed inset-0 z-20 overflow-hidden" aria-hidden="true">
+        <span className="cosmic-orbit-glyph" />
         {atmosphereLights.map((light, index) => (
           <i
             key={index}
@@ -133,6 +143,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <span className="theme-logo grid size-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600 shadow-lg shadow-violet-950/50"><Gamepad2 className="size-5" /></span>
           <span className="min-w-0"><strong className="block truncate text-sm font-black tracking-tight">Clube do Jogo</strong><span className="mt-0.5 block text-[10px] font-semibold text-zinc-500">Jogando juntos</span></span>
         </Link>
+        <div className="cosmic-signal-strip" aria-hidden="true"><span /> canal local · sinal estável</div>
 
         <div className="border-b border-white/[0.08] px-4 py-4">
           <div className="mb-2 px-1 text-[9px] font-black uppercase tracking-[0.16em] text-zinc-600">Ciclo do clube</div>
@@ -163,6 +174,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span className="theme-logo grid size-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600 shadow-lg shadow-violet-950/50"><Gamepad2 className="size-5" /></span>
             <span className="hidden truncate text-sm font-black tracking-tight min-[360px]:block">Clube do Jogo</span>
           </Link>
+          <div className="cosmic-mobile-signal" aria-hidden="true"><span /> sinal</div>
           <div className="flex min-w-0 items-center gap-2">
             {!detailRoute && <MonthSelector />}
             <UserMenu />

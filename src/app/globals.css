@@ -2755,6 +2755,407 @@ iframe {
 :root[data-theme='ori'] .library-filter-chip[data-selected='true'] { box-shadow: inset 0 0 20px rgb(85 221 244 / 7%), 0 0 13px rgb(85 221 244 / 7%); }
 :root[data-theme='ori'] .club-progress-card { border-color: rgb(137 224 240 / 13%) !important; background: rgb(2 15 29 / 62%) !important; }
 
+/* Fogueira Cósmica — an original field-observatory poster and handmade communicator. */
+:root[data-theme='cosmic-campfire'] {
+  --background: #050d16;
+  --foreground: #f3ead9;
+  --surface: rgb(10 24 35 / 88%);
+  --surface-soft: rgb(225 235 232 / 5.5%);
+  --surface-deep: rgb(2 8 14 / 56%);
+  --hairline: rgb(224 187 138 / 18%);
+  --theme-header: rgb(5 14 23 / 88%);
+  --theme-nav: rgb(6 16 25 / 94%);
+  --theme-shadow: 0 20px 60px rgb(0 4 10 / 48%), inset 0 1px rgb(248 225 190 / 3%);
+  --theme-pattern: url('/themes/cosmic-campfire/observatory-desktop.webp');
+  --theme-pattern-size: cover;
+  --theme-pattern-opacity: .54;
+  --theme-ambient: linear-gradient(180deg, rgb(3 11 19 / 18%), rgb(3 10 17 / 72%) 76%, #050d16 100%);
+  --primary-on: #1c1007;
+  --support-vote: #a9a1d7;
+  --support-completed: #69b994;
+  --support-backlog: #74c2d1;
+  --support-danger: #df776a;
+  --color-violet-200: #ffe8c9;
+  --color-violet-300: #f5c48d;
+  --color-violet-400: #efa15a;
+  --color-violet-500: #d9843f;
+  --color-violet-600: #bd682c;
+  --color-violet-700: #82431f;
+  --color-violet-950: #321b10;
+  --color-fuchsia-600: #ce7441;
+  --color-fuchsia-700: #944826;
+  --color-zinc-50: #fff9ef;
+  --color-zinc-100: #f3ead9;
+  --color-zinc-200: #dfd4c1;
+  --color-zinc-300: #c5b8a4;
+  --color-zinc-400: #a99d8c;
+  --color-zinc-500: #857e73;
+  --color-zinc-600: #65625d;
+  --color-zinc-700: #44494a;
+  --color-zinc-800: #28333a;
+  --color-zinc-900: #13232d;
+  --color-zinc-950: #08131d;
+  --color-emerald-300: #9bd3b6;
+  --color-emerald-400: #69b994;
+  --color-emerald-500: #448e70;
+  --color-amber-200: #ffe5bd;
+  --color-amber-300: #f5bd79;
+  --color-amber-400: #e8964b;
+  --color-amber-500: #c97634;
+  --color-sky-200: #b9e6e9;
+  --color-sky-400: #74c2d1;
+  --color-red-300: #f0a092;
+  --color-red-500: #df776a;
+  --color-red-600: #ba514b;
+}
+
+:root[data-theme='cosmic-campfire'] body {
+  font-family: var(--font-geist-sans), sans-serif;
+  background: #050d16;
+}
+:root[data-theme='cosmic-campfire'] .theme-pattern {
+  background-position: center bottom;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  filter: saturate(.92) contrast(1.04);
+}
+:root[data-theme='cosmic-campfire'] .theme-ambient {
+  height: 100dvh;
+  mask-image: none;
+  -webkit-mask-image: none;
+}
+:root[data-theme='cosmic-campfire'] main::before {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: -1;
+  height: 46dvh;
+  background: linear-gradient(180deg, rgb(3 9 16 / 22%), transparent);
+  content: '';
+  pointer-events: none;
+}
+
+/* A communicator, not a generic glass dashboard. */
+:root[data-theme='cosmic-campfire'] :where(.theme-header, .theme-nav, .app-tabs, .app-dialog, .app-popup) {
+  border-color: rgb(230 192 140 / 17%) !important;
+  background-color: rgb(6 17 27 / 91%) !important;
+  background-image:
+    linear-gradient(90deg, rgb(236 163 89 / 4%), transparent 35%),
+    repeating-linear-gradient(0deg, transparent 0 3px, rgb(255 255 255 / 1.1%) 3px 4px) !important;
+  box-shadow: 0 22px 65px rgb(0 5 12 / 40%) !important;
+}
+:root[data-theme='cosmic-campfire'] .theme-sidebar {
+  border-right-color: rgb(233 176 110 / 20%) !important;
+  box-shadow: 12px 0 50px rgb(0 4 10 / 38%) !important;
+}
+:root[data-theme='cosmic-campfire'] .theme-logo {
+  position: relative;
+  border: 1px solid rgb(255 208 147 / 40%);
+  border-radius: 50% 48% 46% 52% !important;
+  background: radial-gradient(circle at 50% 52%, #f3b16e 0 7%, #c86e31 8% 16%, #302319 17% 22%, #0a1822 23% 56%, #6f4c31 57% 63%, #10171b 64%) !important;
+  color: #ffe4be;
+  box-shadow: 0 0 0 3px rgb(5 13 20 / 70%), 0 0 0 4px rgb(228 164 95 / 18%), 0 8px 22px rgb(0 0 0 / 48%) !important;
+}
+:root[data-theme='cosmic-campfire'] .theme-logo::after {
+  position: absolute;
+  inset: -6px;
+  border: 1px dashed rgb(118 201 212 / 32%);
+  border-radius: 50%;
+  content: '';
+}
+:root[data-theme='cosmic-campfire'] .theme-logo svg { width: 17px; height: 17px; filter: drop-shadow(0 0 5px rgb(241 166 91 / 55%)); }
+
+.cosmic-signal-strip,
+.cosmic-mobile-signal,
+.cosmic-orbit-glyph { display: none; }
+:root[data-theme='cosmic-campfire'] .cosmic-signal-strip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: -1px 15px 0;
+  padding: 8px 12px;
+  border-bottom: 1px dashed rgb(179 151 119 / 14%);
+  color: #719ba2;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+:root[data-theme='cosmic-campfire'] :is(.cosmic-signal-strip, .cosmic-mobile-signal) > span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #76cad3;
+  box-shadow: 0 0 9px rgb(118 202 211 / 80%);
+}
+:root[data-theme='cosmic-campfire'] .cosmic-mobile-signal {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #78aeb4;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 8px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+:root[data-theme='cosmic-campfire'] .cosmic-orbit-glyph {
+  display: block;
+  position: absolute;
+  top: 8vh;
+  right: -7rem;
+  width: min(34rem, 65vw);
+  aspect-ratio: 1;
+  border: 1px solid rgb(175 164 213 / 15%);
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 54px transparent, inset 0 0 0 55px rgb(118 200 211 / 8%), inset 0 0 0 108px transparent, inset 0 0 0 109px rgb(233 158 86 / 7%);
+  opacity: .7;
+  transform: rotate(-18deg) scaleY(.44);
+  animation: cosmic-orbit-breathe 9s ease-in-out infinite alternate;
+}
+:root[data-theme='cosmic-campfire'] .cosmic-orbit-glyph::after {
+  position: absolute;
+  top: 47%;
+  left: -5px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #dc8740;
+  box-shadow: 0 0 18px rgb(220 135 64 / 65%);
+  content: '';
+}
+@keyframes cosmic-orbit-breathe {
+  from { opacity: .38; transform: rotate(-18deg) scaleY(.44) scale(.98); }
+  to { opacity: .72; transform: rotate(-18deg) scaleY(.44) scale(1.02); }
+}
+
+:root[data-theme='cosmic-campfire'] .theme-light {
+  background: #f3b16c;
+  box-shadow: 0 0 4px 1px rgb(239 152 76 / 58%), 0 0 16px rgb(239 152 76 / 22%);
+  opacity: .62;
+  animation-name: cosmic-ember-drift;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+@keyframes cosmic-ember-drift {
+  0%, 100% { opacity: .18; transform: translate3d(0, 10px, 0) scale(.8); }
+  45% { opacity: .72; transform: translate3d(var(--light-drift), -16px, 0) scale(1); }
+}
+
+:root[data-theme='cosmic-campfire'] :where(h1, h2) {
+  font-family: var(--font-nunito), var(--font-geist-sans), sans-serif;
+  letter-spacing: -.025em;
+}
+:root[data-theme='cosmic-campfire'] h1 { text-wrap: balance; text-shadow: 0 2px 18px rgb(0 0 0 / 55%); }
+:root[data-theme='cosmic-campfire'] :where(.text-zinc-500, .text-zinc-600) { letter-spacing: .008em; }
+:root[data-theme='cosmic-campfire'] :where(.uppercase, [class*='tracking-']) { font-family: var(--font-geist-mono), monospace; }
+
+:root[data-theme='cosmic-campfire'] main :where(article, section[class*='border'], .comment-composer, .notes-panel) {
+  border-color: rgb(228 188 136 / 17%) !important;
+  background-color: rgb(9 23 33 / 84%) !important;
+  background-image:
+    linear-gradient(125deg, rgb(238 180 111 / 3.5%), transparent 34%),
+    repeating-linear-gradient(87deg, transparent 0 7px, rgb(255 255 255 / .65%) 7px 8px) !important;
+  box-shadow: var(--theme-shadow) !important;
+  backdrop-filter: blur(12px);
+}
+:root[data-theme='cosmic-campfire'] :where(.ranking-card, .game-list-card, .profile-hero, .participation-card, .comment-card, .comment-composer, .notes-panel, .game-detail-surface, .club-progress-card) {
+  border-radius: 15px 18px 14px 17px / 17px 14px 18px 15px !important;
+}
+:root[data-theme='cosmic-campfire'] :where(.ranking-card, .game-list-card, .comment-card, .comment-composer) {
+  position: relative;
+}
+:root[data-theme='cosmic-campfire'] :where(.ranking-card, .game-list-card, .comment-card, .comment-composer)::after {
+  position: absolute;
+  top: -1px;
+  left: 18px;
+  width: 33px;
+  height: 2px;
+  background: linear-gradient(90deg, #d6813d, #f1b16f 60%, transparent);
+  content: '';
+  pointer-events: none;
+}
+:root[data-theme='cosmic-campfire'] .game-list-card:hover,
+:root[data-theme='cosmic-campfire'] .ranking-card:hover {
+  border-color: rgb(238 173 102 / 32%) !important;
+  background-color: rgb(12 29 39 / 92%) !important;
+  transform: translateY(-1px);
+}
+:root[data-theme='cosmic-campfire'] .ranking-card[data-rank='1'] {
+  border-color: rgb(237 164 88 / 34%) !important;
+  background-image: radial-gradient(circle at 96% 8%, rgb(232 143 61 / 13%), transparent 25%), linear-gradient(125deg, rgb(238 180 111 / 5%), transparent 44%) !important;
+}
+:root[data-theme='cosmic-campfire'] .ranking-medal {
+  border-color: rgb(252 214 165 / 30%) !important;
+  background: #172029 !important;
+  color: #e9a25d !important;
+  box-shadow: inset 0 0 0 2px #0a131a, 0 5px 16px rgb(0 0 0 / 35%) !important;
+}
+:root[data-theme='cosmic-campfire'] .ranking-medal-1 { box-shadow: inset 0 0 0 2px #0a131a, 0 0 20px rgb(231 142 61 / 18%) !important; }
+
+:root[data-theme='cosmic-campfire'] button.bg-violet-600:not(:disabled) {
+  border: 1px solid rgb(255 202 136 / 34%);
+  background: linear-gradient(180deg, #e99b52, #c66f31) !important;
+  color: #241306 !important;
+  box-shadow: inset 0 1px rgb(255 231 197 / 42%), 0 7px 18px rgb(73 29 5 / 28%);
+}
+:root[data-theme='cosmic-campfire'] button.bg-violet-600:not(:disabled):hover { filter: brightness(1.08) saturate(1.04); }
+:root[data-theme='cosmic-campfire'] :where(.game-action, .preference-choice, .library-filter-chip) {
+  border-color: rgb(220 184 137 / 16%) !important;
+  background: rgb(7 19 29 / 68%) !important;
+  box-shadow: inset 0 1px rgb(255 235 206 / 2%);
+}
+:root[data-theme='cosmic-campfire'] .app-tabs [data-state='active'] {
+  background: rgb(218 130 61 / 13%) !important;
+  color: #f3bd83 !important;
+  box-shadow: inset 0 -2px #d7833e;
+}
+:root[data-theme='cosmic-campfire'] :where(.app-dialog, .app-popup) {
+  border-color: rgb(231 181 119 / 24%) !important;
+  box-shadow: 0 30px 90px rgb(0 3 9 / 72%), inset 0 1px rgb(255 223 181 / 4%) !important;
+}
+
+/* Hero is a framed expedition poster; supporting cards stay quiet. */
+:root[data-theme='cosmic-campfire'] .game-month-hero {
+  border: 1px solid rgb(244 194 129 / 31%) !important;
+  border-radius: 19px 15px 22px 16px / 15px 22px 16px 20px !important;
+  background: #08141e !important;
+  box-shadow: 0 30px 85px rgb(0 3 9 / 62%), 0 0 0 5px rgb(5 13 21 / 55%), 0 0 0 6px rgb(227 166 96 / 10%) !important;
+}
+:root[data-theme='cosmic-campfire'] .game-month-hero::after,
+:root[data-theme='cosmic-campfire'] .game-detail-hero::after {
+  position: absolute;
+  inset: 9px;
+  z-index: 1;
+  border: 1px dashed rgb(242 198 143 / 16%);
+  border-radius: 12px 9px 15px 10px;
+  content: '';
+  pointer-events: none;
+}
+:root[data-theme='cosmic-campfire'] .game-month-shade {
+  background: radial-gradient(ellipse at 50% 18%, rgb(3 13 22 / 5%), rgb(4 13 20 / 48%) 45%, rgb(3 9 14 / 95%) 100%) !important;
+}
+:root[data-theme='cosmic-campfire'] .game-month-tint { background: rgb(205 101 38 / 8%) !important; mix-blend-mode: color; }
+:root[data-theme='cosmic-campfire'] .game-month-chip {
+  border: 1px solid rgb(255 216 166 / 33%) !important;
+  background: #d98540 !important;
+  color: #251408 !important;
+  font-family: var(--font-geist-mono), monospace;
+  letter-spacing: .07em;
+  box-shadow: 0 7px 18px rgb(0 0 0 / 40%), inset 0 1px rgb(255 234 201 / 38%) !important;
+}
+:root[data-theme='cosmic-campfire'] .game-month-cover,
+:root[data-theme='cosmic-campfire'] .game-detail-cover {
+  border-color: rgb(236 195 141 / 30%) !important;
+  box-shadow: 0 17px 38px rgb(0 0 0 / 58%), 0 0 0 4px rgb(5 13 20 / 62%) !important;
+}
+:root[data-theme='cosmic-campfire'] .game-month-title { color: #fff4df !important; text-shadow: 0 2px 22px rgb(0 0 0 / 78%) !important; }
+:root[data-theme='cosmic-campfire'] .game-month-description { color: #c9c0b1 !important; }
+
+/* Discussion reads as a sequence of received transmissions. */
+:root[data-theme='cosmic-campfire'] .comment-card { padding-top: 2rem; }
+:root[data-theme='cosmic-campfire'] .comment-card::before {
+  position: absolute;
+  top: 9px;
+  left: 17px;
+  color: #79b3ba;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  content: 'transmissão recebida';
+}
+:root[data-theme='cosmic-campfire'] .comment-avatar {
+  border: 1px solid rgb(128 207 215 / 30%) !important;
+  box-shadow: 0 0 0 3px #08151e, 0 0 13px rgb(117 198 208 / 12%);
+}
+:root[data-theme='cosmic-campfire'] .comment-reaction {
+  border-color: rgb(229 177 115 / 17%) !important;
+  background: rgb(7 18 27 / 76%) !important;
+}
+:root[data-theme='cosmic-campfire'] .thread-branch {
+  position: relative;
+  margin-left: 1.9rem !important;
+  padding-left: 2rem !important;
+}
+:root[data-theme='cosmic-campfire'] .thread-branch::before {
+  position: absolute;
+  top: -7px;
+  bottom: 18px;
+  left: 4px;
+  width: 26px;
+  border-bottom: 1px solid rgb(178 165 210 / 44%);
+  border-left: 1px solid rgb(178 165 210 / 44%);
+  border-radius: 0 0 0 22px;
+  content: '';
+}
+:root[data-theme='cosmic-campfire'] .thread-branch::after {
+  position: absolute;
+  bottom: 14px;
+  left: 25px;
+  width: 7px;
+  height: 7px;
+  border: 1px solid #c5b9df;
+  border-radius: 50%;
+  background: #101b27;
+  box-shadow: 0 0 10px rgb(181 168 216 / 45%);
+  content: '';
+}
+:root[data-theme='cosmic-campfire'] .thread-reply {
+  position: relative;
+  border: 1px solid rgb(177 164 210 / 17%);
+  background: rgb(13 25 37 / 80%) !important;
+}
+:root[data-theme='cosmic-campfire'] .comment-composer::before {
+  position: absolute;
+  top: 11px;
+  right: 14px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #77c8d2;
+  box-shadow: 0 0 10px rgb(119 200 210 / 70%);
+  content: '';
+}
+:root[data-theme='cosmic-campfire'] .comment-composer textarea::placeholder { color: #6e7776; }
+:root[data-theme='cosmic-campfire'] .comment-composer:focus-within { border-color: rgb(117 198 208 / 34%) !important; box-shadow: 0 0 0 3px rgb(117 198 208 / 5%), var(--theme-shadow) !important; }
+
+:root[data-theme='cosmic-campfire'] .notes-panel { background-color: rgb(7 19 29 / 89%) !important; }
+:root[data-theme='cosmic-campfire'] .notes-message {
+  border-color: rgb(117 197 207 / 20%) !important;
+  background: linear-gradient(135deg, rgb(92 169 179 / 15%), rgb(13 34 45 / 90%)) !important;
+  color: #e9e2d5;
+}
+:root[data-theme='cosmic-campfire'] .profile-hero-glow {
+  height: 55%;
+  background: radial-gradient(ellipse at 50% 0%, rgb(227 138 61 / 12%), transparent 70%);
+}
+
+.cosmic-sound-setting { background: rgb(6 17 26 / 72%); }
+.cosmic-sound-icon { background: rgb(113 194 204 / 10%); color: #75c3cc; box-shadow: inset 0 0 0 1px rgb(113 194 204 / 16%); }
+.cosmic-sound-toggle { border-color: rgb(230 181 119 / 22%); background: rgb(11 26 36 / 90%); color: #8aa0a1; }
+.cosmic-sound-toggle[aria-checked='true'] { border-color: rgb(116 201 210 / 36%); background: rgb(54 117 126 / 25%); color: #a9e1e5; box-shadow: 0 0 14px rgb(116 201 210 / 10%); }
+:root[data-theme='cosmic-campfire'] .theme-option[aria-checked='true'] { border-color: rgb(238 163 88 / 38%) !important; background: rgb(216 126 53 / 12%) !important; box-shadow: inset 3px 0 #da873f; }
+
+@media (max-width: 959px) {
+  :root[data-theme='cosmic-campfire'] {
+    --theme-pattern: url('/themes/cosmic-campfire/observatory-mobile.webp');
+    --theme-pattern-opacity: .45;
+  }
+  :root[data-theme='cosmic-campfire'] .theme-pattern { background-position: center bottom; }
+  :root[data-theme='cosmic-campfire'] main :where(article, section[class*='border'], .comment-composer, .notes-panel) { backdrop-filter: blur(9px); }
+}
+@media (max-width: 430px) {
+  :root[data-theme='cosmic-campfire'] .theme-header > div > a > span:last-child { display: none !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme='cosmic-campfire'] .cosmic-orbit-glyph,
+  :root[data-theme='cosmic-campfire'] .theme-light { animation: none !important; }
+}
+:root[data-theme='cosmic-campfire'][data-reduce-motion='true'] .cosmic-orbit-glyph,
+:root[data-theme='cosmic-campfire'][data-reduce-motion='true'] .theme-light { animation: none !important; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     scroll-behavior: auto !important;
