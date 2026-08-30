@@ -15,6 +15,7 @@ import { useStaleQuery } from '@/hooks/use-stale-query';
 import { useApp } from '@/components/app-provider';
 import { Skeleton } from '@/components/ui/skeleton';
 import { GameGallery } from '@/components/game-gallery';
+import { GameMugshots } from '@/components/game-mugshots';
 import { RatingDisplay } from '@/components/rating-slider';
 import { GameActionButton } from '@/components/game-action-button';
 import { FloatingTrailer } from '@/components/floating-trailer';
@@ -218,6 +219,8 @@ export default function GamePage() {
         <div className="mb-4 flex items-center gap-2 px-4 sm:px-8"><ImageIcon className="size-4 text-zinc-400" /><h2 className="text-base font-black tracking-tight">Galeria</h2></div>
         <GameGallery title={game.title} images={galleryImages} />
       </section>
+
+      <GameMugshots gameId={game.id} title={game.title} />
     </div>
   );
 

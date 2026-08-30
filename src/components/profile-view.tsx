@@ -19,7 +19,7 @@ import { useUrlDialog, useUrlTab } from '@/hooks/use-url-state';
 
 export function ProfileView({ profileId, own = false }: { profileId: string; own?: boolean }) {
   const supabase = useMemo(() => createClient(), []);
-  const { isDemo, refreshProfile, runOptimistic } = useApp();
+  const { isDemo, refreshProfile, updateProfile } = useApp();
   const query = useStaleQuery(`profile-games:${profileId}`, () => fetchProfileWithGames(supabase, profileId, isDemo), true, { staleTime: 120_000 });
   const [name, setName] = useState('');
   const [bio, setBio] = useState('');
@@ -48,12 +48,11 @@ export function ProfileView({ profileId, own = false }: { profileId: string; own
   async function saveProfile() {
     if (!data?.profile) return;
     setSaving(true);
-    const patch = { name: name.trim() || data.profile.name || 'Membro', bio: bio.trim() || null, avatar_url: avatar.trim() || null, updated_at: new Date().toISOString() };
+    const patch = { name: name.trim() || data.profile.name || 'Membro', bio: bio.trim() || null, avatar_url: avatar.trim() || null };
     const next = { ...data, profile: { ...data.profile, ...patch } };
-    let saved = true;
-    if (isDemo) query.setData(next);
-    else saved = await runOptimistic('Atualizando perfil…', () => query.setData(next), () => query.setData(data), () => supabase.from('profiles').update(patch).eq('id', profileId));
+    const saved = await updateProfile(patch);
     if (saved) {
+      query.setData(next);
       await refreshProfile();
       editDialog.close();
     }

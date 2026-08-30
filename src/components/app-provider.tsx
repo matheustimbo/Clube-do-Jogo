@@ -31,6 +31,7 @@ interface AppContextValue {
   setTheme: (theme: ThemeId) => void;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  updateProfile: (patch: Partial<Pick<Profile, 'name' | 'bio' | 'avatar_url'>>) => Promise<boolean>;
   refreshClubState: () => Promise<void>;
   setClubGame: (game: Game, mode: 'current' | 'next') => Promise<{ succeeded: boolean; undoEventId?: string }>;
   previewClubGameUndo: (eventId: string) => Promise<ClubUndoPreview | null>;
@@ -178,6 +179,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (data) setProfile(data as Profile);
     setRole(roleData?.role === 'admin' ? 'admin' : 'member');
   }, [supabase]);
+
+  const updateProfile = useCallback(async (patch: Partial<Pick<Profile, 'name' | 'bio' | 'avatar_url'>>) => {
+    if (!user || !profile) return false;
+    const previous = profile;
+    const next = { ...profile, ...patch };
+    if (isDemo) {
+      setProfile(next);
+      return true;
+    }
+    return runOptimistic(
+      'Atualizando perfil…',
+      () => setProfile(next),
+      () => setProfile(previous),
+      () => supabase.from('profiles').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', user.id),
+    );
+  }, [isDemo, profile, runOptimistic, supabase, user]);
 
   const fetchRewards = useCallback(async (userId: string) => {
     if (isDemo) return;
@@ -480,7 +497,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     refreshProfile: async () => {
       if (user) await fetchProfile(user.id);
     },
-  }), [authLoading, availableMonths, clubRevision, cycles, fetchClubState, fetchProfile, isDemo, notify, previewClubGameUndo, profile, redoClubGameChange, role, runOperation, runOptimistic, selectedMonth, setClubGame, setSelectedMonth, setTheme, signOut, theme, undoClubGameChange, unlockedThemeIds, user]);
+    updateProfile,
+  }), [authLoading, availableMonths, clubRevision, cycles, fetchClubState, fetchProfile, isDemo, notify, previewClubGameUndo, profile, redoClubGameChange, role, runOperation, runOptimistic, selectedMonth, setClubGame, setSelectedMonth, setTheme, signOut, theme, undoClubGameChange, unlockedThemeIds, updateProfile, user]);
 
   const currentOperation = operations.at(-1);
 

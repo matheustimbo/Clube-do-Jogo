@@ -20,6 +20,12 @@ export interface IGDBPlatformResult {
   logo_url: string | null;
 }
 
+export interface IGDBCharacterMugshot {
+  id: number;
+  name: string;
+  image_url: string;
+}
+
 interface IGDBGame {
   id: number;
   name: string;
@@ -45,6 +51,15 @@ interface IGDBPlatform {
   name: string;
   abbreviation?: string;
   platform_logo?: { image_id?: string };
+}
+
+interface IGDBCharacter {
+  id: number;
+  name: string;
+  mug_shot?: {
+    image_id?: string;
+    alpha_channel?: boolean;
+  };
 }
 
 // Cache do token de acesso em memória para evitar requisições repetidas
@@ -264,6 +279,38 @@ export async function browseGamesWithIGDB(options: {
   const games: IGDBGame[] = await response.json();
   const durations = await fetchGameDurations(clientId, token, games.map(game => game.id));
   return games.map(game => mapIGDBGame(game, durations.get(game.id)));
+}
+
+export async function getGameMugshotsByIGDBId(igdbGameId: number): Promise<IGDBCharacterMugshot[]> {
+  const clientId = process.env.IGDB_CLIENT_ID;
+  if (!clientId) throw new Error('IGDB_CLIENT_ID não configurado.');
+  const token = await getTwitchToken();
+  const response = await fetch('https://api.igdb.com/v4/characters', {
+    method: 'POST',
+    headers: {
+      'Client-ID': clientId,
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'text/plain',
+    },
+    body: `
+      fields id, name, mug_shot.image_id, mug_shot.alpha_channel;
+      where games = (${Math.trunc(igdbGameId)}) & mug_shot != null;
+      sort name asc;
+      limit 24;
+    `,
+  });
+  if (!response.ok) throw new Error(`Erro ao buscar personagens na IGDB: ${await response.text()}`);
+  const characters: IGDBCharacter[] = await response.json();
+  return characters.flatMap(character => {
+    const imageId = character.mug_shot?.image_id;
+    if (!imageId) return [];
+    const extension = character.mug_shot?.alpha_channel ? 'png' : 'jpg';
+    return [{
+      id: character.id,
+      name: character.name,
+      image_url: `https://images.igdb.com/igdb/image/upload/t_cover_big/${imageId}.${extension}`,
+    }];
+  });
 }
 
 export async function getGameByIGDBId(igdbId: number): Promise<IGDBGameResult | null> {
