@@ -329,7 +329,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return result;
       },
     );
-    if (succeeded) await fetchClubState();
+    if (succeeded) {
+      await fetchClubState();
+      void fetch('/api/push/club-game', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameId: game.id, month: targetMonth }),
+      });
+      if (mode === 'next' && active?.month) {
+        void fetch('/api/push/rewards', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clubMonth: active.month }),
+        });
+      }
+    }
     return { succeeded, undoEventId: rpcUndoEventId };
   }, [cycles, fetchClubState, isDemo, runOptimistic, selectedMonth, supabase]);
 

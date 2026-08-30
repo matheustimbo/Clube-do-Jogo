@@ -19,8 +19,10 @@ CREATE INDEX IF NOT EXISTS user_platforms_user_id_idx ON public.user_platforms(u
 
 ALTER TABLE public.user_platforms ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Usuários leem os próprios consoles" ON public.user_platforms
-  FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Usuários leem os próprios consoles" ON public.user_platforms;
+DROP POLICY IF EXISTS "Consoles visiveis para autenticados" ON public.user_platforms;
+CREATE POLICY "Consoles visiveis para autenticados" ON public.user_platforms
+  FOR SELECT TO authenticated USING (true);
 
 CREATE POLICY "Usuários adicionam os próprios consoles" ON public.user_platforms
   FOR INSERT WITH CHECK (auth.uid() = user_id);

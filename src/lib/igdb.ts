@@ -30,6 +30,7 @@ interface IGDBGame {
   first_release_date?: number;
   total_rating?: number;
   rating?: number;
+  rating_count?: number;
   aggregated_rating?: number;
   total_rating_count?: number;
   hypes?: number;
@@ -227,8 +228,10 @@ export async function browseGamesWithIGDB(options: {
   const conditions = ['version_parent = null', 'cover != null'];
   let order = 'total_rating_count desc';
   if (sort === 'rated') {
-    conditions.push('total_rating_count >= 25');
-    order = 'total_rating desc';
+    // A nota da comunidade, com uma amostra relevante, evita que poucos votos
+    // coloquem jogos muito nichados acima dos grandes clássicos.
+    conditions.push('rating != null', 'rating_count >= 500');
+    order = 'rating desc';
   } else if (sort === 'recent') {
     conditions.push(`first_release_date <= ${now}`, `first_release_date >= ${now - 63_072_000}`);
     order = 'first_release_date desc';
@@ -252,7 +255,7 @@ export async function browseGamesWithIGDB(options: {
       'Content-Type': 'text/plain',
     },
     body: `${search}
-      fields name, summary, cover.image_id, screenshots.image_id, videos.video_id, genres.name, platforms.id, platforms.name, first_release_date, total_rating, rating, aggregated_rating, total_rating_count, hypes;
+      fields name, summary, cover.image_id, screenshots.image_id, videos.video_id, genres.name, platforms.id, platforms.name, first_release_date, total_rating, rating, rating_count, aggregated_rating, total_rating_count, hypes;
       where ${conditions.join(' & ')};
       ${search ? '' : `sort ${order};`}
       limit ${limit}; offset ${offset};`,
