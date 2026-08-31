@@ -49,7 +49,7 @@ export function Timeline({ game }: { game: Game }) {
     if (reactionsError) throw reactionsError;
     const userIds = Array.from(new Set([...(comments || []).map(comment => comment.user_id), ...(reactions || []).map(reaction => reaction.user_id)]));
     const { data: profiles, error: profilesError } = userIds.length
-      ? await supabase.from('profiles').select('id, name, avatar_url').in('id', userIds)
+      ? await supabase.from('profiles').select('id, name, avatar_url, avatar_crop').in('id', userIds)
       : { data: [], error: null };
     if (profilesError) throw profilesError;
     const profilesById = new Map((profiles || []).map(item => [item.id, item as Profile]));
@@ -201,7 +201,7 @@ export function Timeline({ game }: { game: Game }) {
           setFocusedCommentId(comment.id);
         }}
       >
-        <Avatar src={comment.profile?.avatar_url} name={comment.profile?.name} className={`comment-avatar ${nested ? 'size-8' : 'size-9'}`} />
+        <Avatar src={comment.profile?.avatar_url} crop={comment.profile?.avatar_crop} name={comment.profile?.name} className={`comment-avatar ${nested ? 'size-8' : 'size-9'}`} />
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-2"><span className="truncate text-xs font-extrabold text-zinc-200">{comment.profile?.name || 'Membro'}</span><time className="shrink-0 rounded-full border border-white/[0.06] bg-white/[0.045] px-2 py-1 text-[10px] font-semibold text-zinc-400">{formatDateTime(comment.created_at)}</time></div>
           <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-zinc-300">{comment.body}</p>
@@ -218,7 +218,7 @@ export function Timeline({ game }: { game: Game }) {
 
   return <>
     <div ref={commentsParent} className="space-y-4">
-      {!isHistorical && <div className="comment-composer rounded-2xl bg-white/[0.025] p-3"><div className="flex items-start gap-3"><Avatar src={profile?.avatar_url} name={profile?.name} className="comment-avatar size-9" /><textarea value={body} onChange={event => setBody(event.target.value)} rows={2} placeholder="O que você está achando do jogo?" className="min-h-16 min-w-0 flex-1 resize-none bg-transparent py-1 text-sm leading-relaxed outline-none placeholder:text-zinc-600" /></div><div className="mt-2 flex justify-end"><button disabled={!body.trim() || sending} onClick={() => void post(null)} className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl bg-violet-600 px-4 text-xs font-bold transition active:scale-95 disabled:bg-zinc-800 disabled:text-zinc-600"><Send className="size-3.5" />Comentar</button></div></div>}
+      {!isHistorical && <div className="comment-composer rounded-2xl bg-white/[0.025] p-3"><div className="flex items-start gap-3"><Avatar src={profile?.avatar_url} crop={profile?.avatar_crop} name={profile?.name} className="comment-avatar size-9" /><textarea value={body} onChange={event => setBody(event.target.value)} rows={2} placeholder="O que você está achando do jogo?" className="min-h-16 min-w-0 flex-1 resize-none bg-transparent py-1 text-sm leading-relaxed outline-none placeholder:text-zinc-600" /></div><div className="mt-2 flex justify-end"><button disabled={!body.trim() || sending} onClick={() => void post(null)} className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl bg-violet-600 px-4 text-xs font-bold transition active:scale-95 disabled:bg-zinc-800 disabled:text-zinc-600"><Send className="size-3.5" />Comentar</button></div></div>}
       {reactionNotice && <div className="rounded-xl bg-amber-500/10 px-3 py-2 text-xs text-amber-200">{reactionNotice}</div>}
       {query.isInitialLoading ? <div className="space-y-3">{Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className="h-32 w-full" />)}</div> : comments.length === 0 ? <div className="grid min-h-56 place-items-center rounded-3xl border border-dashed border-white/10 p-8 text-center"><div><MessageCircle className="mx-auto size-8 text-zinc-700" /><h3 className="mt-3 text-sm font-bold text-zinc-300">A conversa ainda não começou</h3><p className="mt-1 text-xs text-zinc-500">Compartilhe a primeira impressão sobre o jogo.</p></div></div> : comments.map(comment => {
         const focusedReply = comment.replies.find(reply => reply.id === focusedCommentId);
@@ -247,7 +247,7 @@ export function Timeline({ game }: { game: Game }) {
         <Dialog.Overlay className="dialog-overlay fixed inset-0 z-[90] bg-black/70 backdrop-blur-sm" />
         <Dialog.Content className="app-dialog animated-modal fixed left-1/2 top-1/2 z-[91] max-h-[80dvh] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border border-white/10 bg-[#121216] shadow-2xl outline-none">
           <div className="app-dialog-header border-b border-white/8 px-5 py-4"><Dialog.Title className="text-base font-black">Reações</Dialog.Title><Dialog.Description className="sr-only">Pessoas que reagiram a este comentário.</Dialog.Description></div>
-          <div className="max-h-[64dvh] overflow-y-auto p-3">{reactionTarget?.reactions.flatMap(reaction => reaction.users.map(person => <div key={`${reaction.emoji}-${person.id}`} className="reaction-person flex items-center gap-3 rounded-xl px-2 py-2.5"><Avatar src={person.avatar_url} name={person.name} className="size-10" /><span className="min-w-0 flex-1 truncate text-sm font-bold">{person.name || 'Membro'}</span><span className="text-xl" aria-label={`Reagiu com ${reaction.emoji}`}>{reaction.emoji}</span></div>))}</div>
+          <div className="max-h-[64dvh] overflow-y-auto p-3">{reactionTarget?.reactions.flatMap(reaction => reaction.users.map(person => <div key={`${reaction.emoji}-${person.id}`} className="reaction-person flex items-center gap-3 rounded-xl px-2 py-2.5"><Avatar src={person.avatar_url} crop={person.avatar_crop} name={person.name} className="size-10" /><span className="min-w-0 flex-1 truncate text-sm font-bold">{person.name || 'Membro'}</span><span className="text-xl" aria-label={`Reagiu com ${reaction.emoji}`}>{reaction.emoji}</span></div>))}</div>
           <div className="border-t border-white/8 p-3"><Dialog.Close className="h-10 w-full rounded-xl bg-white/5 text-xs font-bold">Fechar</Dialog.Close></div>
         </Dialog.Content>
       </Dialog.Portal>

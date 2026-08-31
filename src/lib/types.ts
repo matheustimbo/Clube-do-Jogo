@@ -1,8 +1,15 @@
+export interface AvatarCrop {
+  x: number;
+  y: number;
+  zoom: number;
+}
+
 export interface Profile {
   id: string;
   name: string | null;
   email?: string | null;
   avatar_url: string | null;
+  avatar_crop?: AvatarCrop | null;
   bio?: string | null;
   created_at?: string | null;
 }

@@ -69,7 +69,7 @@ export default function GamePage() {
     const ids = Array.from(new Set([...(votes || []).map(item => item.user_id), ...(completed || []).map(item => item.user_id)]));
     let profiles: Profile[] = [];
     if (ids.length) {
-      const response = await supabase.from('profiles').select('id, name, avatar_url').in('id', ids);
+      const response = await supabase.from('profiles').select('id, name, avatar_url, avatar_crop').in('id', ids);
       if (response.error) throw response.error;
       profiles = response.data as Profile[];
     }

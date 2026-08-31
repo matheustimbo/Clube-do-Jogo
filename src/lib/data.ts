@@ -43,7 +43,7 @@ export async function fetchRankingData(supabase: SupabaseClient, votingMonth: st
     ])));
     let profiles: Profile[] = [];
     if (participantIds.length) {
-      const response = await supabase.from('profiles').select('id, name, avatar_url').in('id', participantIds);
+      const response = await supabase.from('profiles').select('id, name, avatar_url, avatar_crop').in('id', participantIds);
       if (response.error) throw response.error;
       profiles = response.data as Profile[];
     }
@@ -102,7 +102,7 @@ export async function fetchRankingData(supabase: SupabaseClient, votingMonth: st
   const participantIds = Array.from(new Set([...(votes || []).map(vote => vote.user_id), ...(completed || []).map(item => item.user_id)]));
   let profiles: Profile[] = [];
   if (participantIds.length) {
-    const response = await supabase.from('profiles').select('id, name, avatar_url').in('id', participantIds);
+    const response = await supabase.from('profiles').select('id, name, avatar_url, avatar_crop').in('id', participantIds);
     if (response.error) throw response.error;
     profiles = response.data as Profile[];
   }

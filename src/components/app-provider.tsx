@@ -31,7 +31,7 @@ interface AppContextValue {
   setTheme: (theme: ThemeId) => void;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
-  updateProfile: (patch: Partial<Pick<Profile, 'name' | 'bio' | 'avatar_url'>>) => Promise<boolean>;
+  updateProfile: (patch: Partial<Pick<Profile, 'name' | 'bio' | 'avatar_url' | 'avatar_crop'>>) => Promise<boolean>;
   refreshClubState: () => Promise<void>;
   setClubGame: (game: Game, mode: 'current' | 'next') => Promise<{ succeeded: boolean; undoEventId?: string }>;
   previewClubGameUndo: (eventId: string) => Promise<ClubUndoPreview | null>;
@@ -180,7 +180,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setRole(roleData?.role === 'admin' ? 'admin' : 'member');
   }, [supabase]);
 
-  const updateProfile = useCallback(async (patch: Partial<Pick<Profile, 'name' | 'bio' | 'avatar_url'>>) => {
+  const updateProfile = useCallback(async (patch: Partial<Pick<Profile, 'name' | 'bio' | 'avatar_url' | 'avatar_crop'>>) => {
     if (!user || !profile) return false;
     const previous = profile;
     const next = { ...profile, ...patch };

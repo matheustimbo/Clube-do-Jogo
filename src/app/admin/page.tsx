@@ -20,7 +20,7 @@ export default function AdminAccessPanel() {
   const query = useStaleQuery<AdminUser[]>('admin:users', async () => {
     if (isDemo) return demoProfiles.map((profile, index) => ({ ...profile, role: index === 0 ? 'admin' : 'member' }));
     const [{ data: profiles, error: profilesError }, { data: roles, error: rolesError }] = await Promise.all([
-      supabase.from('profiles').select('id, name, email, avatar_url, bio, created_at').order('name'),
+      supabase.from('profiles').select('id, name, email, avatar_url, avatar_crop, bio, created_at').order('name'),
       supabase.from('user_roles').select('user_id, role'),
     ]);
     if (profilesError) throw profilesError;
@@ -72,7 +72,7 @@ export default function AdminAccessPanel() {
             const lastAdmin = person.role === 'admin' && adminCount === 1;
             return (
               <article key={person.id} className="admin-user-card flex min-w-0 items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-3">
-                <Avatar src={person.avatar_url} name={person.name} className="size-11" />
+                <Avatar src={person.avatar_url} crop={person.avatar_crop} name={person.name} className="size-11" />
                 <div className="min-w-0 flex-1"><div className="flex min-w-0 items-center gap-2"><strong className="truncate text-sm">{person.name || 'Membro'}</strong>{person.id === user?.id && <span className="text-[9px] font-bold text-zinc-600">Você</span>}</div><span className="block truncate text-[11px] text-zinc-500">{person.email || 'Sem e-mail público'}</span></div>
                 <span className={`admin-role-badge hidden shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[9px] font-black sm:inline-flex ${person.role === 'admin' ? 'bg-violet-500/12 text-violet-300' : 'bg-white/5 text-zinc-500'}`}>{person.role === 'admin' && <ShieldCheck className="size-3" />}{person.role === 'admin' ? 'Admin' : 'Usuário comum'}</span>
                 <button disabled={lastAdmin} title={lastAdmin ? 'Promova outro administrador antes de remover este cargo.' : undefined} onClick={() => roleDialog.show({ item: person.id, action: promote ? 'admin' : 'member' })} className={`h-9 shrink-0 whitespace-nowrap rounded-xl px-3 text-[10px] font-extrabold transition disabled:cursor-not-allowed disabled:bg-white/5 disabled:text-zinc-600 ${promote ? 'bg-violet-500/12 text-violet-300 hover:bg-violet-500/20' : 'bg-red-500/[0.07] text-red-300 hover:bg-red-500/12'}`}>{lastAdmin ? 'Último admin' : promote ? 'Tornar admin' : 'Remover admin'}</button>
@@ -84,7 +84,7 @@ export default function AdminAccessPanel() {
 
       <Dialog open={roleDialog.open} onOpenChange={open => open ? undefined : roleDialog.close()}>
         <DialogContent title={nextRole === 'admin' ? 'Conceder cargo de admin?' : 'Remover cargo de admin?'} description="Esta alteração entra em vigor imediatamente em todos os dispositivos.">
-          {target && <div className="p-5"><div className="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/[0.03] p-3"><Avatar src={target.avatar_url} name={target.name} className="size-11" /><div className="min-w-0"><strong className="block truncate text-sm">{target.name || 'Membro'}</strong><span className="block truncate text-[11px] text-zinc-500">{target.email}</span></div></div><p className="mt-4 text-xs leading-relaxed text-zinc-400">{nextRole === 'admin' ? 'Essa pessoa poderá definir jogos, encerrar ciclos e gerenciar os cargos de todos os usuários.' : 'Essa pessoa perderá acesso à administração e não poderá mais alterar jogos ou cargos.'}</p><div className="mt-5 flex gap-2"><button onClick={() => roleDialog.close()} className="h-11 flex-1 rounded-xl bg-white/5 text-xs font-bold text-zinc-300">Cancelar</button><button onClick={() => void changeRole()} className={`h-11 flex-1 rounded-xl text-xs font-extrabold ${nextRole === 'admin' ? 'bg-violet-600 text-white' : 'bg-red-600 text-white'}`}>Confirmar alteração</button></div></div>}
+          {target && <div className="p-5"><div className="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/[0.03] p-3"><Avatar src={target.avatar_url} crop={target.avatar_crop} name={target.name} className="size-11" /><div className="min-w-0"><strong className="block truncate text-sm">{target.name || 'Membro'}</strong><span className="block truncate text-[11px] text-zinc-500">{target.email}</span></div></div><p className="mt-4 text-xs leading-relaxed text-zinc-400">{nextRole === 'admin' ? 'Essa pessoa poderá definir jogos, encerrar ciclos e gerenciar os cargos de todos os usuários.' : 'Essa pessoa perderá acesso à administração e não poderá mais alterar jogos ou cargos.'}</p><div className="mt-5 flex gap-2"><button onClick={() => roleDialog.close()} className="h-11 flex-1 rounded-xl bg-white/5 text-xs font-bold text-zinc-300">Cancelar</button><button onClick={() => void changeRole()} className={`h-11 flex-1 rounded-xl text-xs font-extrabold ${nextRole === 'admin' ? 'bg-violet-600 text-white' : 'bg-red-600 text-white'}`}>Confirmar alteração</button></div></div>}
         </DialogContent>
       </Dialog>
     </div>

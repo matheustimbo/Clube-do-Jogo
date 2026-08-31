@@ -24,7 +24,7 @@ function People({ people, showReason = false }: { people: VoteParticipant[]; sho
   if (!people.length) return <div className="grid min-h-44 place-items-center text-sm text-zinc-500">Ninguém escolheu esta opção.</div>;
   return <div className="participants-people-list grid max-h-[58dvh] gap-2 overflow-y-auto p-3">{people.map(person => (
     <Link key={person.id} href={`/perfil/${person.id}`} className="participant-person group flex min-h-16 items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-3 py-2.5 transition">
-      <Avatar src={person.avatar_url} name={person.name} className="participant-person-avatar size-11" />
+      <Avatar src={person.avatar_url} crop={person.avatar_crop} name={person.name} className="participant-person-avatar size-11" />
       <span className="min-w-0 flex-1"><strong className="participant-person-name block truncate text-sm font-extrabold">{person.name || 'Membro'}</strong>{showReason && <><span className="mt-0.5 block text-[10px] font-bold text-red-300/80">{voteReasonLabel(person.reason)}</span>{person.reason === 'other' && person.reasonText && <OtherReason text={person.reasonText} />}</>}</span>
       <span className="participant-person-action grid size-8 shrink-0 place-items-center rounded-full border border-white/[0.07]"><ArrowUpRight className="size-3.5" /></span>
     </Link>

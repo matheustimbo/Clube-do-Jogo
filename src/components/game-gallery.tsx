@@ -3,8 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { AnimatePresence, motion } from 'motion/react';
-import { ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, UserRound, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { useUrlDialog } from '@/hooks/use-url-state';
+import { useApp } from './app-provider';
+import { AvatarCropEditor, DEFAULT_AVATAR_SELECTION_CROP } from './avatar-crop-editor';
+import { normalizeAvatarCrop } from './ui/avatar';
 
 export function ImageGalleryDialog({ title, images, open, onOpenChange, activeIndex, onActiveIndexChange }: {
   title: string;
@@ -160,6 +163,9 @@ export function ImageGalleryDialog({ title, images, open, onOpenChange, activeIn
 export function GameGallery({ title, images }: { title: string; images: string[] }) {
   const gallery = useUrlDialog('gallery', { source: 'game-media' });
   const carouselRef = useRef<HTMLDivElement>(null);
+  const { profile, updateProfile, notify } = useApp();
+  const [avatarTarget, setAvatarTarget] = useState<string | null>(null);
+  const [updatingAvatar, setUpdatingAvatar] = useState(false);
   const requestedIndex = Number(gallery.getParam('image') || 0);
   const activeIndex = Number.isInteger(requestedIndex) && requestedIndex >= 0 && requestedIndex < images.length ? requestedIndex : 0;
 
@@ -174,15 +180,33 @@ export function GameGallery({ title, images }: { title: string; images: string[]
     carousel.scrollBy({ left: (direction === 'next' ? 1 : -1) * carousel.clientWidth * .82, behavior: 'smooth' });
   };
 
+  const cropFor = (url: string) => profile?.avatar_url === url ? normalizeAvatarCrop(profile.avatar_crop) : DEFAULT_AVATAR_SELECTION_CROP;
+  const saveAvatar = async (crop: ReturnType<typeof normalizeAvatarCrop>) => {
+    if (!avatarTarget || updatingAvatar) return;
+    setUpdatingAvatar(true);
+    const saved = await updateProfile({ avatar_url: avatarTarget, avatar_crop: normalizeAvatarCrop(crop) });
+    setUpdatingAvatar(false);
+    if (saved) {
+      setAvatarTarget(null);
+      notify('Imagem da galeria definida como avatar.');
+    }
+  };
+
   return (
     <>
       <div className="relative">
         <div ref={carouselRef} className="game-gallery-carousel flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth px-4 pb-2 [scroll-padding-inline:1rem] [scrollbar-width:none] sm:px-8 sm:[scroll-padding-inline:2rem] [&::-webkit-scrollbar]:hidden">
-          {images.map((url, index) => (
-            <button key={`${url}-${index}`} onClick={() => show(index)} className={`game-media-card group relative shrink-0 snap-start overflow-hidden rounded-2xl border border-white/8 bg-zinc-900 ${images.length === 1 ? 'aspect-video w-[calc(100%-2rem)] sm:w-[calc(100%-4rem)]' : 'aspect-[4/3] w-[84%] sm:w-[62%]'}`}>
+          {images.map((url, index) => {
+            const selected = profile?.avatar_url === url;
+            return <div key={`${url}-${index}`} className={`game-media-card group relative shrink-0 snap-start overflow-hidden rounded-2xl border border-white/8 bg-zinc-900 ${images.length === 1 ? 'aspect-video w-[calc(100%-2rem)] sm:w-[calc(100%-4rem)]' : 'aspect-[4/3] w-[84%] sm:w-[62%]'}`}>
+              <button type="button" onClick={() => show(index)} aria-label={`Abrir imagem ${index + 1} da galeria`} className="absolute inset-0 cursor-zoom-in">
               <img src={url} alt={`Cena ${index + 1} de ${title}`} className="size-full object-cover transition duration-300 group-hover:scale-105" />
-            </button>
-          ))}
+              </button>
+              <button type="button" disabled={updatingAvatar} onClick={() => setAvatarTarget(url)} aria-label={selected ? 'Ajustar enquadramento do avatar atual' : 'Usar imagem como avatar'} title={selected ? 'Ajustar enquadramento' : 'Usar como avatar'} className={`absolute right-3 top-3 grid size-9 place-items-center rounded-full border shadow-lg transition disabled:cursor-default ${selected ? 'border-emerald-300/40 bg-emerald-500 text-white' : 'border-white/15 bg-black/65 text-white hover:bg-violet-600'}`}>
+                {selected ? <Check className="size-4" /> : <UserRound className="size-4" />}
+              </button>
+            </div>;
+          })}
         </div>
         {images.length > 1 && <>
           <button onClick={() => moveCarousel('previous')} aria-label="Imagem anterior" title="Imagem anterior" className="absolute left-6 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full border border-[color:var(--hairline)] bg-[color:var(--surface-deep)] text-[color:var(--foreground)] shadow-lg backdrop-blur transition hover:scale-105 sm:left-10"><ChevronLeft className="size-5" /></button>
@@ -191,6 +215,7 @@ export function GameGallery({ title, images }: { title: string; images: string[]
       </div>
 
       <ImageGalleryDialog title={title} images={images} open={gallery.open} onOpenChange={open => { if (!open) gallery.close(); }} activeIndex={activeIndex} onActiveIndexChange={index => gallery.setParam('image', index)} />
+      <AvatarCropEditor key={avatarTarget || 'empty'} imageUrl={avatarTarget} name={`Imagem de ${title}`} crop={avatarTarget ? cropFor(avatarTarget) : DEFAULT_AVATAR_SELECTION_CROP} open={Boolean(avatarTarget)} saving={updatingAvatar} onOpenChange={open => { if (!open && !updatingAvatar) setAvatarTarget(null); }} onSave={crop => { void saveAvatar(crop); }} />
     </>
   );
 }

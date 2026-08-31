@@ -55,14 +55,14 @@ export function ProgressList({ game, snapshotMonth }: { game: Game; snapshotMont
     if (snapshotMonth) {
       const { data, error } = await supabase
         .from('cycle_progress_snapshots')
-        .select('*, profile:profiles!cycle_progress_snapshots_user_id_fkey (id, name, avatar_url)')
+        .select('*, profile:profiles!cycle_progress_snapshots_user_id_fkey (id, name, avatar_url, avatar_crop)')
         .eq('cycle_month', snapshotMonth)
         .eq('game_id', game.id);
       if (error) throw error;
       return (data || []) as unknown as GameProgress[];
     }
     const [{ data: profiles, error: profilesError }, { data: progress, error: progressError }] = await Promise.all([
-      supabase.from('profiles').select('id, name, avatar_url').order('name'),
+      supabase.from('profiles').select('id, name, avatar_url, avatar_crop').order('name'),
       supabase.from('game_progress').select('*').eq('game_id', game.id),
     ]);
     if (profilesError) throw profilesError;
@@ -166,7 +166,7 @@ export function ProgressList({ game, snapshotMonth }: { game: Game; snapshotMont
       {query.isInitialLoading ? <ListSkeleton count={4} /> : <div ref={progressParent} className="space-y-2">{progress.map(item => {
         const meta = statusMeta[item.status];
         const Icon = meta.icon;
-        return <article key={item.user_id} className="progress-person flex min-w-0 items-center gap-3 rounded-xl border border-white/[0.07] bg-black/[0.12] p-3"><Avatar src={item.profile?.avatar_url} name={item.profile?.name} className="size-10" /><div className="min-w-0 flex-1"><div className="flex min-w-0 items-center gap-2"><span className="truncate text-xs font-extrabold">{item.profile?.name || 'Membro'}</span>{item.rating !== null && <RatingDisplay value={Number(item.rating)} className="shrink-0 text-[10px]" />}</div><div className="mt-1.5 flex min-w-0 flex-wrap gap-x-3 gap-y-1.5 text-[10px] font-semibold text-zinc-500">{item.started_at && <span className="inline-flex items-center gap-1.5 whitespace-nowrap"><CalendarClock className="size-3.5 text-sky-400" />{formatShortDate(item.started_at)}</span>}{item.finished_at && <span className="inline-flex items-center gap-1.5 whitespace-nowrap"><CalendarCheck2 className="size-3.5 text-emerald-400" />{formatShortDate(item.finished_at)}</span>}</div></div><span className={`inline-flex shrink-0 items-center gap-1 text-[10px] font-bold ${meta.color}`}><Icon className="size-3.5" /><span className="hidden min-[360px]:inline">{meta.label}</span></span></article>;
+        return <article key={item.user_id} className="progress-person flex min-w-0 items-center gap-3 rounded-xl border border-white/[0.07] bg-black/[0.12] p-3"><Avatar src={item.profile?.avatar_url} crop={item.profile?.avatar_crop} name={item.profile?.name} className="size-10" /><div className="min-w-0 flex-1"><div className="flex min-w-0 items-center gap-2"><span className="truncate text-xs font-extrabold">{item.profile?.name || 'Membro'}</span>{item.rating !== null && <RatingDisplay value={Number(item.rating)} className="shrink-0 text-[10px]" />}</div><div className="mt-1.5 flex min-w-0 flex-wrap gap-x-3 gap-y-1.5 text-[10px] font-semibold text-zinc-500">{item.started_at && <span className="inline-flex items-center gap-1.5 whitespace-nowrap"><CalendarClock className="size-3.5 text-sky-400" />{formatShortDate(item.started_at)}</span>}{item.finished_at && <span className="inline-flex items-center gap-1.5 whitespace-nowrap"><CalendarCheck2 className="size-3.5 text-emerald-400" />{formatShortDate(item.finished_at)}</span>}</div></div><span className={`inline-flex shrink-0 items-center gap-1 text-[10px] font-bold ${meta.color}`}><Icon className="size-3.5" /><span className="hidden min-[360px]:inline">{meta.label}</span></span></article>;
       })}</div>}</section>
       <ProgressConfirmationDialog open={pendingStatus !== null} onOpenChange={open => { if (!open) setPendingStatus(null); }} game={game} currentStatus={mine?.status || 'not_started'} targetStatus={pendingStatus || 'not_started'} onConfirm={() => { if (pendingStatus) void updateStatus(pendingStatus); setPendingStatus(null); }} />
     </div>

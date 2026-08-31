@@ -10,8 +10,8 @@ export function UserMenu({ desktop = false }: { desktop?: boolean }) {
   const { profile, isAdmin, signOut } = useApp();
   return <DropdownMenu.Root>
     <DropdownMenu.Trigger asChild>{desktop
-      ? <button aria-label="Abrir menu da conta" className="flex w-full min-w-0 items-center gap-3 rounded-xl p-2 text-left transition hover:bg-white/5"><Avatar src={profile?.avatar_url} name={profile?.name} className="size-10 shrink-0" /><span className="min-w-0"><strong className="block truncate text-xs text-zinc-200">{profile?.name || 'Meu perfil'}</strong><span className="mt-0.5 block text-[10px] text-zinc-600">{isAdmin ? 'Administrador' : 'Minha conta'}</span></span></button>
-      : <button aria-label="Abrir menu da conta"><Avatar src={profile?.avatar_url} name={profile?.name} className="size-9" /></button>}
+      ? <button aria-label="Abrir menu da conta" className="flex w-full min-w-0 items-center gap-3 rounded-xl p-2 text-left transition hover:bg-white/5"><Avatar src={profile?.avatar_url} crop={profile?.avatar_crop} name={profile?.name} className="size-10 shrink-0" /><span className="min-w-0"><strong className="block truncate text-xs text-zinc-200">{profile?.name || 'Meu perfil'}</strong><span className="mt-0.5 block text-[10px] text-zinc-600">{isAdmin ? 'Administrador' : 'Minha conta'}</span></span></button>
+      : <button aria-label="Abrir menu da conta"><Avatar src={profile?.avatar_url} crop={profile?.avatar_crop} name={profile?.name} className="size-9" /></button>}
     </DropdownMenu.Trigger>
     <DropdownMenu.Portal><DropdownMenu.Content align={desktop ? 'start' : 'end'} side={desktop ? 'right' : 'bottom'} sideOffset={8} collisionPadding={12} className="app-popup animated-popup z-[120] flex min-w-52 flex-col gap-1 rounded-2xl border border-white/10 bg-zinc-900 p-1.5 shadow-2xl outline-none">
       <DropdownMenu.Item asChild><Link href="/perfil" scroll={false} className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-xs font-bold outline-none data-[highlighted]:bg-white/8"><UserRound className="size-4" />Ver perfil</Link></DropdownMenu.Item>

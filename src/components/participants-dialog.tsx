@@ -17,7 +17,7 @@ function PeopleList({ people, empty }: { people: Profile[]; empty: string }) {
     <div ref={parent} className="participants-people-list grid max-h-[60dvh] gap-2 overflow-y-auto p-3">
       {people.map(person => (
         <Link key={person.id} href={`/perfil/${person.id}`} className="participant-person group flex min-h-16 items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-3 py-2.5 transition">
-          <Avatar src={person.avatar_url} name={person.name} className="participant-person-avatar size-11" />
+          <Avatar src={person.avatar_url} crop={person.avatar_crop} name={person.name} className="participant-person-avatar size-11" />
           <div className="min-w-0 flex-1 leading-tight">
             <div className="participant-person-name truncate text-sm font-extrabold text-zinc-100">{person.name || 'Membro'}</div>
             <div className="participant-person-copy mt-1 text-[11px] font-medium text-zinc-500">Perfil, jogos e finalizados</div>
