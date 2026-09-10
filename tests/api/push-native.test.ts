@@ -323,3 +323,30 @@ test('store rejeita métricas quando o resultado perdeu a lease antes de persist
   );
   assert.deepEqual(calls, ['record_native_push_ticket', 'record_native_push_receipt']);
 });
+
+test('worker limita chamadas Expo paradas e persiste retry de envio e de receipt', async () => {
+  let aborted = 0;
+  const stalledFetch: typeof fetch = async (_url, init) => new Promise((_resolve, reject) => {
+    init?.signal?.addEventListener('abort', () => {
+      aborted += 1;
+      reject(init.signal?.reason);
+    }, { once: true });
+  });
+  const fake = store([delivery()], [receipt()]);
+  const transport = createExpoPushTransport(stalledFetch, { timeoutMs: 20 });
+  let watchdog: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      runNativePushWorker(fake.value, transport),
+      new Promise((_, reject) => {
+        watchdog = setTimeout(() => reject(new Error('Expo transport did not enforce its deadline')), 500);
+      }),
+    ]);
+  } finally {
+    clearTimeout(watchdog);
+  }
+  assert.equal(aborted, 2);
+  assert.equal(fake.ticketOutcomes[0].status, 'retry');
+  assert.equal(fake.ticketOutcomes[0].uncertain, true);
+  assert.equal(fake.receiptOutcomes[0].status, 'awaiting');
+});

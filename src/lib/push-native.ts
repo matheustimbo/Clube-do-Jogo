@@ -280,14 +280,22 @@ export async function enqueueNativePushNotification(
   return { queued: Number(data ?? 0), configured: true };
 }
 
-export function createExpoPushTransport(fetcher: typeof fetch = fetch): ExpoPushTransport {
+export function createExpoPushTransport(
+  fetcher: typeof fetch = fetch,
+  { timeoutMs = 30_000 }: { timeoutMs?: number } = {},
+): ExpoPushTransport {
   const headers = () => {
     const value: Record<string, string> = { Accept: 'application/json', 'Content-Type': 'application/json' };
     if (process.env.EXPO_ACCESS_TOKEN) value.Authorization = `Bearer ${process.env.EXPO_ACCESS_TOKEN}`;
     return value;
   };
   const request = async (url: string, body: unknown) => {
-    const response = await fetcher(url, { method: 'POST', headers: headers(), body: JSON.stringify(body) });
+    const response = await fetcher(url, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
     if (!response.ok) {
       throw new ExpoPushRequestError(
         `Expo push request failed with HTTP ${response.status}.`,

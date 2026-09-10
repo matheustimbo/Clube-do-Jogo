@@ -57,6 +57,8 @@ The native payload contains the existing `title`, `body`, `url`, and `tag`. The 
 
 Each worker call claims no more than 100 due deliveries, matching the Expo send batch limit. A database lease prevents concurrent workers from claiming the same ready row. Before each retry, the claim verifies that the installation is active and still belongs to the original recipient. A transferred installation cancels the old delivery.
 
+Each Expo HTTP request has a 30-second abort deadline. An aborted send is recorded as uncertain and follows the bounded retry policy; an aborted receipt request remains awaiting a receipt. The deadline leaves time to persist the outcome before the ten-minute database lease expires.
+
 An Expo ticket with an ID moves a row to `ticketed`. Receipt lookup begins after 15 minutes, following Expo's recommendation, and sends no more than 1000 ticket IDs per request. Missing receipts are checked at most five times because Expo clears receipts after 24 hours.
 
 `DeviceNotRegistered` moves the delivery to `invalid_token` and deactivates the installation only when its current token equals the token used for that attempt. A late ticket or receipt cannot deactivate a rotated token.
