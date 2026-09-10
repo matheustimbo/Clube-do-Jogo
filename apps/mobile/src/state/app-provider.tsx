@@ -18,6 +18,7 @@ import {
 } from '@/platform';
 import { createInitialSessionGate, shouldHydrateAuthSession } from './auth-lifecycle';
 import { clearPushSession, preparePushSignOut } from './push-session';
+import { publishIdentity } from './identity-scope';
 
 const SELECTED_MONTH_KEY = '@clube-do-jogo/selected-month';
 
@@ -99,6 +100,10 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
   const stateRef = useRef(state);
   const supabase = getMobileSupabaseClient();
   stateRef.current = state;
+
+  useEffect(() => {
+    publishIdentity({ userId: state.userId, isDemo: state.isDemo, sessionEpoch });
+  }, [state.userId, state.isDemo, sessionEpoch]);
 
   useEffect(() => {
     focusManager.setEventListener(handleFocus => {

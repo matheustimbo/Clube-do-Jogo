@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   createPersistentStateStore,
+  resolvePersistentStateKey,
 } from '../../apps/mobile/src/hooks/use-persistent-state';
 import { mobilePreferencesStorageKey, normalizeMobilePreferences } from '../../apps/mobile/src/hooks/mobile-preferences-core';
 import type { NativeStorage } from '../../apps/mobile/src/platform/storage';
@@ -107,4 +108,41 @@ test('preference scopes separate accounts and demo from one another', () => {
   assert.deepEqual(normalizeMobilePreferences({ themeId: 'locked', reduceMotion: true, ratingScale: 7 }), {
     themeId: 'original', reduceMotion: true, audioEnabled: false, ratingScale: 10,
   });
+});
+
+test('usePersistentState resolves a distinct key per account by default, so a caller that never scopes still isolates two identities', () => {
+  const keyA = resolvePersistentStateKey('clube-do-jogo:mobile:library-playable', true, 'user-a', false, 1);
+  const keyB = resolvePersistentStateKey('clube-do-jogo:mobile:library-playable', true, 'user-b', false, 1);
+  assert.equal(keyA, 'clube-do-jogo:mobile:library-playable/account/user-a');
+  assert.equal(keyB, 'clube-do-jogo:mobile:library-playable/account/user-b');
+  assert.notEqual(keyA, keyB);
+});
+
+test('two accounts writing the same unscoped feature key end up with isolated stored values', async () => {
+  const storage = new FakeStorage();
+  const keyA = resolvePersistentStateKey('clube-do-jogo:mobile:library-playable', true, 'user-a', false, 1);
+  const keyB = resolvePersistentStateKey('clube-do-jogo:mobile:library-playable', true, 'user-b', false, 1);
+
+  const storeA = createPersistentStateStore(keyA, false, { storage });
+  storeA.set(true);
+  await flush();
+  storage.writes[0]?.deferred.resolve();
+  await flush();
+
+  const storeB = createPersistentStateStore(keyB, false, { storage });
+  storeB.set(false);
+  await flush();
+  storage.writes[1]?.deferred.resolve();
+  await flush();
+
+  assert.equal(storage.values.get(keyA), 'true');
+  assert.equal(storage.values.get(keyB), 'false');
+  assert.equal(storage.values.has('clube-do-jogo:mobile:library-playable'), false);
+});
+
+test('logging out resolves a fresh anonymous key, never the previous account key', () => {
+  const loggedIn = resolvePersistentStateKey('clube-do-jogo:mobile:library-playable', true, 'user-a', false, 1);
+  const loggedOut = resolvePersistentStateKey('clube-do-jogo:mobile:library-playable', true, null, false, 2);
+  assert.notEqual(loggedIn, loggedOut);
+  assert.equal(loggedOut, 'clube-do-jogo:mobile:library-playable/account/anonymous-2');
 });
