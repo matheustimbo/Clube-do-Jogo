@@ -9,7 +9,7 @@ const projectId = '00000000-0000-4000-8000-000000000001';
 
 function readConfig(variables: Record<string, string> = {}) {
   const env = { ...process.env };
-  for (const key of ['APP_VARIANT', 'EAS_BUILD_PROFILE', 'EXPO_APPLICATION_ID', 'EXPO_EAS_PROJECT_ID']) {
+  for (const key of ['APP_VARIANT', 'EAS_BUILD_PROFILE', 'EXPO_APPLICATION_ID', 'EXPO_EAS_PROJECT_ID', 'EXPO_LOCAL_HTTP']) {
     delete env[key];
   }
   return spawnSync(process.execPath, [expoBin, 'config', '--type', 'public', '--json'], {
@@ -47,6 +47,15 @@ test('preview conecta updates e push somente ao projeto explícito', () => {
   assert.equal(config.extra.eas.projectId, projectId);
 });
 
+test('development pode identificar push sem habilitar ou apontar updates remotos', () => {
+  const result = readConfig({ EXPO_EAS_PROJECT_ID: projectId });
+  assert.equal(result.status, 0, result.stderr);
+  const config = JSON.parse(result.stdout);
+  assert.equal(config.updates.enabled, false);
+  assert.equal(config.updates.url, undefined);
+  assert.equal(config.extra.eas.projectId, projectId);
+});
+
 test('produção não herda identificação local quando falta configuração de distribuição', () => {
   const result = readConfig({ EAS_BUILD_PROFILE: 'production' });
   assert.notEqual(result.status, 0);
@@ -60,4 +69,20 @@ test('perfil de produção rejeita variante de desenvolvimento e UUID inválido'
   const invalidProject = readConfig({ EXPO_EAS_PROJECT_ID: 'project-name' });
   assert.notEqual(invalidProject.status, 0);
   assert.match(invalidProject.stderr, /UUID/);
+});
+
+test('HTTP local exige opt-in de desenvolvimento e não entra em preview', () => {
+  const local = readConfig({ EXPO_LOCAL_HTTP: '1' });
+  assert.equal(local.status, 0, local.stderr);
+  const config = JSON.parse(local.stdout);
+  const properties = config.plugins.find((plugin: unknown) => Array.isArray(plugin) && plugin[0] === 'expo-build-properties');
+  assert.equal(properties[1].android.usesCleartextTraffic, true);
+  const preview = readConfig({
+    APP_VARIANT: 'preview',
+    EXPO_APPLICATION_ID: 'com.example.club.preview',
+    EXPO_EAS_PROJECT_ID: projectId,
+    EXPO_LOCAL_HTTP: '1',
+  });
+  assert.notEqual(preview.status, 0);
+  assert.match(preview.stderr, /EXPO_LOCAL_HTTP só pode ser usado/);
 });

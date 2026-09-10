@@ -5,6 +5,7 @@ const variant = process.env.APP_VARIANT ?? profileVariant ?? 'development';
 const isDistributed = variant === 'preview' || variant === 'production';
 const applicationId = process.env.EXPO_APPLICATION_ID || 'com.clubedojogo.mobile.dev';
 const projectId = process.env.EXPO_EAS_PROJECT_ID;
+const localHttp = process.env.EXPO_LOCAL_HTTP === '1';
 
 if (!['development', 'preview', 'production'].includes(variant)) {
   throw new Error('APP_VARIANT deve ser development, preview ou production.');
@@ -14,6 +15,9 @@ if (profileVariant && variant !== profileVariant) {
 }
 if (isDistributed && (!process.env.EXPO_APPLICATION_ID || !projectId)) {
   throw new Error('Defina EXPO_APPLICATION_ID e EXPO_EAS_PROJECT_ID antes de gerar preview ou produção.');
+}
+if (isDistributed && localHttp) {
+  throw new Error('EXPO_LOCAL_HTTP só pode ser usado na variante development.');
 }
 if (projectId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(projectId)) {
   throw new Error('EXPO_EAS_PROJECT_ID deve ser o UUID do projeto EAS confirmado.');
@@ -30,7 +34,7 @@ const config: ExpoConfig = {
   runtimeVersion: { policy: 'fingerprint' },
   updates: {
     enabled: isDistributed,
-    ...(projectId ? { url: `https://u.expo.dev/${projectId}` } : {}),
+    ...(isDistributed ? { url: `https://u.expo.dev/${projectId}` } : {}),
   },
   ...(projectId ? { extra: { eas: { projectId } } } : {}),
   ios: {
@@ -44,6 +48,7 @@ const config: ExpoConfig = {
   },
   plugins: [
     'expo-router',
+    ['expo-build-properties', { android: { usesCleartextTraffic: localHttp } }],
     ['expo-audio', { microphonePermission: false, recordAudioAndroid: false, enableBackgroundPlayback: false, enableBackgroundRecording: false }],
     ['expo-notifications', { defaultChannel: 'default', color: '#8b5cf6', enableBackgroundRemoteNotifications: false }],
     ['expo-image-picker', { photosPermission: 'Escolha imagens para suas anotações privadas.', cameraPermission: false, microphonePermission: false }],

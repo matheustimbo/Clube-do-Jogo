@@ -28,14 +28,18 @@ eas build --profile production --platform all
 
 Esses comandos iniciam builds remotos e precisam de projeto, assinatura e autorização de distribuição configurados. Os perfis de preview não equivalem a uma publicação nas lojas. A numeração EAS é remota; a versão local inicial de desenvolvimento é 1.
 
-Para medir o bundle embarcado sem serviços EAS, mantenha `APP_VARIANT=development` e compile em modo release. Isso desliga updates remotos, preserva `com.clubedojogo.mobile.dev` e permite usar o ambiente Supabase local de teste.
+Para medir o bundle embarcado sem serviços EAS, mantenha `APP_VARIANT=development` e compile em modo release. Isso desliga updates remotos, preserva `com.clubedojogo.mobile.dev` e permite usar o ambiente Supabase local de teste. Defina `ANDROID_SERIAL` e `IOS_UDID` com os dispositivos dedicados antes dos comandos. Exporte também as variáveis públicas do ambiente local; `EXPO_NO_DOTENV=1` evita incorporar outro ambiente por um arquivo `.env`.
 
 ```sh
-APP_VARIANT=development npx expo run:android --variant release
-APP_VARIANT=development npx expo run:ios --configuration Release
+APP_VARIANT=development EXPO_NO_DOTENV=1 EXPO_LOCAL_HTTP=1 npx expo run:android --variant release --device "${ANDROID_SERIAL:?Defina o serial Android}"
+APP_VARIANT=development EXPO_NO_DOTENV=1 npx expo run:ios --configuration Release --device "${IOS_UDID:?Defina o UDID iOS}"
 ```
 
-Escolha explicitamente o aparelho dedicado quando o CLI solicitar. No Mac remoto, confirme host e UDID, aplique a redução máxima do SimSlim e confira `status` e `verify`. Preserve a assinatura local do simulador. O build direto por Xcode com assinatura desativada falhou no Keychain do Expo Notifications; consulte `mobile-migration.md`.
+`EXPO_LOCAL_HTTP=1` permite ao build Android local acessar os serviços de teste por HTTP. Preview e produção rejeitam essa opção. Sem ela, a configuração nativa mantém tráfego sem TLS desativado. No iOS, a configuração Expo já permite rede local sem liberar tráfego arbitrário.
+
+No Mac remoto, confirme host e UDID, aplique a redução máxima do SimSlim e confira `status` e `verify`. Preserve a assinatura local do simulador. O build direto por Xcode com assinatura desativada falhou no Keychain do Expo Notifications; consulte `mobile-migration.md`.
+
+Development aceita um `EXPO_EAS_PROJECT_ID` explícito para testar push em aparelho físico com development client. Esse identificador permanece em `extra.eas.projectId`; updates continuam desabilitados e sem URL nessa variante. Omita o identificador no teste local sem EAS.
 
 Os diretórios `android` e `ios` são gerados por CNG. Antes de regenerá-los, confira se existem mudanças nativas manuais e preserve-as. Use checkout isolado para trocar a variante. Um diretório nativo antigo pode manter o identificador anterior mesmo após editar `app.config.ts`.
 
