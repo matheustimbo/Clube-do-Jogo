@@ -22,7 +22,7 @@ import { ImageGalleryModal } from '@/features/media/ImageGalleryModal';
 import { MugshotsGrid } from '@/features/media/MugshotsGrid';
 import { TrailerModal } from '@/features/media/TrailerModal';
 import { AvatarCropEditor, DEFAULT_AVATAR_SELECTION_CROP } from '@/features/profile/AvatarCropEditor';
-import { GameDetailVoteParticipantsSheet } from '@/features/game-detail/GameDetailVoteParticipantsSheet';
+import { VoteParticipantsSheet } from '@/components/VoteParticipantsSheet';
 import { getCanonicalGameUrl } from '@/features/media/canonical-url';
 import { getRankingFormula } from '@/platform/config';
 import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
@@ -417,7 +417,7 @@ export default function GameDetailScreen() {
       />
 
       {participantsChoice ? (
-        <GameDetailVoteParticipantsSheet
+        <VoteParticipantsSheet
           visible={participantsChoice !== null}
           profiles={rankingEntry?.choiceProfiles ?? { would_play: [], would_not_play: [] }}
           initialChoice={participantsChoice}
