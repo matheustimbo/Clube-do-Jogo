@@ -22,6 +22,7 @@ import { ImageGalleryModal } from '@/features/media/ImageGalleryModal';
 import { MugshotsGrid } from '@/features/media/MugshotsGrid';
 import { TrailerModal } from '@/features/media/TrailerModal';
 import { AvatarCropEditor, DEFAULT_AVATAR_SELECTION_CROP } from '@/features/profile/AvatarCropEditor';
+import { useClubGameAdminAction } from '@/features/admin';
 import { VoteParticipantsSheet } from '@/components/VoteParticipantsSheet';
 import { getCanonicalGameUrl } from '@/features/media/canonical-url';
 import { getRankingFormula } from '@/platform/config';
@@ -39,7 +40,8 @@ export default function GameDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const gameId = String(id);
   const statusMeta = useStatusMeta();
-  const { userId, isHistorical, isDemo } = useApp();
+  const { userId, isAdmin, isHistorical, isDemo } = useApp();
+  const clubGameAdmin = useClubGameAdminAction();
 
   const gameQuery = useGame(gameId);
   const mediaQuery = useGameMedia(gameId);
@@ -269,6 +271,17 @@ export default function GameDetailScreen() {
         />
       </View>
 
+      {isAdmin ? (
+        <Button
+          label="Gerenciar jogo do clube"
+          variant="secondary"
+          icon={<Ionicons name="ribbon-outline" size={16} color={colors.amber400} />}
+          onPress={() => clubGameAdmin.openFor(game)}
+          style={styles.adminButton}
+          accessibilityLabel={`Gerenciar ${game.title} como jogo do clube`}
+        />
+      ) : null}
+
       {mediaQuery.error && (
         <ErrorState message={mediaQuery.error.message} onRetry={() => void mediaQuery.refetch()} />
       )}
@@ -466,6 +479,8 @@ export default function GameDetailScreen() {
         onClose={() => setAvatarSource(null)}
         onSave={saveAvatarCrop}
       />}
+
+      {clubGameAdmin.sheet}
     </Screen>
   );
 }
@@ -496,6 +511,7 @@ const useStyles = themedStyles(colors => ({
   descriptionToggleLabel: { fontSize: 11, fontWeight: '800', color: colors.violet300 },
   actionsRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
   actionButton: { flex: 1 },
+  adminButton: { marginBottom: spacing.lg },
   gallery: { marginBottom: spacing.lg },
   screenshot: { width: 220, height: 124, borderRadius: radii.lg, backgroundColor: colors.zinc900 },
   card: { borderRadius: radii.xxl, borderWidth: 1, borderColor: colors.hairline, backgroundColor: colors.surfaceSofter, padding: spacing.lg, gap: spacing.md, marginBottom: spacing.lg },

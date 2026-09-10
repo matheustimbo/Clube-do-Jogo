@@ -13,18 +13,15 @@ import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useGame } from '@/state/queries';
 import { useAdminGameOptions, usePreviewClubGameChange, useSetClubGame, type SetClubGameVariables } from '@/state/admin-queries';
 import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
+import { initialPhaseFor, type ClubGameChangePhase as Phase } from './club-game-change-phase';
 
-type Phase =
-  | { step: 'pick-game' }
-  | { step: 'choose-mode'; game: Game }
-  | { step: 'confirm'; game: Game; preview: ClubGameChangePreview };
-
-export function ClubGameChangeSheet({ visible, onClose, onApplied }: {
+export function ClubGameChangeSheet({ visible, initialGame, onClose, onApplied }: {
   visible: boolean;
+  initialGame?: Game;
   onClose: () => void;
   onApplied: (result: ClubGameChangeResult) => void;
 }) {
-  const [phase, setPhase] = useState<Phase>({ step: 'pick-game' });
+  const [phase, setPhase] = useState<Phase>(() => initialPhaseFor(initialGame));
   const setClubGame = useSetClubGame();
   const committing = phase.step === 'confirm' && setClubGame.isPending;
 
