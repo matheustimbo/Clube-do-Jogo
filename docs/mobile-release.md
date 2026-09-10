@@ -53,7 +53,7 @@ No checkout do Mac, instale as dependências próprias e gere o projeto iOS a pa
 APP_VARIANT=development EXPO_NO_DOTENV=1 npx expo prebuild --platform ios --no-install
 ```
 
-O `package.json` do mobile exclui `@expo/ui` do [autolinking iOS](https://docs.expo.dev/modules/autolinking/#exclude). O Router usa esse pacote nas toolbars Android; o bundle iOS atual não o consome. A exclusão evita construir suas definições nativas durante a abertura do app. Ao adicionar uma tela iOS que use Expo UI, remova essa exclusão e gere outro binário.
+O `package.json` do mobile exclui `@expo/ui` e `@expo/dom-webview` do [autolinking iOS](https://docs.expo.dev/modules/autolinking/#exclude). O Router usa Expo UI nas toolbars Android; o bundle iOS atual não consome esses módulos. A exclusão evita construir suas definições nativas durante a abertura do app. Ao adicionar uma tela iOS que use um deles, remova a exclusão correspondente e gere outro binário.
 
 Execute `pod install` dentro de `apps/mobile/ios`. Depois, em `apps/mobile`, compile com assinatura ad hoc local e instale no simulador dedicado.
 

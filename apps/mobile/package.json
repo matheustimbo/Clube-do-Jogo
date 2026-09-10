@@ -60,7 +60,8 @@
       ],
       "ios": {
         "exclude": [
-          "@expo/ui"
+          "@expo/ui",
+          "@expo/dom-webview"
         ]
       }
     }
