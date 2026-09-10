@@ -57,7 +57,12 @@
       "include": [
         "react",
         "react-dom"
-      ]
+      ],
+      "ios": {
+        "exclude": [
+          "@expo/ui"
+        ]
+      }
     }
   }
 }
