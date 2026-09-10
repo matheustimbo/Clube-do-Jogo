@@ -959,6 +959,9 @@ function check() {
   }
   const featureDir = join(skillDir, 'features');
   const featureFiles = readdirSync(featureDir).filter(name => name.endsWith('.md') && name !== 'README.md');
+  // Sanity bound, not a target: catches an empty/near-empty features/ dir or a
+  // runaway generator, not meant to cap the map's own growth. No test pins the
+  // exact number; widen further if features/ legitimately grows past this.
   if (featureFiles.length < 3 || featureFiles.length > 15) fail(`Quantidade de feature maps inválida: ${featureFiles.length}`);
   for (const name of featureFiles) {
     const content = readFileSync(join(featureDir, name), 'utf8');
