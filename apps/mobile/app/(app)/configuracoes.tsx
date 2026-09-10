@@ -6,9 +6,10 @@ import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { useApp } from '@/state/app-provider';
 import { colors, radii, spacing, typography } from '@/theme';
+import { AdminPanel } from '@/features/admin';
 
 export default function SettingsScreen() {
-  const { profile, userId, isDemo, signOut } = useApp();
+  const { profile, userId, isDemo, isAdmin, signOut } = useApp();
 
   return (
     <Screen>
@@ -42,6 +43,8 @@ export default function SettingsScreen() {
           atualização futura.
         </Text>
       </View>
+
+      {isAdmin ? <AdminPanel key={userId ?? 'anonymous'} /> : null}
 
       <Button
         label="Sair da conta"
