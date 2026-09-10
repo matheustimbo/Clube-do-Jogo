@@ -105,11 +105,13 @@ export function AdminClubPanel() {
         />
       ) : null}
 
-      <ClubGameChangeSheet
-        visible={changeSheetOpen}
-        onClose={() => setChangeSheetOpen(false)}
-        onApplied={result => setRecentDecision({ kind: 'applied', result })}
-      />
+      {changeSheetOpen ? (
+        <ClubGameChangeSheet
+          visible
+          onClose={() => setChangeSheetOpen(false)}
+          onApplied={result => setRecentDecision({ kind: 'applied', result })}
+        />
+      ) : null}
 
       <UndoConfirmSheet
         key={undoTarget?.eventId || 'closed'}
