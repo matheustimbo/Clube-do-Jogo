@@ -3,7 +3,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { closeSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn, spawnSync } from 'node:child_process';
 
@@ -83,6 +83,29 @@ function gitSha() {
   return /^[0-9a-f]{40}$/.test(value) ? value : null;
 }
 
+function gitCheckoutState() {
+  const sha = gitSha();
+  const result = spawnSync('git', ['status', '--porcelain=v1', '--untracked-files=all'], { cwd: rootDir, encoding: 'utf8' });
+  if (result.error || result.status !== 0) return { sha, clean: false, entries: ['git status indisponível'] };
+  const output = (result.stdout || '').trim();
+  const entries = output ? output.split('\n').filter(Boolean) : [];
+  return { sha, clean: entries.length === 0, entries };
+}
+
+function requireCleanCheckout(stage, expectedSha = null) {
+  const snapshot = gitCheckoutState();
+  if (!snapshot.sha) fail(`SHA indisponível no checkout durante ${stage}`);
+  if (!snapshot.clean) fail(`Checkout sujo durante ${stage}: ${snapshot.entries.join(' | ')}`);
+  if (expectedSha && snapshot.sha !== expectedSha) fail(`SHA divergente durante ${stage}`);
+  return snapshot;
+}
+
+function assertCleanSnapshot(name, snapshot, expectedSha) {
+  if (!snapshot || snapshot.clean !== true || snapshot.sha !== expectedSha || !Array.isArray(snapshot.entries) || snapshot.entries.length) {
+    fail(`Snapshot de checkout inválido: ${name}`);
+  }
+}
+
 function redact(value) {
   return String(value)
     .replace(/([?&](?:access[_-]?token|refresh[_-]?token|token|api[_-]?key|apikey|secret|password|code|auth)=)[^&#\s]*/gi, '$1[REDACTED]')
@@ -121,12 +144,34 @@ function createRunId() {
 
 function pathsFor(runId) {
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(runId)) fail(`RUN_ID inválido: ${runId}`);
+  const stateDir = join(stateRoot, runId);
+  const evidenceDir = join(evidenceRoot, runId);
+  ensureCanonicalDirectory(stateDir, `state do run ${runId}`);
+  ensureCanonicalDirectory(evidenceDir, `evidence do run ${runId}`);
   return {
-    stateDir: join(stateRoot, runId),
-    evidenceDir: join(evidenceRoot, runId),
-    stateManifest: join(stateRoot, runId, 'manifest.json'),
-    evidenceManifest: join(evidenceRoot, runId, 'manifest.json'),
+    stateDir,
+    evidenceDir,
+    stateManifest: join(stateDir, 'manifest.json'),
+    evidenceManifest: join(evidenceDir, 'manifest.json'),
   };
+}
+
+function ensureCanonicalDirectory(path, label) {
+  const target = resolve(path);
+  const relativePath = relative(rootDir, target);
+  if (relativePath === '..' || relativePath.startsWith(`..${sep}`)) fail(`Diretório fora do checkout: ${label}`);
+  let current = rootDir;
+  for (const component of relativePath.split(sep).filter(Boolean)) {
+    current = join(current, component);
+    try {
+      const stats = lstatSync(current);
+      if (stats.isSymbolicLink()) fail(`Diretório simbólico recusado: ${label}`);
+      if (!stats.isDirectory()) fail(`Componente de diretório inválido: ${label}`);
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw error;
+      break;
+    }
+  }
 }
 
 function ensureWriteTarget(path) {
@@ -184,6 +229,8 @@ function validateManifestEnvelope(manifest) {
   if (!manifest.processIdentity) fail(`Identidade ausente no manifesto do run ${manifest.runId}`);
   if (!Array.isArray(manifest.processPids) || !manifest.processPids.includes(manifest.pid)) fail(`Grupo inicial ausente no manifesto do run ${manifest.runId}`);
   if (manifest.logPath !== join(paths.evidenceDir, 'launch.log')) fail(`logPath divergente para run ${manifest.runId}`);
+  assertCleanSnapshot('launch antes', manifest.checkout?.before, manifest.gitSha);
+  assertCleanSnapshot('launch depois', manifest.checkout?.after, manifest.gitSha);
   return paths;
 }
 
@@ -201,6 +248,65 @@ function assertArtifactIdentity(name, artifact, manifest) {
   for (const field of ['runId', 'gitSha', 'worktree', 'port', 'baseUrl', 'mode']) {
     if (artifact?.[field] !== manifest[field]) fail(`${name} divergente no campo ${field}`);
   }
+}
+
+function assertNoRuntimeErrors(result) {
+  const fields = ['consoleErrors', 'pageErrors', 'failedRequests'];
+  for (const field of fields) {
+    if (!Array.isArray(result?.[field])) fail(`${field} ausente no resultado do drive`);
+    if (result[field].length) fail(`Runtime errors no drive: ${field}`);
+  }
+}
+
+function fileDigest(path, file) {
+  ensureRegularFile(path, file);
+  const bytes = readFileSync(path);
+  if (!bytes.length) fail(`Arquivo vazio: ${file}`);
+  return {
+    file,
+    bytes: bytes.length,
+    sha256: createHash('sha256').update(bytes).digest('hex'),
+  };
+}
+
+function pngMetadata(path, file) {
+  const metadata = fileDigest(path, file);
+  const bytes = readFileSync(path);
+  const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  if (bytes.length < 33 || !bytes.subarray(0, 8).equals(signature) || bytes.toString('ascii', 12, 16) !== 'IHDR' || bytes.subarray(-8, -4).toString('ascii') !== 'IEND') {
+    fail(`PNG inválido: ${file}`);
+  }
+  const width = bytes.readUInt32BE(16);
+  const height = bytes.readUInt32BE(20);
+  if (!width || !height) fail(`Dimensão PNG inválida: ${file}`);
+  return { ...metadata, width, height };
+}
+
+function assertCapturedFile(name, expected, actual) {
+  for (const field of ['file', 'bytes', 'sha256']) {
+    if (expected?.[field] !== actual[field]) fail(`${name} divergente no campo ${field}`);
+  }
+  for (const field of ['width', 'height']) {
+    if (expected?.[field] !== undefined && expected[field] !== actual[field]) fail(`${name} divergente no campo ${field}`);
+  }
+}
+
+function captureMetadata(evidenceDir, captures) {
+  const actual = {
+    beforeAction: {
+      screenshot: pngMetadata(join(evidenceDir, 'before-action.png'), 'before-action.png'),
+      aria: fileDigest(join(evidenceDir, 'before-action.aria.txt'), 'before-action.aria.txt'),
+    },
+    afterVote: {
+      screenshot: pngMetadata(join(evidenceDir, 'after-vote.png'), 'after-vote.png'),
+      aria: fileDigest(join(evidenceDir, 'after-vote.aria.txt'), 'after-vote.aria.txt'),
+    },
+  };
+  for (const stage of ['beforeAction', 'afterVote']) {
+    assertCapturedFile(`${stage}.screenshot`, captures?.[stage]?.screenshot, actual[stage].screenshot);
+    assertCapturedFile(`${stage}.aria`, captures?.[stage]?.aria, actual[stage].aria);
+  }
+  return actual;
 }
 
 function redactTextFile(path) {
@@ -238,7 +344,7 @@ function processInfo(pid) {
     try {
       const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
       state = stat.slice(stat.lastIndexOf(')') + 2).trim().split(/\s+/)[0];
-    } catch { /* The process may exit between the table snapshot and inspection. */ }
+    } catch { }
     return { alive: state === 'Z' ? false : processAlive(pid), state, cwd: null, command: null, pgid: null, identity: null };
   }
 }
@@ -363,8 +469,8 @@ async function launchManifest(options) {
   if (occupied.length) fail(`A porta ${port} já está ocupada pelos PIDs ${occupied.join(', ')}`);
   const runId = options.runId || process.env.RUN_ID || createRunId();
   if (!/^[A-Za-z0-9._-]+$/.test(runId)) fail(`RUN_ID inválido: ${runId}`);
-  const launchSha = gitSha();
-  if (!launchSha) fail('Não foi possível determinar o SHA do checkout antes do launch');
+  const checkoutBefore = requireCleanCheckout('launch antes');
+  const launchSha = checkoutBefore.sha;
   const paths = pathsFor(runId);
   mkdirSync(paths.stateDir, { recursive: true });
   mkdirSync(paths.evidenceDir, { recursive: true });
@@ -394,6 +500,13 @@ async function launchManifest(options) {
     await terminateUnpublishedChild(child);
     fail(`Não foi possível inspecionar o grupo do processo ${child.pid} antes do manifesto`);
   }
+  let checkoutAfter;
+  try {
+    checkoutAfter = requireCleanCheckout('launch depois', launchSha);
+  } catch (error) {
+    await terminateUnpublishedChild(child);
+    throw error;
+  }
   child.unref();
   const manifest = {
     version: 1,
@@ -417,6 +530,7 @@ async function launchManifest(options) {
       },
     },
     startedAt: nowIso(),
+    checkout: { before: checkoutBefore, after: checkoutAfter },
     logPath,
     stateDir: paths.stateDir,
     evidenceDir: paths.evidenceDir,
@@ -499,6 +613,7 @@ async function ariaSnapshot(page) {
 
 async function driveRanking(manifest) {
   const paths = validateManifestEnvelope(manifest);
+  const checkoutBefore = requireCleanCheckout('drive antes', manifest.gitSha);
   const { chromium } = await import('playwright');
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 1280, height: 960 }, locale: 'pt-BR' });
@@ -528,6 +643,8 @@ async function driveRanking(manifest) {
     consoleErrors,
     pageErrors,
     failedRequests,
+    checkout: { before: checkoutBefore, after: null },
+    captures: null,
   };
   try {
     await page.goto(`${manifest.baseUrl}/jogo-do-mes`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
@@ -544,6 +661,12 @@ async function driveRanking(manifest) {
     ensureWriteTarget(join(paths.evidenceDir, 'before-action.png'));
     writeFileSync(join(paths.evidenceDir, 'before-action.aria.txt'), `${redact(await ariaSnapshot(page))}\n`, 'utf8');
     await page.screenshot({ path: join(paths.evidenceDir, 'before-action.png'), fullPage: true });
+    result.captures = {
+      beforeAction: {
+        screenshot: pngMetadata(join(paths.evidenceDir, 'before-action.png'), 'before-action.png'),
+        aria: fileDigest(join(paths.evidenceDir, 'before-action.aria.txt'), 'before-action.aria.txt'),
+      },
+    };
     result.actions.push('opened Ranking and captured before state');
     await card.getByRole('button', { name: 'Não', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: /Por que você não jogaria\?/ });
@@ -568,6 +691,11 @@ async function driveRanking(manifest) {
     ensureWriteTarget(join(paths.evidenceDir, 'after-vote.png'));
     writeFileSync(join(paths.evidenceDir, 'after-vote.aria.txt'), `${redact(await ariaSnapshot(page))}\n`, 'utf8');
     await page.screenshot({ path: join(paths.evidenceDir, 'after-vote.png'), fullPage: true });
+    result.captures.afterVote = {
+      screenshot: pngMetadata(join(paths.evidenceDir, 'after-vote.png'), 'after-vote.png'),
+      aria: fileDigest(join(paths.evidenceDir, 'after-vote.aria.txt'), 'after-vote.aria.txt'),
+    };
+    assertNoRuntimeErrors(result);
     result.status = 'passed';
   } catch (error) {
     result.error = redact(error instanceof Error ? error.message : String(error));
@@ -577,6 +705,16 @@ async function driveRanking(manifest) {
     result.consoleErrors = consoleErrors;
     result.pageErrors = pageErrors;
     result.failedRequests = failedRequests;
+    const checkoutAfter = gitCheckoutState();
+    result.checkout.after = checkoutAfter;
+    if (consoleErrors.length || pageErrors.length || failedRequests.length) {
+      result.status = 'failed';
+      result.error = result.error || 'Runtime errors no drive';
+    }
+    if (!checkoutAfter.clean || checkoutAfter.sha !== manifest.gitSha) {
+      result.status = 'failed';
+      result.error = result.error || `Checkout sujo durante drive depois: ${checkoutAfter.entries.join(' | ')}`;
+    }
     writeJson(join(paths.evidenceDir, 'drive-result.json'), result);
     await context.close().catch(() => undefined);
     await browser.close().catch(() => undefined);
@@ -589,7 +727,10 @@ async function drive(options, positional) {
   const manifest = readManifest(options.runId);
   await driveRanking(manifest);
   const paths = validateManifestEnvelope(manifest);
-  process.stdout.write(`${JSON.stringify(readJson(join(paths.evidenceDir, 'drive-result.json')), null, 2)}\n`);
+  const result = readJson(join(paths.evidenceDir, 'drive-result.json'));
+  assertNoRuntimeErrors(result);
+  if (result.status !== 'passed') fail(`drive-result.json não passou: ${result.status}`);
+  process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 }
 
 function hashFile(path) {
@@ -615,8 +756,8 @@ function evidenceFiles(dir) {
 function evidence(options) {
   const manifest = readManifest(options.runId);
   const paths = validateManifestEnvelope(manifest);
-  const currentSha = gitSha();
-  if (!currentSha || currentSha !== manifest.gitSha) fail(`SHA atual não corresponde ao manifesto do run ${manifest.runId}`);
+  const checkoutBefore = requireCleanCheckout('evidence antes', manifest.gitSha);
+  const currentSha = checkoutBefore.sha;
   if (!existsSync(paths.evidenceManifest)) fail(`Manifesto de evidência ausente para run ${manifest.runId}`);
   ensureRegularFile(paths.evidenceManifest, paths.evidenceManifest);
   if (!sameJson(readJson(paths.evidenceManifest), manifest)) fail(`Manifestos de estado e evidência divergentes para run ${manifest.runId}`);
@@ -631,7 +772,10 @@ function evidence(options) {
   if (!sameJson(storedManifest, manifest)) fail(`Manifesto de evidência alterado para run ${manifest.runId}`);
   const driveResult = readJson(join(paths.evidenceDir, 'drive-result.json'));
   if (driveResult.status !== 'passed') fail(`drive-result.json não passou: ${driveResult.status}`);
+  assertNoRuntimeErrors(driveResult);
   assertArtifactIdentity('drive-result.json', driveResult, manifest);
+  assertCleanSnapshot('drive antes', driveResult.checkout?.before, manifest.gitSha);
+  assertCleanSnapshot('drive depois', driveResult.checkout?.after, manifest.gitSha);
   const doctorResult = readJson(join(paths.evidenceDir, 'doctor.json'));
   if (doctorResult.ok !== true) fail('doctor.json não está aprovado');
   assertArtifactIdentity('doctor.json', doctorResult, manifest);
@@ -644,6 +788,8 @@ function evidence(options) {
     const cleanupTime = Date.parse(cleanupResult.cleanedAt || '');
     if (!Number.isFinite(doctorTime) || !Number.isFinite(cleanupTime) || doctorTime > cleanupTime) fail('snapshot do doctor ocorre depois do cleanup');
   }
+  const captures = captureMetadata(paths.evidenceDir, driveResult.captures);
+  const checkoutAfter = requireCleanCheckout('evidence depois', manifest.gitSha);
   const files = evidenceFiles(paths.evidenceDir);
   const report = {
     runId: manifest.runId,
@@ -654,14 +800,16 @@ function evidence(options) {
     worktree: manifest.worktree,
     port: manifest.port,
     baseUrl: manifest.baseUrl,
+    checkout: { before: checkoutBefore, after: checkoutAfter },
     platform: 'web',
     mode: manifest.mode,
     feature: driveResult.feature,
     status: 'passed',
     files,
+    captures,
     sideEffect: driveResult.sideEffect,
     snapshots: { doctorCheckedAt: doctorResult.checkedAt, cleanupCleanedAt: cleanupResult?.cleanedAt || null },
-    checks: { doctor: doctorResult.ok, drive: driveResult.status === 'passed', evidenceRetained: true, manifestLinked: true, shaMatchesLaunch: currentSha === manifest.gitSha },
+    checks: { doctor: doctorResult.ok, drive: driveResult.status === 'passed', runtimeErrors: false, captures: true, checkoutClean: checkoutAfter.clean, evidenceRetained: true, manifestLinked: true, shaMatchesLaunch: currentSha === manifest.gitSha },
   };
   writeJson(join(paths.evidenceDir, 'evidence.json'), report);
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);

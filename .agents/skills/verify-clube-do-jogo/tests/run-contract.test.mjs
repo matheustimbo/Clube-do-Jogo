@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync, utimesSync, existsSync, readFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync, utimesSync, existsSync, readFileSync, symlinkSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync, spawn } from 'node:child_process';
@@ -33,8 +34,9 @@ function fixture() {
       const result = spawnSync(command, args, { cwd: root, encoding: 'utf8' });
       assert.equal(result.status, 0, result.stderr);
     }
+    writeFileSync(join(root, '.gitignore'), '/state/\n/evidence/\n/bin/\n/node_modules/\n/env-capture.json\n/leader.js\n/orphan-pid\n');
     writeFileSync(join(root, 'fixture.txt'), 'fixture\n');
-    for (const args of [['add', 'fixture.txt'], ['commit', '-qm', 'fixture']]) {
+    for (const args of [['add', '.gitignore', 'fixture.txt', '.agents'], ['commit', '-qm', 'fixture']]) {
       const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
       assert.equal(result.status, 0, result.stderr);
     }
@@ -52,6 +54,62 @@ function processSnapshot(pid) {
   const fields = stat.slice(stat.lastIndexOf(')') + 2).trim().split(/\s+/);
   const bootId = readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim();
   return { pgid: Number(fields[2]), identity: `${bootId}:${fields[19]}` };
+}
+
+const validPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
+
+function capturedFile(file, bytes, dimensions = {}) {
+  return { file, bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex'), ...dimensions };
+}
+
+function cleanCheckout(sha) {
+  return { before: { sha, clean: true, entries: [] }, after: { sha, clean: true, entries: [] } };
+}
+
+function writeFakePlaywright(f, { runtimeErrors = false, dirtyAfterCapture = false } = {}) {
+  const packageDir = join(f.root, 'node_modules/playwright');
+  mkdirSync(packageDir, { recursive: true });
+  writeFileSync(join(packageDir, 'package.json'), '{"name":"playwright","main":"index.js"}\n');
+  const png = validPng.toString('base64');
+  writeFileSync(join(packageDir, 'index.js'), `
+const fs = require('node:fs');
+const path = require('node:path');
+const png = Buffer.from('${png}', 'base64');
+function locator() {
+  return new Proxy({}, { get(_target, property) {
+    if (property === 'then') return undefined;
+    if (property === 'first' || property === 'filter' || property === 'getByRole' || property === 'getByText' || property === 'locator') return () => locator();
+    if (property === 'ariaSnapshot' || property === 'innerText' || property === 'wait' || property === 'waitFor' || property === 'click') return async () => 'fixture';
+    return () => locator();
+  }});
+}
+const listeners = new Map();
+let screenshots = 0;
+const page = {
+  on(event, listener) {
+    listeners.set(event, [...(listeners.get(event) || []), listener]);
+    return page;
+  },
+  async goto() {
+    ${runtimeErrors ? "for (const listener of listeners.get('console') || []) listener({ type: () => 'error', text: () => 'runtime console error' }); for (const listener of listeners.get('pageerror') || []) listener(new Error('uncaught runtime failure')); for (const listener of listeners.get('requestfailed') || []) listener({ url: () => 'http://127.0.0.1:3103/api/fail?token=secret', failure: () => ({ errorText: 'network failure' }) });" : ''}
+  },
+  getByRole: () => locator(),
+  locator: () => locator(),
+  waitForURL: async () => undefined,
+  url: () => 'http://127.0.0.1:3103/ranking',
+  async screenshot({ path: target }) {
+    screenshots += 1;
+    fs.writeFileSync(target, png);
+    ${dirtyAfterCapture ? "if (screenshots === 2) fs.writeFileSync(path.join(process.cwd(), 'fixture.txt'), 'dirty during drive\\n');" : ''}
+  },
+};
+exports.chromium = {
+  launch: async () => ({
+    newContext: async () => ({ newPage: async () => page, close: async () => undefined }),
+    close: async () => undefined,
+  }),
+};
+`);
 }
 
 function writeValidEvidence(f, id, overrides = {}) {
@@ -76,11 +134,16 @@ function writeValidEvidence(f, id, overrides = {}) {
     evidenceDir: target.evidenceDir,
     ...overrides.manifest,
   });
+  const checkout = { sha, clean: true, entries: [] };
+  manifest.checkout = { before: checkout, after: checkout };
+  f.writeManifest(id, manifest);
   writeFileSync(join(target.evidenceDir, 'launch.log'), 'request https://demo.test/?access_token=secret-token Authorization: Bearer secret-jwt\n');
-  writeFileSync(join(target.evidenceDir, 'before-action.png'), 'before');
-  writeFileSync(join(target.evidenceDir, 'after-vote.png'), 'after');
-  writeFileSync(join(target.evidenceDir, 'before-action.aria.txt'), 'before aria');
-  writeFileSync(join(target.evidenceDir, 'after-vote.aria.txt'), 'after aria');
+  const beforeAria = Buffer.from('before aria');
+  const afterAria = Buffer.from('after aria');
+  writeFileSync(join(target.evidenceDir, 'before-action.png'), validPng);
+  writeFileSync(join(target.evidenceDir, 'after-vote.png'), validPng);
+  writeFileSync(join(target.evidenceDir, 'before-action.aria.txt'), beforeAria);
+  writeFileSync(join(target.evidenceDir, 'after-vote.aria.txt'), afterAria);
   const identity = {
     runId: manifest.runId,
     gitSha: manifest.gitSha,
@@ -90,7 +153,20 @@ function writeValidEvidence(f, id, overrides = {}) {
     mode: manifest.mode,
   };
   writeFileSync(join(target.evidenceDir, 'doctor.json'), `${JSON.stringify({ ...identity, checkedAt: '2026-09-10T06:01:00.000Z', ok: true }, null, 2)}\n`);
-  writeFileSync(join(target.evidenceDir, 'drive-result.json'), `${JSON.stringify({ ...identity, feature: 'ranking-vote-reason', status: 'passed', sideEffect: { observed: 'Não consigo rodar' } }, null, 2)}\n`);
+  writeFileSync(join(target.evidenceDir, 'drive-result.json'), `${JSON.stringify({
+    ...identity,
+    feature: 'ranking-vote-reason',
+    status: 'passed',
+    checkout: { before: checkout, after: checkout },
+    captures: {
+      beforeAction: { screenshot: capturedFile('before-action.png', validPng, { width: 1, height: 1 }), aria: capturedFile('before-action.aria.txt', beforeAria) },
+      afterVote: { screenshot: capturedFile('after-vote.png', validPng, { width: 1, height: 1 }), aria: capturedFile('after-vote.aria.txt', afterAria) },
+    },
+    consoleErrors: [],
+    pageErrors: [],
+    failedRequests: [],
+    sideEffect: { observed: 'Não consigo rodar' },
+  }, null, 2)}\n`);
   return { manifest, target, sha };
 }
 
@@ -178,7 +254,7 @@ test('evidence binds artifacts and current checkout to the launch SHA and run id
     f.writeManifest('artifact-check', { ...manifest, gitSha: '0'.repeat(40) });
     const stale = f.run('evidence', '--run-id', 'artifact-check');
     assert.notEqual(stale.status, 0);
-    assert.match(stale.stderr, /SHA atual não corresponde/);
+    assert.match(stale.stderr, /SHA atual não corresponde|Snapshot de checkout inválido/);
   } finally { f.cleanup(); }
 });
 
@@ -190,6 +266,144 @@ test('launch accepts only the dedicated demo ports', () => {
       assert.notEqual(result.status, 0);
       assert.match(result.stderr, /somente as portas dedicadas/);
     }
+  } finally { f.cleanup(); }
+});
+
+test('launch refuses a dirty checkout before creating a process or manifest', () => {
+  const f = fixture();
+  try {
+    f.initGit();
+    writeFileSync(join(f.root, 'fixture.txt'), 'changed\n');
+    writeFileSync(join(f.root, 'new-source.txt'), 'untracked source\n');
+    const result = f.run('launch', '--run-id', 'dirty-launch', '--port', '3103');
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Checkout sujo durante launch antes/);
+    assert.equal(existsSync(join(f.paths('dirty-launch').stateDir, 'manifest.json')), false);
+  } finally { f.cleanup(); }
+});
+
+test('launch stops an unpublished process when the checkout dirties after spawn', () => {
+  const f = fixture();
+  try {
+    f.initGit();
+    const bin = join(f.root, 'bin');
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(join(bin, 'npm'), `#!/bin/sh
+printf '%s\\n' 'changed after spawn' > fixture.txt
+exec ${process.execPath} -e 'const http = require("node:http"); const args = process.argv.slice(1); const port = Number(args[args.indexOf("--port") + 1]); http.createServer((request, response) => { response.end("Clube do Jogo"); }).listen(port, "127.0.0.1"); setInterval(() => {}, 1000);' "$@"
+`);
+    spawnSync('chmod', ['+x', join(bin, 'npm')]);
+    const result = f.runEnv({ ...process.env, PATH: `${bin}:${process.env.PATH || ''}` }, 'launch', '--run-id', 'dirty-launch-after', '--port', '3103');
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Checkout sujo durante launch depois/);
+    assert.equal(existsSync(join(f.paths('dirty-launch-after').stateDir, 'manifest.json')), false);
+  } finally { f.cleanup(); }
+});
+
+test('evidence refuses a source edit after the captured run', () => {
+  const f = fixture();
+  try {
+    writeValidEvidence(f, 'dirty-evidence');
+    writeFileSync(join(f.root, 'fixture.txt'), 'changed after drive\n');
+    const result = f.run('evidence', '--run-id', 'dirty-evidence');
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Checkout sujo durante evidence antes/);
+  } finally { f.cleanup(); }
+});
+
+test('run directories reject a symlinked canonical parent', () => {
+  const f = fixture();
+  const outside = mkdtempSync(join(tmpdir(), 'clube-evidence-outside-'));
+  try {
+    f.initGit();
+    mkdirSync(join(f.root, 'state/verify-clube-do-jogo/symlinked'), { recursive: true });
+    writeFileSync(join(f.root, 'state/verify-clube-do-jogo/symlinked/manifest.json'), JSON.stringify({ runId: 'symlinked' }));
+    mkdirSync(join(f.root, 'evidence'));
+    symlinkSync(outside, join(f.root, 'evidence/verify-clube-do-jogo'));
+    const result = f.run('status', '--run-id', 'symlinked');
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Diretório simbólico recusado/);
+  } finally {
+    rmSync(outside, { recursive: true, force: true });
+    f.cleanup();
+  }
+});
+
+test('evidence validates PNG signatures and capture hashes', () => {
+  const f = fixture();
+  try {
+    const { target } = writeValidEvidence(f, 'capture-check');
+    writeFileSync(join(target.evidenceDir, 'before-action.png'), 'not a png');
+    const invalid = f.run('evidence', '--run-id', 'capture-check');
+    assert.notEqual(invalid.status, 0);
+    assert.match(invalid.stderr, /PNG inválido/);
+    writeFileSync(join(target.evidenceDir, 'before-action.png'), validPng);
+    const replacement = Buffer.from(validPng);
+    replacement[40] ^= 1;
+    writeFileSync(join(target.evidenceDir, 'before-action.png'), replacement);
+    const mismatched = f.run('evidence', '--run-id', 'capture-check');
+    assert.notEqual(mismatched.status, 0);
+    assert.match(mismatched.stderr, /beforeAction\.screenshot divergente no campo sha256/);
+    writeFileSync(join(target.evidenceDir, 'before-action.png'), validPng);
+    const drivePath = join(target.evidenceDir, 'drive-result.json');
+    const drive = JSON.parse(readFileSync(drivePath, 'utf8'));
+    drive.captures.beforeAction.screenshot.width = 2;
+    writeFileSync(drivePath, `${JSON.stringify(drive, null, 2)}\n`);
+    const dimensionMismatch = f.run('evidence', '--run-id', 'capture-check');
+    assert.notEqual(dimensionMismatch.status, 0);
+    assert.match(dimensionMismatch.stderr, /beforeAction\.screenshot divergente no campo width/);
+    drive.captures.beforeAction.screenshot.width = 1;
+    writeFileSync(drivePath, `${JSON.stringify(drive, null, 2)}\n`);
+    writeFileSync(join(target.evidenceDir, 'before-action.aria.txt'), 'before arib');
+    const ariaMismatch = f.run('evidence', '--run-id', 'capture-check');
+    assert.notEqual(ariaMismatch.status, 0);
+    assert.match(ariaMismatch.stderr, /beforeAction\.aria divergente no campo sha256/);
+  } finally { f.cleanup(); }
+});
+
+test('drive fails and records runtime errors instead of passing', () => {
+  const f = fixture();
+  try {
+    writeValidEvidence(f, 'runtime-drive');
+    writeFakePlaywright(f, { runtimeErrors: true });
+    const result = f.run('drive', 'ranking', '--run-id', 'runtime-drive');
+    assert.notEqual(result.status, 0);
+    const drive = JSON.parse(readFileSync(join(f.paths('runtime-drive').evidenceDir, 'drive-result.json'), 'utf8'));
+    assert.equal(drive.status, 'failed');
+    assert.equal(drive.consoleErrors.length, 1);
+    assert.equal(drive.pageErrors.length, 1);
+    assert.equal(drive.failedRequests.length, 1);
+    assert.match(result.stderr, /Runtime errors no drive/);
+  } finally { f.cleanup(); }
+});
+
+test('drive fails when the source checkout becomes dirty during capture', () => {
+  const f = fixture();
+  try {
+    writeValidEvidence(f, 'dirty-drive');
+    writeFakePlaywright(f, { dirtyAfterCapture: true });
+    const result = f.run('drive', 'ranking', '--run-id', 'dirty-drive');
+    assert.notEqual(result.status, 0);
+    const drive = JSON.parse(readFileSync(join(f.paths('dirty-drive').evidenceDir, 'drive-result.json'), 'utf8'));
+    assert.equal(drive.status, 'failed');
+    assert.equal(drive.checkout.after.clean, false);
+    assert.match(drive.error, /Checkout sujo durante drive depois/);
+  } finally { f.cleanup(); }
+});
+
+test('evidence rejects every nonempty runtime error collection', () => {
+  const f = fixture();
+  try {
+    const { target } = writeValidEvidence(f, 'runtime-evidence');
+    const drivePath = join(target.evidenceDir, 'drive-result.json');
+    const drive = JSON.parse(readFileSync(drivePath, 'utf8'));
+    drive.consoleErrors = ['console error'];
+    drive.pageErrors = ['page error'];
+    drive.failedRequests = [{ url: 'http://127.0.0.1:3103/api/fail', error: 'network error' }];
+    writeFileSync(drivePath, `${JSON.stringify(drive, null, 2)}\n`);
+    const result = f.run('evidence', '--run-id', 'runtime-evidence');
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Runtime errors no drive/);
   } finally { f.cleanup(); }
 });
 
@@ -267,6 +481,7 @@ test('cleanup refuses a live process with the wrong recorded identity', async ()
       command: 'node fixture',
       mode: 'demo',
       launchEnv: { allowlist: [], overrides: {} },
+      checkout: cleanCheckout(sha),
       startedAt: '2026-09-10T06:00:00.000Z',
       logPath: join(target.evidenceDir, 'launch.log'),
       stateDir: target.stateDir,
@@ -316,6 +531,7 @@ setTimeout(() => process.exit(0), 500);
       command: `node ${leaderScript}`,
       mode: 'demo',
       launchEnv: { allowlist: [], overrides: {} },
+      checkout: cleanCheckout(sha),
       startedAt: '2026-09-10T06:00:00.000Z',
       logPath: join(target.evidenceDir, 'launch.log'),
       stateDir: target.stateDir,

@@ -9,7 +9,7 @@ Use esta skill a partir da raiz do checkout. Ela usa a pasta fonte `.agents/skil
 
 ## Run contract
 
-Cada execução recebe um `RUN_ID` e grava o manifesto, log, snapshots, screenshots, resultado e hashes em `evidence/verify-clube-do-jogo/<RUN_ID>/`. O estado operacional fica em `state/verify-clube-do-jogo/<RUN_ID>/`. Essas pastas são artefatos ignorados; os caminhos são derivados do `RUN_ID` e a evidência só aceita artefatos que preservem o worktree, porta, modo e SHA do manifesto. A limpeza encerra apenas o grupo de processos registrado no manifesto e preserva a evidência.
+Cada execução recebe um `RUN_ID` e grava o manifesto, log, snapshots, screenshots, resultado e hashes em `evidence/verify-clube-do-jogo/<RUN_ID>/`. O estado operacional fica em `state/verify-clube-do-jogo/<RUN_ID>/`. Essas pastas são artefatos ignorados; os caminhos são derivados do `RUN_ID`, os diretórios canônicos não podem ser symlinks e a evidência só aceita artefatos que preservem o worktree, porta, modo e SHA do manifesto. Launch, drive e evidence registram um snapshot limpo do checkout antes e depois da condução. A limpeza encerra apenas o grupo de processos registrado no manifesto e preserva a evidência.
 
 Use uma porta 3102 ou 3103 que não esteja em uso por outro agente:
 
@@ -21,7 +21,7 @@ Passe `RUN_ID=<id>` ou `--run-id <id>` aos comandos seguintes. Sem isso, o helpe
 
 ## Launch
 
-`launch` inicia `npm run dev -- --hostname 127.0.0.1 --port <port>` com `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` vazios e `NEXT_PUBLIC_AUTO_OPEN_PRODUCT_UPDATE=false`. O processo recebe uma allowlist de ambiente demo sem segredos herdados do shell. Ele é separado em seu próprio grupo; o helper espera cwd, PGID, boot ID e instante de criação válidos antes de publicar o manifesto, e a rota `/jogo-do-mes` precisa responder antes do comando terminar.
+`launch` inicia `npm run dev -- --hostname 127.0.0.1 --port <port>` com `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` vazios e `NEXT_PUBLIC_AUTO_OPEN_PRODUCT_UPDATE=false`. O processo recebe uma allowlist de ambiente demo sem segredos herdados do shell. Ele é separado em seu próprio grupo; o helper exige checkout limpo antes e depois de iniciar, espera cwd, PGID, boot ID e instante de criação válidos antes de publicar o manifesto, e a rota `/jogo-do-mes` precisa responder antes do comando terminar.
 
 ```sh
 ./.agents/skills/verify-clube-do-jogo/scripts/verify-clube-do-jogo launch --port 3102
@@ -47,11 +47,11 @@ O helper Playwright dirige ações de usuário por papéis e texto visível, sem
 ./.agents/skills/verify-clube-do-jogo/scripts/verify-clube-do-jogo drive ranking --run-id <id>
 ```
 
-O fluxo gera `before-action.png`, `after-vote.png`, snapshots ARIA antes/depois e `drive-result.json`. Console errors, page errors e requests falhas entram no resultado mesmo quando o fluxo passa. Se uma tentativa falhar, limpe o run antes de corrigir ou repetir.
+O fluxo gera `before-action.png`, `after-vote.png`, snapshots ARIA antes/depois e `drive-result.json`. Após cada captura, o resultado registra assinatura PNG, dimensões, bytes e SHA-256 da imagem, além de bytes e SHA-256 do snapshot ARIA. Console errors, page errors e requests falhas entram no resultado e qualquer item reprova o drive. O helper também exige checkout limpo antes e depois da condução. Se uma tentativa falhar, limpe o run antes de corrigir ou repetir.
 
 ## Evidence
 
-`evidence` exige o manifesto, log, snapshots, screenshots e resultado com `status: passed`, calcula SHA-256 de cada arquivo e registra o commit atual, a porta e a fixture demo. Antes de escrever o relatório, ele confirma que o SHA atual é o SHA do launch, que o manifesto na pasta de evidência é igual ao manifesto de estado e que doctor/drive/cleanup têm o mesmo run, worktree, porta, URL e modo. Logs e snapshots de texto são redigidos antes de serem retidos.
+`evidence` exige o manifesto, log, snapshots, screenshots e resultado com `status: passed`, checkout limpo antes e depois e as três coleções de erros de runtime vazias. Ele recalcula a assinatura PNG, dimensões, bytes e SHA-256 das imagens, compara as capturas com os metadados registrados pelo drive, recalcula os hashes dos snapshots ARIA e calcula SHA-256 de cada arquivo retido. Antes de escrever o relatório, confirma que o SHA atual é o SHA do launch, que o manifesto na pasta de evidência é igual ao manifesto de estado e que doctor/drive/cleanup têm o mesmo run, worktree, porta, URL e modo. Logs e snapshots de texto são redigidos antes de serem retidos.
 
 ```sh
 ./.agents/skills/verify-clube-do-jogo/scripts/verify-clube-do-jogo evidence --run-id <id>
@@ -82,7 +82,7 @@ Os helpers são executáveis e não dependem de `jq`:
 ./.agents/skills/verify-clube-do-jogo/scripts/verify-clube-do-jogo cleanup --run-id <id>
 ```
 
-O contrato de execução tem regressões automatizadas em `node --test .agents/skills/verify-clube-do-jogo/tests/run-contract.test.mjs`. Elas verificam seleção explícita de run, caminhos/SHA/identidade de artefatos, allowlist demo e redaction, portas dedicadas, recusa de identidade diferente e encerramento de descendente órfão.
+O contrato de execução tem regressões automatizadas em `node --test .agents/skills/verify-clube-do-jogo/tests/run-contract.test.mjs`. Elas verificam seleção explícita de run, caminhos/SHA/identidade de artefatos, checkout limpo com arquivos rastreados e não rastreados, runtime errors, integridade PNG/ARIA, diretórios canônicos sem symlink, allowlist demo e redaction, portas dedicadas, recusa de identidade diferente e encerramento de descendente órfão.
 
 `check` executa a validação estrutural da skill e `status` imprime o manifesto sem tocar no app:
 
