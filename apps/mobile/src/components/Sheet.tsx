@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radii, spacing, typography } from '@/theme';
 
@@ -24,20 +25,25 @@ export function Sheet({ visible, title, onClose, children, avoidKeyboard = false
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} accessible={false}>
-        {avoidKeyboard ? (
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboardAvoider}>
+      <GestureHandlerRootView style={styles.keyboardAvoider}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          enabled={avoidKeyboard}
+
+          style={styles.keyboardAvoider}
+        >
+          <Pressable style={styles.backdrop} onPress={onClose} accessible={false}>
             {content}
-          </KeyboardAvoidingView>
-        ) : content}
-      </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  keyboardAvoider: { width: '100%' },
+  keyboardAvoider: { flex: 1 },
   sheet: {
     backgroundColor: colors.surface,
     borderTopLeftRadius: radii.xxl,

@@ -15,7 +15,7 @@ export function RatingValue({ value, size = 13 }: { value: number; size?: number
   const [scale] = useRatingScale();
   const shown = ratingForScale(value, scale);
   return (
-    <View style={styles.row} accessibilityLabel={`Nota ${formatRatingValue(shown)} de ${scale}`}>
+    <View style={styles.row} accessible accessibilityRole="text" accessibilityLabel={`Nota ${formatRatingValue(shown)} de ${scale}`}>
       <Ionicons name="star" size={size} color={colors.amber400} />
       <Text style={[styles.text, { fontSize: size - 1 }]}>{formatRatingValue(shown)}</Text>
     </View>

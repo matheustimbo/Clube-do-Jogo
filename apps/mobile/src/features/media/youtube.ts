@@ -25,7 +25,7 @@ export function youtubeVideoId(url?: string | null): string | null {
 export function isAllowedYoutubeOrigin(url: string): boolean {
   try {
     const parsed = new URL(url);
-    return (parsed.protocol === 'https:') && ALLOWED_HOSTS.has(parsed.hostname.toLowerCase());
+    return parsed.protocol === 'https:' && !parsed.username && !parsed.password && !parsed.port && ALLOWED_HOSTS.has(parsed.hostname.toLowerCase());
   } catch {
     return false;
   }

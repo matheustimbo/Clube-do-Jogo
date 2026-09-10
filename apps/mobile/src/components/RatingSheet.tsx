@@ -125,6 +125,7 @@ export function RatingSheet({
               scale={scale}
               disabled={disabled || loading}
               onChange={setSimpleValue}
+              testID="rating-overall"
               accessibilityLabel="Nota geral"
             />
           </View>
@@ -158,6 +159,7 @@ export function RatingSheet({
                     scale={scale}
                     disabled={disabled || loading || !isEnabled}
                     onChange={value => setCriterionValue(key, value)}
+                    testID={`rating-${key}`}
                     accessibilityLabel={`Nota de ${label}`}
                   />
                 </View>
@@ -168,28 +170,29 @@ export function RatingSheet({
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-        {!disabled ? (
-          <>
-            <View style={styles.actions}>
-              <Button label="Cancelar" variant="secondary" onPress={onClose} disabled={loading} style={styles.actionButton} />
-              <Button label="Salvar" variant="primary" onPress={handleSave} loading={loading} style={styles.actionButton} />
-            </View>
-            {initialRating !== null ? (
-              <Button label="Remover nota" variant="ghost" onPress={handleRemove} disabled={loading} />
-            ) : null}
-          </>
-        ) : null}
       </ScrollView>
+      {!disabled ? (
+        <View style={styles.footer}>
+          <View style={styles.actions}>
+            <Button label="Cancelar" variant="secondary" onPress={onClose} disabled={loading} style={styles.actionButton} />
+            <Button label="Salvar" variant="primary" onPress={handleSave} loading={loading} style={styles.actionButton} />
+          </View>
+          {initialRating !== null ? (
+            <Button label="Remover nota" variant="ghost" onPress={handleRemove} disabled={loading} />
+          ) : null}
+        </View>
+      ) : null}
     </Sheet>
   );
 }
 
-function RatingStepper({ value, scale, disabled, onChange, accessibilityLabel }: {
+function RatingStepper({ value, scale, disabled, onChange, accessibilityLabel, testID }: {
   value: number;
   scale: RatingScale;
   disabled?: boolean;
   onChange: (value: number) => void;
   accessibilityLabel: string;
+  testID: string;
 }) {
   const max = scale;
   const step = 0.5;
@@ -227,12 +230,14 @@ function RatingStepper({ value, scale, disabled, onChange, accessibilityLabel }:
         <Ionicons name="remove" size={16} color={disabled ? colors.zinc700 : colors.violet300} />
       </Pressable>
       <TextInput
+        testID={testID}
         value={draft ?? formatRatingValue(shown)}
         editable={!disabled}
         onChangeText={handleChangeText}
         onBlur={submitDraft}
         onSubmitEditing={submitDraft}
         keyboardType="decimal-pad"
+        selectTextOnFocus
         accessibilityLabel={accessibilityLabel}
         style={[styles.stepperInput, disabled && styles.stepperInputDisabled]}
       />
@@ -252,6 +257,7 @@ function RatingStepper({ value, scale, disabled, onChange, accessibilityLabel }:
 
 const styles = StyleSheet.create({
   bodyScroll: { flexShrink: 1 },
+  footer: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.md },
   body: { padding: spacing.lg, gap: spacing.lg },
   readonlyNote: { ...typography.small, color: colors.zinc500 },
   modeRow: { flexDirection: 'row', gap: spacing.sm },

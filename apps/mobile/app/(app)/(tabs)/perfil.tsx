@@ -192,14 +192,14 @@ export default function ProfileScreen() {
         <Text style={[styles.menuLabel, styles.menuLabelDanger]}>Sair da conta</Text>
       </Pressable>
 
-      <ProfileEditSheet
+      {editOpen && <ProfileEditSheet
         visible={editOpen}
         profile={person}
         saving={updateProfile.isPending}
         error={updateProfile.error?.message}
         onClose={() => setEditOpen(false)}
         onSave={saveProfile}
-      />
+      />}
       <PlatformPicker visible={platformsOpen} onClose={() => setPlatformsOpen(false)} />
     </Screen>
   );

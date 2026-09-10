@@ -17,7 +17,7 @@ export function Avatar({ uri, crop, name, size = 40 }: {
       <View style={[styles.imageClip, dimension]}>
         <Image
           source={{ uri }}
-          style={[StyleSheet.absoluteFill, { transform: [{ scale: normalized.zoom }] }]}
+          style={[StyleSheet.absoluteFill, { transform: [{ scale: normalized.zoom }], transformOrigin: `${normalized.x}% ${normalized.y}%` }]}
           contentFit="cover"
           contentPosition={{ top: `${normalized.y}%`, left: `${normalized.x}%` }}
           accessibilityLabel={`Avatar de ${name || 'membro'}`}

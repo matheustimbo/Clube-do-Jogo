@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { useState } from 'react';
+import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { Profile } from '@clube-do-jogo/domain';
 import { Sheet } from '@/components/Sheet';
 import { Button } from '@/components/Button';
@@ -17,16 +17,9 @@ export function ProfileEditSheet({ visible, profile, saving, error, onClose, onS
   const [name, setName] = useState(profile.name || '');
   const [bio, setBio] = useState(profile.bio || '');
 
-  useEffect(() => {
-    if (visible) {
-      setName(profile.name || '');
-      setBio(profile.bio || '');
-    }
-  }, [visible, profile.id, profile.name, profile.bio]);
-
   return (
     <Sheet visible={visible} title="Editar perfil" onClose={onClose} avoidKeyboard>
-      <View style={styles.content}>
+      <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.avatarRow}>
           <Avatar uri={profile.avatar_url} crop={profile.avatar_crop} name={name || profile.name} size={56} />
           <Text style={styles.avatarHint}>Escolha um avatar pela galeria ou personagens de um jogo.</Text>
@@ -40,6 +33,8 @@ export function ProfileEditSheet({ visible, profile, saving, error, onClose, onS
             placeholder="Seu nome"
             placeholderTextColor={colors.zinc600}
             style={styles.input}
+            selectTextOnFocus
+            testID="profile-name"
             accessibilityLabel="Nome"
           />
         </View>
@@ -54,6 +49,8 @@ export function ProfileEditSheet({ visible, profile, saving, error, onClose, onS
             multiline
             numberOfLines={3}
             style={[styles.input, styles.textarea]}
+            selectTextOnFocus
+            testID="profile-bio"
             accessibilityLabel="Sobre você"
           />
         </View>
@@ -65,7 +62,7 @@ export function ProfileEditSheet({ visible, profile, saving, error, onClose, onS
           loading={saving}
           onPress={() => onSave({ name, bio })}
         />
-      </View>
+      </ScrollView>
     </Sheet>
   );
 }

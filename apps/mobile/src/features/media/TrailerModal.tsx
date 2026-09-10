@@ -5,7 +5,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, radii, spacing } from '@/theme';
 import { isAllowedYoutubeOrigin, youtubeEmbedUrl } from './youtube';
 
-const ORIGIN_WHITELIST = ['https://www.youtube-nocookie.com', 'https://www.youtube.com'];
+// Let the request guard reject outside links; a whitelist rejection opens the system browser.
+const ORIGIN_WHITELIST = ['*'];
 
 export function TrailerModal({ visible, url, title, onClose }: {
   visible: boolean;

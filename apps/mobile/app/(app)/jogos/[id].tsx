@@ -15,7 +15,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/StateViews';
 import { useApp } from '@/state/app-provider';
 import { useBacklog, useFavorite, useGame, useLibrary, useProgress, useRanking, useSetProgress, useVote } from '@/state/queries';
 import { useSetRating } from '@/state/library-queries';
-import { useGameMugshots, useUpdateProfile } from '@/state/profile-queries';
+import { useGameMedia, useGameMugshots, useUpdateProfile } from '@/state/profile-queries';
 import { ScreenshotsCarousel } from '@/features/media/ScreenshotsCarousel';
 import { ImageGalleryModal } from '@/features/media/ImageGalleryModal';
 import { MugshotsGrid } from '@/features/media/MugshotsGrid';
@@ -33,6 +33,7 @@ export default function GameDetailScreen() {
   const { userId, isHistorical, isDemo } = useApp();
 
   const gameQuery = useGame(gameId);
+  const mediaQuery = useGameMedia(gameId);
   const libraryQuery = useLibrary();
   const rankingQuery = useRanking();
   const progressQuery = useProgress(gameId);
@@ -53,7 +54,7 @@ export default function GameDetailScreen() {
   const [trailerOpen, setTrailerOpen] = useState(false);
   const [avatarSource, setAvatarSource] = useState<{ url: string; name: string } | null>(null);
 
-  const game = gameQuery.data ?? null;
+  const game = mediaQuery.data ?? gameQuery.data ?? null;
   const libraryEntry = useMemo(
     () => (libraryQuery.data?.library ?? []).find(item => item.game.id === gameId) ?? null,
     [libraryQuery.data, gameId],
@@ -224,6 +225,10 @@ export default function GameDetailScreen() {
         />
       </View>
 
+      {mediaQuery.error && (
+        <ErrorState message={mediaQuery.error.message} onRetry={() => void mediaQuery.refetch()} />
+      )}
+
       {game.screenshot_urls?.length ? (
         <View style={styles.gallery}>
           <ScreenshotsCarousel
@@ -240,14 +245,16 @@ export default function GameDetailScreen() {
       {!isDemo ? (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Personagens</Text>
-          <MugshotsGrid
+          {mugshotsQuery.error ? (
+            <ErrorState message={mugshotsQuery.error.message} onRetry={() => void mugshotsQuery.refetch()} />
+          ) : <MugshotsGrid
             mugshots={mugshots}
             isLoading={mugshotsQuery.isLoading}
             updatingAvatarUrl={updateProfile.isPending ? avatarSource?.url : null}
             title={game.title}
             onOpen={index => setGalleryIndex(galleryImages.length + index)}
             onChooseAvatar={chooseAvatarFromMugshot}
-          />
+          />}
         </View>
       ) : null}
 
@@ -337,7 +344,7 @@ export default function GameDetailScreen() {
       {mutationError ? <Text style={styles.formError}>{mutationError.message}</Text> : null}
 
       <VoteReasonSheet
-        key={reasonToken}
+        key={`vote-reason-${reasonToken}`}
         visible={reasonOpen}
         initialReason={rankingEntry?.myReason}
         initialText={rankingEntry?.myReasonText}
@@ -346,7 +353,7 @@ export default function GameDetailScreen() {
       />
 
       <RatingSheet
-        key={ratingToken}
+        key={`rating-${ratingToken}`}
         visible={ratingOpen}
         initialRating={mine?.rating ?? null}
         initialMode={mine?.rating_mode ?? 'simple'}
@@ -359,14 +366,15 @@ export default function GameDetailScreen() {
         onRemove={removeRating}
       />
 
-      <ImageGalleryModal
+      {galleryIndex !== null && <ImageGalleryModal
+        key={`gallery-${galleryIndex}`}
         visible={galleryIndex !== null}
         title={game.title}
         images={allGalleryImages}
         activeIndex={galleryIndex ?? 0}
         onActiveIndexChange={setGalleryIndex}
         onClose={() => setGalleryIndex(null)}
-      />
+      />}
 
       <TrailerModal
         visible={trailerOpen}
@@ -375,7 +383,8 @@ export default function GameDetailScreen() {
         onClose={() => setTrailerOpen(false)}
       />
 
-      <AvatarCropEditor
+      {avatarSource && <AvatarCropEditor
+        key={avatarSource.url}
         visible={avatarSource !== null}
         imageUrl={avatarSource?.url ?? null}
         name={avatarSource?.name ?? ''}
@@ -383,7 +392,7 @@ export default function GameDetailScreen() {
         saving={updateProfile.isPending}
         onClose={() => setAvatarSource(null)}
         onSave={saveAvatarCrop}
-      />
+      />}
     </Screen>
   );
 }

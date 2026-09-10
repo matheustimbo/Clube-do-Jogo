@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Dimensions, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSharedValue } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { colors, radii, spacing } from '@/theme';
 
 const MIN_ZOOM = 1;
@@ -17,17 +19,14 @@ export function ImageGalleryModal({ visible, title, images, activeIndex, onActiv
   onClose: () => void;
 }) {
   const window = Dimensions.get('window');
+  const insets = useSafeAreaInsets();
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
-  const zoomStart = useRef(1);
-  const panStart = useRef({ x: 0, y: 0 });
-  const swipeStart = useRef(0);
+  const zoomStart = useSharedValue(1);
+  const panStart = useSharedValue({ x: 0, y: 0 });
+  const swipeStart = useSharedValue(0);
 
-  useEffect(() => {
-    if (!visible) return;
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-  }, [visible, activeIndex]);
+
 
   if (!visible || !images.length) return null;
 
@@ -38,9 +37,9 @@ export function ImageGalleryModal({ visible, title, images, activeIndex, onActiv
 
   const pinch = Gesture.Pinch()
     .runOnJS(true)
-    .onStart(() => { zoomStart.current = zoom; })
+    .onStart(() => { zoomStart.value = zoom; })
     .onUpdate(event => {
-      const next = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomStart.current * event.scale));
+      const next = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomStart.value * event.scale));
       setZoom(next);
     })
     .onEnd(() => { if (zoom <= MIN_ZOOM) setPan({ x: 0, y: 0 }); });
@@ -50,28 +49,28 @@ export function ImageGalleryModal({ visible, title, images, activeIndex, onActiv
     .minPointers(1)
     .maxPointers(1)
     .onStart(() => {
-      panStart.current = pan;
-      swipeStart.current = 0;
+      panStart.value = pan;
+      swipeStart.value = 0;
     })
     .onUpdate(event => {
       if (zoom > MIN_ZOOM) {
-        setPan({ x: panStart.current.x + event.translationX, y: panStart.current.y + event.translationY });
+        setPan({ x: panStart.value.x + event.translationX, y: panStart.value.y + event.translationY });
       } else {
-        swipeStart.current = event.translationX;
+        swipeStart.value = event.translationX;
       }
     })
     .onEnd(() => {
-      if (zoom <= MIN_ZOOM && Math.abs(swipeStart.current) > 60) {
-        select(activeIndex + (swipeStart.current > 0 ? -1 : 1));
+      if (zoom <= MIN_ZOOM && Math.abs(swipeStart.value) > 60) {
+        select(activeIndex + (swipeStart.value > 0 ? -1 : 1));
       }
-      swipeStart.current = 0;
+      swipeStart.value = 0;
     });
 
   const composed = Gesture.Simultaneous(pinch, pan1);
 
   return (
     <Modal visible={visible} animationType="fade" transparent statusBarTranslucent onRequestClose={onClose}>
-      <View style={styles.backdrop} accessible={false}>
+      <GestureHandlerRootView style={styles.backdrop} accessible={false}>
         <GestureDetector gesture={composed}>
           <View style={[styles.viewport, { height: window.height * 0.62 }]}>
             <Image
@@ -94,7 +93,7 @@ export function ImageGalleryModal({ visible, title, images, activeIndex, onActiv
           </>
         ) : null}
 
-        <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Fechar galeria" hitSlop={12} style={styles.close}>
+        <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Fechar galeria" hitSlop={12} style={[styles.close, { top: insets.top + spacing.sm }]}>
           <Ionicons name="close" size={24} color={colors.white} />
         </Pressable>
 
@@ -129,7 +128,7 @@ export function ImageGalleryModal({ visible, title, images, activeIndex, onActiv
             ))}
           </ScrollView>
         ) : null}
-      </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }

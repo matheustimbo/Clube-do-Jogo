@@ -1,17 +1,11 @@
-// EXPO_PUBLIC_* must stay a literal reference so Expo can inline it at build time.
-const configuredSiteUrl = process.env.EXPO_PUBLIC_SITE_URL;
-
-function siteBaseUrl(): string | null {
-  const value = configuredSiteUrl?.trim().replace(/\/$/, '');
-  return value || null;
-}
+import { getMobileSiteUrl } from '../../platform/config';
 
 export function getCanonicalGameUrl(gameId: string): string | null {
-  const base = siteBaseUrl();
-  return base ? `${base}/jogos/${gameId}` : null;
+  const base = getMobileSiteUrl();
+  return base ? `${base}/jogos/${encodeURIComponent(gameId)}` : null;
 }
 
 export function getCanonicalProfileUrl(profileId: string): string | null {
-  const base = siteBaseUrl();
-  return base ? `${base}/perfil/${profileId}` : null;
+  const base = getMobileSiteUrl();
+  return base ? `${base}/perfil/${encodeURIComponent(profileId)}` : null;
 }

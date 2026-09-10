@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
+import { useSharedValue } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { DEFAULT_AVATAR_CROP, normalizeAvatarCrop, type AvatarCrop } from '@clube-do-jogo/domain';
@@ -22,28 +23,26 @@ export function AvatarCropEditor({ visible, imageUrl, name, crop: initialCrop, s
   onSave: (crop: AvatarCrop) => void;
 }) {
   const [crop, setCrop] = useState(initialCrop);
-  const dragStart = useRef(initialCrop);
+  const dragStart = useSharedValue(initialCrop);
 
-  useEffect(() => {
-    if (visible) setCrop(initialCrop);
-  }, [visible, imageUrl]);
+
 
   const pan = Gesture.Pan()
     .runOnJS(true)
-    .onStart(() => { dragStart.current = crop; })
+    .onStart(() => { dragStart.value = crop; })
     .onUpdate(event => {
-      setCrop(normalizeAvatarCrop({
-        ...dragStart.current,
-        x: dragStart.current.x - (event.translationX / PREVIEW_SIZE) * 100,
-        y: dragStart.current.y - (event.translationY / PREVIEW_SIZE) * 100,
+      setCrop(current => normalizeAvatarCrop({
+        ...current,
+        x: dragStart.value.x - (event.translationX / PREVIEW_SIZE) * 100,
+        y: dragStart.value.y - (event.translationY / PREVIEW_SIZE) * 100,
       }));
     });
 
   const pinch = Gesture.Pinch()
     .runOnJS(true)
-    .onStart(() => { dragStart.current = crop; })
+    .onStart(() => { dragStart.value = crop; })
     .onUpdate(event => {
-      setCrop(normalizeAvatarCrop({ ...dragStart.current, zoom: dragStart.current.zoom * event.scale }));
+      setCrop(current => normalizeAvatarCrop({ ...current, zoom: dragStart.value.zoom * event.scale }));
     });
 
   const composed = Gesture.Simultaneous(pan, pinch);
@@ -57,7 +56,7 @@ export function AvatarCropEditor({ visible, imageUrl, name, crop: initialCrop, s
           <View style={styles.previewWrap} accessible={false}>
             <Image
               source={{ uri: imageUrl }}
-              style={[StyleSheet.absoluteFill, { transform: [{ scale: crop.zoom }] }]}
+              style={[StyleSheet.absoluteFill, { transform: [{ scale: crop.zoom }], transformOrigin: `${crop.x}% ${crop.y}%` }]}
               contentFit="cover"
               contentPosition={{ top: `${crop.y}%`, left: `${crop.x}%` }}
               accessibilityLabel={name}
