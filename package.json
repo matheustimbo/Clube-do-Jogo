@@ -21,7 +21,11 @@
     "typecheck:mobile": "npm run typecheck --workspace @clube-do-jogo/mobile",
     "test:web": "playwright test",
     "test:mobile": "tsx --test tests/mobile/*.test.ts",
-    "perf:ranking": "node scripts/perf-ranking.mjs"
+    "mobile:reuse": "node scripts/mobile-reuse.mjs",
+    "perf:ranking": "node scripts/perf-ranking.mjs",
+    "perf:auth": "node scripts/perf-auth.mjs",
+    "test:dependency-gate": "node --test tests/release/*.test.mjs",
+    "mobile:dependencies:gate": "node scripts/mobile-dependency-gate.mjs"
   },
   "dependencies": {
     "@clube-do-jogo/data": "0.1.0",
@@ -66,7 +70,6 @@
   },
   "overrides": {
     "postcss": "^8.5.20",
-    "sharp": "^0.35.0",
-    "brace-expansion": "^2.0.2"
+    "sharp": "^0.35.0"
   }
 }
