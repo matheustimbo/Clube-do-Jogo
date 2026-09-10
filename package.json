@@ -13,7 +13,8 @@
     "lint": "eslint",
     "typecheck": "tsc -p tsconfig.web.json --noEmit",
     "test:domain": "tsx --test packages/domain/src/*.test.ts",
-    "test:web": "playwright test"
+    "test:web": "playwright test",
+    "perf:ranking": "node scripts/perf-ranking.mjs"
   },
   "dependencies": {
     "@fontsource/geist": "^5.3.0",
