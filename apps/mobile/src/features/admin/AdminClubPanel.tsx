@@ -11,6 +11,7 @@ import { themedStyles, radii, spacing, typography } from '@/theme';
 import { ClubGameChangeSheet } from './ClubGameChangeSheet';
 import { UndoConfirmSheet } from './UndoConfirmSheet';
 import { usePersistedClubDecision, type RecentDecision } from './use-persisted-club-decision';
+import { canContinueUndoChain } from './club-undo-chain';
 
 type UndoTarget = { eventId: string; preview: ClubGameUndoPreview };
 
@@ -171,6 +172,7 @@ function DecisionBanner({ decision, undoPending, undoError, redoError, redoPendi
 
   const { result } = decision;
   const canRedo = Boolean(result.redoEventId) && !expired;
+  const canContinueUndo = canContinueUndoChain(decision);
 
   return (
     <View style={styles.banner} testID="admin-club-decision-banner">
@@ -182,6 +184,7 @@ function DecisionBanner({ decision, undoPending, undoError, redoError, redoPendi
       ) : (
         <Text style={styles.bannerSubtitle}>O prazo para refazer essa decisão já passou.</Text>
       )}
+      {undoError ? <Text style={styles.bannerError} accessibilityRole="alert">{undoError}</Text> : null}
       {redoError ? <Text style={styles.bannerError} accessibilityRole="alert">{redoError}</Text> : null}
       <View style={styles.bannerActions}>
         {canRedo ? (
@@ -191,6 +194,15 @@ function DecisionBanner({ decision, undoPending, undoError, redoError, redoPendi
             loading={redoPending}
             accessibilityLabel="Refazer decisão de ciclo"
             onPress={() => onRedo(result.redoEventId as string)}
+          />
+        ) : null}
+        {canContinueUndo ? (
+          <Button
+            label="Continuar voltando"
+            variant="ghost"
+            loading={undoPending}
+            accessibilityLabel="Continuar voltando pelos ciclos anteriores"
+            onPress={() => onUndo(result.previousUndoEventId as string)}
           />
         ) : null}
         <Button label="Fechar" variant="ghost" disabled={dismissDisabled} onPress={onDismiss} />
