@@ -3,6 +3,7 @@ export * from './ranking';
 export * from './progress';
 export * from './dates';
 export * from './ratings';
+export * from './library';
 export * from './demo';
 export * from './avatar';
 export { DEFAULT_THEME, getSelectableThemes, isThemeId, themes, THEME_STORAGE_KEY } from './themes';
