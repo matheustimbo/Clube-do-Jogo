@@ -30,7 +30,7 @@ function parseArgs(values) {
     if (value === '--run-id' || value === '--port') {
       const next = values[index + 1];
       if (!next || next.startsWith('--')) fail(`${value} precisa de um valor`);
-      options[value.slice(2)] = next;
+      options[value === '--run-id' ? 'runId' : 'port'] = next;
       index += 1;
     } else if (value.startsWith('--')) {
       fail(`Opção desconhecida: ${value}`);
@@ -78,6 +78,7 @@ function createRunId() {
 }
 
 function pathsFor(runId) {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(runId)) fail(`RUN_ID inválido: ${runId}`);
   return {
     stateDir: join(stateRoot, runId),
     evidenceDir: join(evidenceRoot, runId),
@@ -118,7 +119,10 @@ function processInfo(pid) {
   try {
     const cwd = realpathSync(`/proc/${pid}/cwd`);
     const command = readFileSync(`/proc/${pid}/cmdline`, 'utf8').split('\0').filter(Boolean).join(' ');
-    return { alive: true, cwd, command };
+    const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+    const startTicks = stat.slice(stat.lastIndexOf(')') + 2).trim().split(/\s+/)[19];
+    const bootId = readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim();
+    return { alive: true, cwd, command, identity: `${bootId}:${startTicks}` };
   } catch {
     return { alive: true, cwd: null, command: null };
   }
@@ -201,6 +205,7 @@ function launchManifest(options) {
   const paths = pathsFor(runId);
   mkdirSync(paths.stateDir, { recursive: true });
   mkdirSync(paths.evidenceDir, { recursive: true });
+  if (existsSync(paths.stateManifest)) fail(`RUN_ID já existe: ${runId}`);
   const logPath = join(paths.evidenceDir, 'launch.log');
   const logFd = openSync(logPath, 'a');
   const command = ['npm', 'run', 'dev', '--', '--hostname', '127.0.0.1', '--port', String(port)];
@@ -225,6 +230,7 @@ function launchManifest(options) {
     port,
     baseUrl: `http://127.0.0.1:${port}`,
     pid: child.pid,
+    processIdentity: processInfo(child.pid).identity,
     command: command.join(' '),
     mode: 'demo',
     launchEnv: {
@@ -270,12 +276,13 @@ async function doctor(options) {
   const checks = {
     pidAlive: info.alive,
     worktreeCwd: info.cwd === manifest.worktree,
+    processIdentity: Boolean(manifest.processIdentity) && info.identity === manifest.processIdentity,
     portAllowed: manifest.port !== forbiddenPort,
     appResponds: http.status >= 200 && http.status < 400,
     appIdentity: http.body.includes('Clube do Jogo'),
-    portOwnedByRun: owners.length ? owners.every(pid => trackedTree.has(pid)) : null,
+    portOwnedByRun: owners.length > 0 && owners.every(pid => trackedTree.has(pid)),
   };
-  const ok = Object.values(checks).every(value => value === true || value === null);
+  const ok = Object.values(checks).every(value => value === true);
   const report = {
     runId: manifest.runId,
     checkedAt: nowIso(),
@@ -433,7 +440,7 @@ async function waitForExit(pid, timeoutMs = 10_000) {
 
 async function terminateManifest(manifest, writeCleanup = true) {
   const info = processInfo(manifest.pid);
-  const owned = !info.alive || info.cwd === manifest.worktree;
+  const owned = !info.alive || (info.cwd === manifest.worktree && manifest.processIdentity && info.identity === manifest.processIdentity);
   if (!owned) fail(`PID ${manifest.pid} não pertence ao worktree registrado; cleanup abortado`);
   let signal = null;
   let stopped = !info.alive;

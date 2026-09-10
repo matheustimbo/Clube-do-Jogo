@@ -5,7 +5,7 @@ description: Execute verificações reproduzíveis do Clube do Jogo em Next demo
 
 # Verify Clube do Jogo
 
-Use esta skill a partir da raiz do checkout. Ela usa a pasta fonte `.agents/skills/verify-clube-do-jogo`; Claude Code encontra a mesma fonte pelo symlink `.claude/skills/verify-clube-do-jogo`. O padrão web usa a porta dedicada `3102`, modo demo e nenhuma credencial Supabase. Nunca aponte o modo local autenticado para produção.
+Use esta skill a partir da raiz do checkout. Ela usa a pasta fonte `.agents/skills/verify-clube-do-jogo`; Claude Code encontra a mesma fonte pelo symlink `.claude/skills/verify-clube-do-jogo`. Os helpers de processos usam /proc e rodam em Linux/WSL. Os comandos iOS são executados remotamente no Mac indicado. O padrão web usa a porta dedicada `3102`, modo demo e nenhuma credencial Supabase. Nunca aponte o modo local autenticado para produção.
 
 ## Run contract
 
@@ -31,7 +31,7 @@ Se a inicialização falhar, execute `cleanup --run-id <id>` antes de tentar nov
 
 ## Doctor
 
-`doctor` verifica que o PID ainda existe, que seu cwd pertence a este checkout, que a porta responde, que o HTML identifica Clube do Jogo e que a porta não foi tomada por processo externo. O doctor conhece o modo demo pelo manifesto de launch e não simula uma sessão autenticada.
+`doctor` verifica a identidade do processo pelo boot do host e instante de criação, além de confirmar que o PID ainda existe, que seu cwd pertence a este checkout, que a porta responde, que o HTML identifica Clube do Jogo e que a porta não foi tomada por processo externo. O doctor conhece o modo demo pelo manifesto de launch e não simula uma sessão autenticada.
 
 ```sh
 ./.agents/skills/verify-clube-do-jogo/scripts/verify-clube-do-jogo doctor --run-id <id>
@@ -61,7 +61,7 @@ Uma evidência válida inclui o comando executado, a feature, a URL, o efeito ob
 
 ## Cleanup
 
-`cleanup` valida a identidade do PID salvo e envia sinal somente ao grupo criado por `launch`. O manifesto, o log e todos os arquivos em `evidence` continuam disponíveis para revisão.
+`cleanup` compara a identidade do processo salvo e seu cwd e envia sinal somente ao grupo criado por `launch`. O manifesto, o log e todos os arquivos em `evidence` continuam disponíveis para revisão.
 
 ```sh
 ./.agents/skills/verify-clube-do-jogo/scripts/verify-clube-do-jogo cleanup --run-id <id>
@@ -81,6 +81,8 @@ Os helpers são executáveis e não dependem de `jq`:
 ./.agents/skills/verify-clube-do-jogo/scripts/verify-clube-do-jogo evidence --run-id <id>
 ./.agents/skills/verify-clube-do-jogo/scripts/verify-clube-do-jogo cleanup --run-id <id>
 ```
+
+O contrato de execução tem regressões automatizadas em `node --test .agents/skills/verify-clube-do-jogo/tests/run-contract.test.mjs`. Elas verificam a seleção de um run antigo por `--run-id` e a recusa de limpar um PID com identidade diferente.
 
 `check` executa a validação estrutural da skill e `status` imprime o manifesto sem tocar no app:
 
