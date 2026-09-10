@@ -1,22 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { Redirect, useGlobalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Button } from '@/components/Button';
 import { completeAuthCallback } from '@/platform/auth';
+import { useApp } from '@/state/app-provider';
 import { colors, spacing, typography } from '@/theme';
 
-// Expo Router entrega os parâmetros do deep link já separados; reconstruímos uma URL
-// com a query string original para o contrato completeAuthCallback(url), que trata
-// ausência de "code" no lado da plataforma. Aqui deduplicamos por chave da query
-// (o "code" muda a cada novo deep link), não por uma flag permanente, para permitir
-// um novo código recebido enquanto a tela permanece aberta após um erro, sem repetir
-// a troca para o mesmo código em execuções duplicadas do StrictMode.
+const SESSION_WAIT_TIMEOUT_MS = 10_000;
+
+type Status = 'exchanging' | 'waiting-session' | 'error';
+
 export default function AuthCallbackScreen() {
-  const params = useGlobalSearchParams<Record<string, string | string[]>>();
+  const params = useLocalSearchParams<Record<string, string | string[]>>();
   const router = useRouter();
-  const [status, setStatus] = useState<'pending' | 'done' | 'error'>('pending');
+  const { ready, userId } = useApp();
+  const [status, setStatus] = useState<Status>('exchanging');
   const [message, setMessage] = useState('');
   const processedKey = useRef<string | null>(null);
+  const requestId = useRef(0);
 
   const queryString = useMemo(() => {
     const query = new URLSearchParams();
@@ -26,25 +27,35 @@ export default function AuthCallbackScreen() {
     });
     return query.toString();
   }, [params]);
-  // Chave estável mesmo sem parâmetros, para que a ausência de "code" ainda dispare
-  // completeAuthCallback uma única vez (a plataforma trata esse caso como erro).
   const queryKey = queryString || '(sem parâmetros)';
 
   useEffect(() => {
     if (processedKey.current === queryKey) return;
     processedKey.current = queryKey;
-    setStatus('pending');
+    const thisRequest = ++requestId.current;
+    setStatus('exchanging');
     setMessage('');
     const url = `clubedojogo://auth/callback${queryString ? `?${queryString}` : ''}`;
     completeAuthCallback(url)
-      .then(() => setStatus('done'))
+      .then(() => {
+        if (requestId.current !== thisRequest) return;
+        setStatus('waiting-session');
+      })
       .catch(error => {
+        if (requestId.current !== thisRequest) return;
         setStatus('error');
         setMessage(error instanceof Error ? error.message : 'Não foi possível concluir o login.');
       });
   }, [queryKey, queryString]);
 
-  if (status === 'done') return <Redirect href="/(app)/(tabs)/jogo-do-mes" />;
+  useEffect(() => {
+    if (status !== 'waiting-session' || (ready && userId)) return;
+    const timer = setTimeout(() => {
+      setStatus('error');
+      setMessage('Login concluído, mas não foi possível confirmar sua sessão. Tente novamente.');
+    }, SESSION_WAIT_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [status, ready, userId]);
 
   return (
     <View style={styles.container}>
@@ -56,7 +67,7 @@ export default function AuthCallbackScreen() {
       ) : (
         <>
           <ActivityIndicator color={colors.violet400} size="large" />
-          <Text style={styles.label}>Concluindo login…</Text>
+          <Text style={styles.label}>{status === 'waiting-session' ? 'Confirmando sessão…' : 'Concluindo login…'}</Text>
         </>
       )}
     </View>

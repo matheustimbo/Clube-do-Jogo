@@ -19,8 +19,6 @@ export default function LoginScreen() {
   const [formError, setFormError] = useState('');
   const [message, setMessage] = useState('');
 
-  // A troca para o grupo (app) é feita pelo Stack.Protected em app/_layout.tsx assim
-  // que ready && userId, preservando o destino original de um deep link protegido.
   async function submit() {
     setSubmitting(true);
     setFormError('');

@@ -6,15 +6,13 @@ import { colors } from '@/theme';
 export default function Index() {
   const { ready, userId } = useApp();
 
-  if (!ready) {
-    return (
-      <View style={styles.container} accessibilityRole="progressbar" accessibilityLabel="Carregando Clube do Jogo">
-        <ActivityIndicator color={colors.violet400} size="large" />
-      </View>
-    );
-  }
+  if (ready && !userId) return <Redirect href="/(auth)/login" />;
 
-  return <Redirect href={userId ? '/(app)/(tabs)/jogo-do-mes' : '/(auth)/login'} />;
+  return (
+    <View style={styles.container} accessibilityRole="progressbar" accessibilityLabel="Carregando Clube do Jogo">
+      <ActivityIndicator color={colors.violet400} size="large" />
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({

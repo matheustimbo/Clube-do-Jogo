@@ -1,8 +1,12 @@
-import { Stack } from 'expo-router';
+import { useEffect, useRef } from 'react';
+import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppProvider, useApp } from '@/state/app-provider';
+import { clearNavIntent, consumeNavIntent } from '@/lib/nav-intent';
 import { colors } from '@/theme';
+
+const DEFAULT_HOME = '/(app)/(tabs)/jogo-do-mes' as const;
 
 export default function RootLayout() {
   return (
@@ -14,10 +18,22 @@ export default function RootLayout() {
   );
 }
 
-// auth/callback fica fora dos grupos protegidos para continuar acessível durante o
-// bootstrap (ready = false) e imediatamente após o deep link de confirmação.
 function RootNavigator() {
   const { ready, userId } = useApp();
+  const router = useRouter();
+  const previousUserId = useRef(userId);
+
+  useEffect(() => {
+    if (!ready || !userId) return;
+    const target = consumeNavIntent();
+    router.replace(target ?? DEFAULT_HOME);
+  }, [ready, userId, router]);
+
+  useEffect(() => {
+    const previousId = previousUserId.current;
+    previousUserId.current = userId;
+    if (ready && previousId && !userId) clearNavIntent();
+  }, [ready, userId]);
 
   return (
     <>

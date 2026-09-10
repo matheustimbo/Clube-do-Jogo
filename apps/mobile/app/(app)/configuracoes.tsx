@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '@/components/Screen';
 import { AppHeader } from '@/components/AppHeader';
@@ -47,7 +47,9 @@ export default function SettingsScreen() {
         label="Sair da conta"
         variant="danger"
         icon={<Ionicons name="log-out-outline" size={16} color={colors.white} />}
-        onPress={() => void signOut().catch(() => {})}
+        onPress={() => void signOut().catch(error => {
+          Alert.alert('Não foi possível sair', error instanceof Error ? error.message : 'Tente novamente.');
+        })}
         accessibilityLabel="Sair da conta"
       />
     </Screen>

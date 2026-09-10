@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Screen } from '@/components/Screen';
@@ -71,7 +71,9 @@ export default function ProfileScreen() {
       </Pressable>
 
       <Pressable
-        onPress={() => void signOut().catch(() => {})}
+        onPress={() => void signOut().catch(error => {
+          Alert.alert('Não foi possível sair', error instanceof Error ? error.message : 'Tente novamente.');
+        })}
         accessibilityRole="button"
         accessibilityLabel="Sair da conta"
         style={[styles.menuRow, styles.menuRowDanger]}
