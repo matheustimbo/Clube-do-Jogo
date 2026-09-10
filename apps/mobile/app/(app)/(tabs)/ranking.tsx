@@ -30,6 +30,7 @@ export default function RankingScreen() {
   const rankingQuery = useRanking();
   const vote = useVote();
   const [reasonTarget, setReasonTarget] = useState<RankingItem | null>(null);
+  const [reasonToken, setReasonToken] = useState(0);
 
   const ranking = useMemo(() => rankingQuery.data ?? [], [rankingQuery.data]);
   const placedRanking = useMemo(() => withPlacements(ranking), [ranking]);
@@ -41,6 +42,7 @@ export default function RankingScreen() {
         vote.mutate({ gameId: item.game.id, choice: null });
         return;
       }
+      setReasonToken(token => token + 1);
       setReasonTarget(item);
       return;
     }
@@ -114,6 +116,7 @@ export default function RankingScreen() {
       )}
 
       <VoteReasonSheet
+        key={reasonToken}
         visible={Boolean(reasonTarget)}
         initialReason={reasonTarget?.myReason}
         initialText={reasonTarget?.myReasonText}

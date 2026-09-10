@@ -8,11 +8,14 @@ import { AppHeader } from '@/components/AppHeader';
 import { MonthTrigger } from '@/components/MonthTrigger';
 import { MonthPicker } from '@/components/MonthPicker';
 import { StatusPill, statusMeta } from '@/components/StatusPill';
+import { RatingSheet } from '@/components/RatingSheet';
+import { RatingValue } from '@/components/RatingValue';
 import { EmptyState, ErrorState, LoadingState } from '@/components/StateViews';
 import { useApp } from '@/state/app-provider';
 import { useGameOfMonth, useProgress, useSetProgress } from '@/state/queries';
+import { useSetRating } from '@/state/library-queries';
 import { colors, radii, spacing, typography } from '@/theme';
-import type { ProgressStatus } from '@clube-do-jogo/domain';
+import type { ProgressStatus, RatingDetails, RatingMode } from '@clube-do-jogo/domain';
 
 const statusOrder: ProgressStatus[] = ['not_started', 'started', 'finished'];
 
@@ -24,14 +27,37 @@ export default function GameOfMonthScreen() {
   const game = gameQuery.data ?? null;
   const progressQuery = useProgress(game?.id ?? '');
   const setProgress = useSetProgress();
+  const setRating = useSetRating();
+
+  const [ratingOpen, setRatingOpen] = useState(false);
+  const [ratingToken, setRatingToken] = useState(0);
 
   const progress = progressQuery.data ?? [];
   const mine = progress.find(item => item.user_id === userId) ?? null;
   const finishedCount = progress.filter(item => item.status === 'finished').length;
+  const ratedProgress = progress.filter(item => item.rating !== null);
+  const clubAverage = ratedProgress.length
+    ? ratedProgress.reduce((total, item) => total + Number(item.rating), 0) / ratedProgress.length
+    : null;
 
   function updateStatus(status: ProgressStatus) {
     if (!game || isHistorical || mine?.status === status) return;
     setProgress.mutate({ gameId: game.id, status });
+  }
+
+  function openRating() {
+    setRatingToken(token => token + 1);
+    setRatingOpen(true);
+  }
+
+  function saveRating(input: { rating: number; ratingMode: RatingMode; ratingDetails: RatingDetails | null }) {
+    if (!game) return;
+    setRating.mutate({ gameId: game.id, ...input }, { onSuccess: () => setRatingOpen(false) });
+  }
+
+  function removeRating() {
+    if (!game) return;
+    setRating.mutate({ gameId: game.id, rating: null, ratingMode: 'simple', ratingDetails: null }, { onSuccess: () => setRatingOpen(false) });
   }
 
   return (
@@ -107,12 +133,32 @@ export default function GameOfMonthScreen() {
               })}
             </View>
             {setProgress.isError ? <Text style={styles.formError}>{setProgress.error?.message}</Text> : null}
+            {mine?.status === 'finished' ? (
+              <View style={styles.ratingRow}>
+                <View style={styles.ratingInfo}>
+                  <Text style={styles.fieldLabel}>Minha nota</Text>
+                  {mine.rating !== null ? <RatingValue value={mine.rating} /> : <Text style={styles.emptyMembers}>Sem nota ainda</Text>}
+                </View>
+                <Pressable
+                  disabled={isHistorical}
+                  onPress={openRating}
+                  accessibilityRole="button"
+                  accessibilityLabel={mine.rating !== null ? 'Editar nota' : 'Avaliar'}
+                  style={styles.ratingButton}
+                >
+                  <Text style={styles.ratingButtonLabel}>{mine.rating !== null ? 'Editar nota' : 'Avaliar'}</Text>
+                </Pressable>
+              </View>
+            ) : null}
           </View>
 
           <View style={styles.card}>
             <View style={styles.cardHeaderRow}>
               <Text style={styles.cardTitle}>Progresso do clube</Text>
-              <Text style={styles.finishedCount}>{finishedCount} {finishedCount === 1 ? 'finalizou' : 'finalizaram'}</Text>
+              <View style={styles.cardHeaderMeta}>
+                {clubAverage !== null ? <RatingValue value={clubAverage} /> : null}
+                <Text style={styles.finishedCount}>{finishedCount} {finishedCount === 1 ? 'finalizou' : 'finalizaram'}</Text>
+              </View>
             </View>
             {progressQuery.isLoading ? (
               <LoadingState label="Carregando progresso do clube…" />
@@ -123,7 +169,10 @@ export default function GameOfMonthScreen() {
                 {progress.map(item => (
                   <View key={item.user_id} style={styles.memberRow}>
                     <Text style={styles.memberName} numberOfLines={1}>{item.profile?.name || 'Membro'}</Text>
-                    <StatusPill status={item.status} />
+                    <View style={styles.memberMeta}>
+                      {item.rating !== null ? <RatingValue value={item.rating} size={11} /> : null}
+                      <StatusPill status={item.status} />
+                    </View>
                   </View>
                 ))}
               </View>
@@ -142,6 +191,22 @@ export default function GameOfMonthScreen() {
         onSelect={setSelectedMonth}
         onClose={() => setMonthPickerVisible(false)}
       />
+
+      {game ? (
+        <RatingSheet
+          key={ratingToken}
+          visible={ratingOpen}
+          initialRating={mine?.rating ?? null}
+          initialMode={mine?.rating_mode ?? 'simple'}
+          initialDetails={mine?.rating_details}
+          disabled={isHistorical}
+          loading={setRating.isPending}
+          error={setRating.error?.message ?? null}
+          onClose={() => setRatingOpen(false)}
+          onSave={saveRating}
+          onRemove={removeRating}
+        />
+      ) : null}
     </Screen>
   );
 }
@@ -174,8 +239,29 @@ const styles = StyleSheet.create({
   detailLinkText: { color: colors.violet300, fontWeight: '800', fontSize: 12 },
   card: { borderRadius: radii.xxl, borderWidth: 1, borderColor: colors.hairline, backgroundColor: colors.surfaceSofter, padding: spacing.lg, gap: spacing.md },
   cardHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  cardHeaderMeta: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   cardTitle: { ...typography.h3, color: colors.foreground },
   statusRow: { flexDirection: 'row', gap: spacing.sm },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.hairline,
+  },
+  ratingInfo: { gap: spacing.xs },
+  fieldLabel: { ...typography.small, color: colors.zinc400, fontWeight: '800' },
+  ratingButton: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    backgroundColor: colors.surfaceDeep,
+  },
+  ratingButtonLabel: { fontSize: 12, fontWeight: '800', color: colors.violet300 },
   statusOption: {
     flex: 1,
     alignItems: 'center',
@@ -202,5 +288,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   memberName: { ...typography.small, color: colors.zinc300, flex: 1, marginRight: spacing.sm },
+  memberMeta: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   emptyMembers: { ...typography.small, color: colors.zinc600 },
 });
