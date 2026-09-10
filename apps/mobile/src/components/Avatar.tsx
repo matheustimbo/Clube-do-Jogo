@@ -2,11 +2,28 @@ import { Image } from 'expo-image';
 import { StyleSheet, Text, View } from 'react-native';
 import { colors, radii } from '@/theme';
 import { initials } from '@/lib/format';
+import { normalizeAvatarCrop, type AvatarCrop } from '@clube-do-jogo/domain';
 
-export function Avatar({ uri, name, size = 40 }: { uri?: string | null; name?: string | null; size?: number }) {
+export function Avatar({ uri, crop, name, size = 40 }: {
+  uri?: string | null;
+  crop?: Partial<AvatarCrop> | null;
+  name?: string | null;
+  size?: number;
+}) {
   const dimension = { width: size, height: size, borderRadius: radii.full };
   if (uri) {
-    return <Image source={{ uri }} style={[styles.image, dimension]} contentFit="cover" accessibilityLabel={`Avatar de ${name || 'membro'}`} />;
+    const normalized = normalizeAvatarCrop(crop);
+    return (
+      <View style={[styles.imageClip, dimension]}>
+        <Image
+          source={{ uri }}
+          style={[StyleSheet.absoluteFill, { transform: [{ scale: normalized.zoom }] }]}
+          contentFit="cover"
+          contentPosition={{ top: `${normalized.y}%`, left: `${normalized.x}%` }}
+          accessibilityLabel={`Avatar de ${name || 'membro'}`}
+        />
+      </View>
+    );
   }
   return (
     <View style={[styles.fallback, dimension]} accessibilityLabel={`Avatar de ${name || 'membro'}`}>
@@ -16,7 +33,7 @@ export function Avatar({ uri, name, size = 40 }: { uri?: string | null; name?: s
 }
 
 const styles = StyleSheet.create({
-  image: { backgroundColor: colors.zinc800 },
+  imageClip: { overflow: 'hidden', backgroundColor: colors.zinc800 },
   fallback: { backgroundColor: colors.zinc800, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.hairline },
   initials: { color: colors.zinc300, fontWeight: '800' },
 });

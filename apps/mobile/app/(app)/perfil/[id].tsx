@@ -1,5 +1,4 @@
-import { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Share, StyleSheet, Text, View, Pressable } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '@/components/Screen';
@@ -8,7 +7,8 @@ import { Avatar } from '@/components/Avatar';
 import { GameListRow } from '@/components/GameListRow';
 import { EmptyState, ErrorState, LoadingState, Section } from '@/components/StateViews';
 import { useApp } from '@/state/app-provider';
-import { useLibrary } from '@/state/queries';
+import { useProfile } from '@/state/profile-queries';
+import { getCanonicalProfileUrl } from '@/features/media/canonical-url';
 import { colors, radii, spacing, typography } from '@/theme';
 
 export default function MemberProfileScreen() {
@@ -16,16 +16,10 @@ export default function MemberProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const profileId = String(id);
   const { userId } = useApp();
-  const libraryQuery = useLibrary(profileId);
+  const isSelf = profileId === userId;
+  const profileQuery = useProfile(profileId);
 
-  const stats = useMemo(() => {
-    const library = libraryQuery.data?.library ?? [];
-    const finished = library.filter(item => item.progress?.status === 'finished').length;
-    const started = library.filter(item => item.progress?.status === 'started').length;
-    return { total: library.length, finished, started };
-  }, [libraryQuery.data]);
-
-  if (libraryQuery.isLoading) {
+  if (profileQuery.isLoading) {
     return (
       <Screen>
         <LoadingState label="Carregando perfil…" />
@@ -33,16 +27,16 @@ export default function MemberProfileScreen() {
     );
   }
 
-  if (libraryQuery.isError) {
+  if (profileQuery.isError) {
     return (
       <Screen>
-        <ErrorState message={libraryQuery.error.message} onRetry={() => libraryQuery.refetch()} />
+        <ErrorState message={profileQuery.error.message} onRetry={() => profileQuery.refetch()} />
       </Screen>
     );
   }
 
-  const data = libraryQuery.data;
-  if (!data || !data.profile) {
+  const data = profileQuery.data;
+  if (!data?.profile) {
     return (
       <Screen>
         <EmptyState icon="person-outline" title="Perfil não encontrado" description="Esse membro pode não existir mais." />
@@ -50,23 +44,68 @@ export default function MemberProfileScreen() {
     );
   }
 
-  const { profile, completed, favorites } = data;
+  const { profile, favorites, backlog, completed, platforms } = data;
+
+  async function shareProfile() {
+    const url = getCanonicalProfileUrl(profileId);
+    if (!url) return;
+    try {
+      await Share.share({ message: url, url });
+    } catch {
+      // usuário cancelou o compartilhamento
+    }
+  }
 
   return (
-    <Screen onRefresh={() => libraryQuery.refetch()} refreshing={libraryQuery.isRefetching}>
-      <AppHeader title="Perfil" />
+    <Screen onRefresh={() => profileQuery.refetch()} refreshing={profileQuery.isRefetching}>
+      <AppHeader
+        title="Perfil"
+        right={
+          <Pressable
+            onPress={shareProfile}
+            accessibilityRole="button"
+            accessibilityLabel="Compartilhar perfil"
+            hitSlop={8}
+          >
+            <Ionicons name="share-outline" size={20} color={colors.zinc300} />
+          </Pressable>
+        }
+      />
 
       <View style={styles.profileCard}>
-        <Avatar uri={profile.avatar_url} name={profile.name ?? 'Membro'} size={72} />
+        <Avatar uri={profile.avatar_url} crop={profile.avatar_crop} name={profile.name ?? 'Membro'} size={80} />
         <Text style={styles.name}>{profile.name ?? 'Membro'}</Text>
-        {profileId === userId ? <Text style={styles.selfBadge}>Esse é você</Text> : null}
+        {profile.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
+        {isSelf ? (
+          <Pressable
+            onPress={() => router.push('/(app)/(tabs)/perfil')}
+            accessibilityRole="button"
+            accessibilityLabel="Ir para o seu perfil"
+            style={styles.selfBadge}
+          >
+            <Text style={styles.selfBadgeLabel}>Esse é você</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       <View style={styles.statsGrid}>
-        <StatCard label="Na biblioteca" value={stats.total} icon="library-outline" />
-        <StatCard label="Finalizados" value={stats.finished} icon="flag-outline" />
-        <StatCard label="Jogando" value={stats.started} icon="play-outline" />
+        <StatCard label="Favoritos" value={favorites.length} icon="heart-outline" />
+        <StatCard label="Na biblioteca" value={backlog.length} icon="library-outline" />
+        <StatCard label="Finalizados" value={completed.length} icon="flag-outline" />
       </View>
+
+      {platforms.length ? (
+        <Section title="Plataformas">
+          <View style={styles.platformRow}>
+            {platforms.map(platform => (
+              <View key={platform.igdb_platform_id} style={styles.platformChip}>
+                <Ionicons name="game-controller-outline" size={13} color={colors.violet300} />
+                <Text style={styles.platformChipLabel} numberOfLines={1}>{platform.abbreviation || platform.name}</Text>
+              </View>
+            ))}
+          </View>
+        </Section>
+      ) : null}
 
       <Section title="Favoritos">
         {favorites.length ? (
@@ -80,7 +119,23 @@ export default function MemberProfileScreen() {
             ))}
           </View>
         ) : (
-          <Text style={styles.emptyText}>Nenhum jogo favoritado ainda.</Text>
+          <EmptyState icon="heart-outline" title="Nenhum jogo favoritado ainda." />
+        )}
+      </Section>
+
+      <Section title="Biblioteca">
+        {backlog.length ? (
+          <View style={styles.list}>
+            {backlog.map(game => (
+              <GameListRow
+                key={game.id}
+                game={game}
+                onPress={() => router.push({ pathname: '/(app)/jogos/[id]', params: { id: game.id } })}
+              />
+            ))}
+          </View>
+        ) : (
+          <EmptyState icon="library-outline" title="Nenhum jogo na biblioteca ainda." />
         )}
       </Section>
 
@@ -96,7 +151,7 @@ export default function MemberProfileScreen() {
             ))}
           </View>
         ) : (
-          <Text style={styles.emptyText}>Nenhum jogo finalizado ainda.</Text>
+          <EmptyState icon="flag-outline" title="Nenhum jogo finalizado ainda." />
         )}
       </Section>
     </Screen>
@@ -125,7 +180,9 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   name: { ...typography.h2, color: colors.foreground, marginTop: spacing.sm },
-  selfBadge: { fontSize: 10, fontWeight: '800', color: colors.violet300, textTransform: 'uppercase' },
+  bio: { ...typography.small, color: colors.zinc400, textAlign: 'center', maxWidth: 280 },
+  selfBadge: { marginTop: spacing.xs, borderRadius: radii.full, borderWidth: 1, borderColor: 'rgba(139,92,246,0.3)', backgroundColor: 'rgba(139,92,246,0.12)', paddingHorizontal: spacing.sm, paddingVertical: 4 },
+  selfBadgeLabel: { fontSize: 10, fontWeight: '800', color: colors.violet300, textTransform: 'uppercase' },
   statsGrid: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
   statCard: {
     flex: 1,
@@ -139,6 +196,8 @@ const styles = StyleSheet.create({
   },
   statValue: { fontSize: 20, fontWeight: '900', color: colors.foreground },
   statLabel: { fontSize: 10, fontWeight: '700', color: colors.zinc500, textAlign: 'center' },
+  platformRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  platformChip: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: radii.full, borderWidth: 1, borderColor: colors.hairline, backgroundColor: colors.surfaceSofter, paddingHorizontal: spacing.sm, paddingVertical: 6 },
+  platformChipLabel: { fontSize: 11, fontWeight: '800', color: colors.zinc300 },
   list: { gap: spacing.sm },
-  emptyText: { ...typography.small, color: colors.zinc600 },
 });

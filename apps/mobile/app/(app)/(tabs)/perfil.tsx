@@ -1,72 +1,182 @@
-import { useMemo } from 'react';
+import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { AppHeader } from '@/components/AppHeader';
 import { Avatar } from '@/components/Avatar';
+import { GameListRow } from '@/components/GameListRow';
 import { EmptyState, ErrorState, LoadingState } from '@/components/StateViews';
+import { ProfileEditSheet } from '@/features/profile/ProfileEditSheet';
+import { PlatformPicker } from '@/features/profile/PlatformPicker';
 import { useApp } from '@/state/app-provider';
-import { useLibrary } from '@/state/queries';
+import { useProfile, useUpdateProfile } from '@/state/profile-queries';
+import { formatShortDate } from '@/lib/format';
 import { colors, radii, spacing, typography } from '@/theme';
+import type { Game } from '@clube-do-jogo/domain';
+
+const TABS = [
+  { key: 'favorites', label: 'Favoritos', icon: 'heart-outline' as const },
+  { key: 'backlog', label: 'Jogos', icon: 'library-outline' as const },
+  { key: 'completed', label: 'Finalizados', icon: 'flag-outline' as const },
+  { key: 'platforms', label: 'Consoles', icon: 'game-controller-outline' as const },
+];
+type TabKey = typeof TABS[number]['key'];
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { profile, isHistorical, signOut } = useApp();
-  const libraryQuery = useLibrary();
+  const { signOut } = useApp();
+  const profileQuery = useProfile();
+  const updateProfile = useUpdateProfile();
+  const [editOpen, setEditOpen] = useState(false);
+  const [platformsOpen, setPlatformsOpen] = useState(false);
+  const [tab, setTab] = useState<TabKey>('favorites');
 
-  const library = useMemo(() => libraryQuery.data?.library ?? [], [libraryQuery.data?.library]);
-  const stats = useMemo(() => {
-    const finished = library.filter(item => item.progress?.status === 'finished').length;
-    const started = library.filter(item => item.progress?.status === 'started').length;
-    const favorites = library.filter(item => item.favorite).length;
-    return { total: library.length, finished, started, favorites };
-  }, [library]);
+  if (profileQuery.isLoading) {
+    return (
+      <Screen>
+        <LoadingState label="Carregando perfil…" />
+      </Screen>
+    );
+  }
+
+  if (profileQuery.isError) {
+    return (
+      <Screen>
+        <ErrorState message={profileQuery.error.message} onRetry={() => profileQuery.refetch()} />
+      </Screen>
+    );
+  }
+
+  const data = profileQuery.data;
+  if (!data?.profile) {
+    return (
+      <Screen>
+        <EmptyState icon="person-outline" title="Perfil não encontrado" description="Tente novamente em instantes." />
+      </Screen>
+    );
+  }
+
+  const person = data.profile;
+  const counts: Record<TabKey, number> = {
+    favorites: data.favorites.length,
+    backlog: data.backlog.length,
+    completed: data.completed.length,
+    platforms: data.platforms.length,
+  };
+
+  function saveProfile(input: { name: string; bio: string }) {
+    updateProfile.mutate(
+      { name: input.name.trim() || null, bio: input.bio.trim() || null },
+      { onSuccess: () => setEditOpen(false) },
+    );
+  }
+
+  function openGame(game: Game) {
+    router.push({ pathname: '/(app)/jogos/[id]', params: { id: game.id } });
+  }
 
   return (
-    <Screen onRefresh={() => libraryQuery.refetch()} refreshing={libraryQuery.isRefetching}>
-      <AppHeader title="Perfil" subtitle={isHistorical ? 'Resultado preservado do ciclo encerrado' : undefined} />
+    <Screen onRefresh={() => profileQuery.refetch()} refreshing={profileQuery.isRefetching}>
+      <AppHeader
+        title="Perfil"
+        right={
+          <Pressable
+            onPress={() => router.push('/(app)/configuracoes')}
+            accessibilityRole="button"
+            accessibilityLabel="Abrir configurações"
+            hitSlop={8}
+          >
+            <Ionicons name="settings-outline" size={20} color={colors.zinc300} />
+          </Pressable>
+        }
+      />
 
-      <View style={styles.profileCard}>
-        <Avatar uri={profile?.avatar_url ?? null} name={profile?.name ?? 'Você'} size={72} />
-        <Text style={styles.name}>{profile?.name ?? 'Membro'}</Text>
-        {profile?.email ? <Text style={styles.email}>{profile.email}</Text> : null}
-
+      <View style={styles.hero}>
         <Pressable
-          onPress={() => profile && router.push({ pathname: '/(app)/perfil/[id]', params: { id: profile.id } })}
-          disabled={!profile}
+          onPress={() => setEditOpen(true)}
           accessibilityRole="button"
-          accessibilityLabel="Ver perfil público"
-          style={styles.linkRow}
+          accessibilityLabel="Editar perfil"
+          style={styles.editButton}
         >
-          <Text style={styles.linkText}>Ver perfil público</Text>
-          <Ionicons name="chevron-forward" size={14} color={colors.violet300} />
+          <Ionicons name="pencil" size={16} color={colors.violet300} />
         </Pressable>
+        <Avatar uri={person.avatar_url} crop={person.avatar_crop} name={person.name} size={88} />
+        <Text style={styles.name}>{person.name || 'Membro do clube'}</Text>
+        {person.bio ? <Text style={styles.bio}>{person.bio}</Text> : null}
+        {person.created_at ? <Text style={styles.since}>Desde {formatShortDate(person.created_at)}</Text> : null}
       </View>
 
-      {libraryQuery.isLoading ? (
-        <LoadingState label="Carregando estatísticas…" />
-      ) : libraryQuery.isError ? (
-        <ErrorState message={libraryQuery.error.message} onRetry={() => libraryQuery.refetch()} />
-      ) : !library.length ? (
-        <EmptyState icon="library-outline" title="Biblioteca vazia" description="Adicione jogos pela aba Explorar para ver estatísticas aqui." />
+      <View style={styles.tabsRow}>
+        {TABS.map(item => {
+          const active = tab === item.key;
+          return (
+            <Pressable
+              key={item.key}
+              onPress={() => setTab(item.key)}
+              accessibilityRole="tab"
+              accessibilityLabel={`${item.label}, ${counts[item.key]}`}
+              accessibilityState={{ selected: active }}
+              style={[styles.tabButton, active && styles.tabButtonActive]}
+            >
+              <Ionicons name={item.icon} size={16} color={active ? colors.violet300 : colors.zinc500} />
+              <Text style={[styles.tabCount, active && styles.tabCountActive]}>{counts[item.key]}</Text>
+              <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{item.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {tab === 'platforms' ? (
+        <View style={styles.section}>
+          <Pressable
+            onPress={() => setPlatformsOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Adicionar ou remover plataformas"
+            style={styles.managePlatforms}
+          >
+            <Ionicons name="add-circle-outline" size={16} color={colors.violet300} />
+            <Text style={styles.managePlatformsLabel}>Adicionar ou remover plataformas</Text>
+          </Pressable>
+          {data.platforms.length ? (
+            <View style={styles.platformGrid}>
+              {data.platforms.map(platform => (
+                <View key={platform.igdb_platform_id} style={styles.platformCard}>
+                  <Ionicons name="game-controller-outline" size={18} color={colors.violet300} />
+                  <Text style={styles.platformName} numberOfLines={1}>{platform.name}</Text>
+                  {platform.abbreviation ? <Text style={styles.platformAbbr}>{platform.abbreviation}</Text> : null}
+                </View>
+              ))}
+            </View>
+          ) : (
+            <EmptyState icon="game-controller-outline" title="Nenhum console adicionado" />
+          )}
+        </View>
       ) : (
-        <View style={styles.statsGrid}>
-          <StatCard label="Na biblioteca" value={stats.total} icon="library-outline" />
-          <StatCard label="Finalizados" value={stats.finished} icon="flag-outline" />
-          <StatCard label="Jogando" value={stats.started} icon="play-outline" />
-          <StatCard label="Favoritos" value={stats.favorites} icon="heart-outline" />
+        <View style={styles.section}>
+          {(tab === 'favorites' ? data.favorites : tab === 'backlog' ? data.backlog : data.completed).length ? (
+            <View style={styles.list}>
+              {(tab === 'favorites' ? data.favorites : tab === 'backlog' ? data.backlog : data.completed).map(game => (
+                <GameListRow key={game.id} game={game} onPress={() => openGame(game)} />
+              ))}
+            </View>
+          ) : (
+            <EmptyState
+              icon="game-controller-outline"
+              title={tab === 'favorites' ? 'Nenhum jogo favorito' : tab === 'backlog' ? 'Nenhum jogo adicionado' : 'Nenhum jogo finalizado'}
+            />
+          )}
         </View>
       )}
 
       <Pressable
-        onPress={() => router.push('/(app)/configuracoes')}
+        onPress={() => router.push({ pathname: '/(app)/perfil/[id]', params: { id: person.id } })}
         accessibilityRole="button"
-        accessibilityLabel="Abrir configurações"
+        accessibilityLabel="Ver perfil público"
         style={styles.menuRow}
       >
-        <Ionicons name="settings-outline" size={18} color={colors.zinc300} />
-        <Text style={styles.menuLabel}>Configurações</Text>
+        <Ionicons name="eye-outline" size={18} color={colors.zinc300} />
+        <Text style={styles.menuLabel}>Ver perfil público</Text>
         <Ionicons name="chevron-forward" size={16} color={colors.zinc600} />
       </Pressable>
 
@@ -81,22 +191,22 @@ export default function ProfileScreen() {
         <Ionicons name="log-out-outline" size={18} color={colors.red300} />
         <Text style={[styles.menuLabel, styles.menuLabelDanger]}>Sair da conta</Text>
       </Pressable>
+
+      <ProfileEditSheet
+        visible={editOpen}
+        profile={person}
+        saving={updateProfile.isPending}
+        error={updateProfile.error?.message}
+        onClose={() => setEditOpen(false)}
+        onSave={saveProfile}
+      />
+      <PlatformPicker visible={platformsOpen} onClose={() => setPlatformsOpen(false)} />
     </Screen>
   );
 }
 
-function StatCard({ label, value, icon }: { label: string; value: number; icon: keyof typeof Ionicons.glyphMap }) {
-  return (
-    <View style={styles.statCard}>
-      <Ionicons name={icon} size={18} color={colors.violet300} />
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  profileCard: {
+  hero: {
     alignItems: 'center',
     gap: spacing.xs,
     borderRadius: radii.xxl,
@@ -106,24 +216,37 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     marginBottom: spacing.lg,
   },
-  name: { ...typography.h2, color: colors.foreground, marginTop: spacing.sm },
-  email: { ...typography.small, color: colors.zinc500 },
-  linkRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: spacing.sm },
-  linkText: { color: colors.violet300, fontWeight: '800', fontSize: 12 },
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.lg },
-  statCard: {
-    flexBasis: '47%',
-    flexGrow: 1,
+  editButton: {
+    position: 'absolute',
+    right: spacing.md,
+    top: spacing.md,
+    width: 36,
+    height: 36,
+    borderRadius: radii.lg,
     alignItems: 'center',
-    gap: 4,
-    borderRadius: radii.xl,
+    justifyContent: 'center',
+    backgroundColor: 'rgba(139,92,246,0.12)',
     borderWidth: 1,
-    borderColor: colors.hairline,
-    backgroundColor: colors.surfaceSofter,
-    paddingVertical: spacing.lg,
+    borderColor: 'rgba(139,92,246,0.2)',
   },
-  statValue: { fontSize: 22, fontWeight: '900', color: colors.foreground },
-  statLabel: { fontSize: 11, fontWeight: '700', color: colors.zinc500 },
+  name: { ...typography.h2, color: colors.foreground, marginTop: spacing.sm, textAlign: 'center' },
+  bio: { ...typography.small, color: colors.zinc400, textAlign: 'center', maxWidth: 280 },
+  since: { ...typography.tiny, color: colors.zinc600, marginTop: spacing.xs },
+  tabsRow: { flexDirection: 'row', gap: spacing.xs, borderRadius: radii.xl, borderWidth: 1, borderColor: colors.hairline, backgroundColor: colors.surfaceSofter, padding: spacing.xs, marginBottom: spacing.lg },
+  tabButton: { flex: 1, alignItems: 'center', gap: 2, borderRadius: radii.lg, paddingVertical: spacing.sm },
+  tabButtonActive: { backgroundColor: 'rgba(139,92,246,0.12)' },
+  tabCount: { fontSize: 13, fontWeight: '900', color: colors.zinc400 },
+  tabCountActive: { color: colors.violet300 },
+  tabLabel: { fontSize: 9, fontWeight: '800', color: colors.zinc600 },
+  tabLabelActive: { color: colors.violet300 },
+  section: { marginBottom: spacing.lg },
+  list: { gap: spacing.sm },
+  managePlatforms: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.md },
+  managePlatformsLabel: { ...typography.small, color: colors.violet300, fontWeight: '800' },
+  platformGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  platformCard: { width: '47%', gap: 4, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.hairline, backgroundColor: colors.surfaceSofter, padding: spacing.md },
+  platformName: { ...typography.small, color: colors.foreground, fontWeight: '800' },
+  platformAbbr: { ...typography.tiny, color: colors.zinc500 },
   menuRow: {
     flexDirection: 'row',
     alignItems: 'center',

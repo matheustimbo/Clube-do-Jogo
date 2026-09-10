@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
@@ -15,31 +15,43 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/StateViews';
 import { useApp } from '@/state/app-provider';
 import { useBacklog, useFavorite, useGame, useLibrary, useProgress, useRanking, useSetProgress, useVote } from '@/state/queries';
 import { useSetRating } from '@/state/library-queries';
+import { useGameMugshots, useUpdateProfile } from '@/state/profile-queries';
+import { ScreenshotsCarousel } from '@/features/media/ScreenshotsCarousel';
+import { ImageGalleryModal } from '@/features/media/ImageGalleryModal';
+import { MugshotsGrid } from '@/features/media/MugshotsGrid';
+import { TrailerModal } from '@/features/media/TrailerModal';
+import { AvatarCropEditor, DEFAULT_AVATAR_SELECTION_CROP } from '@/features/profile/AvatarCropEditor';
+import { getCanonicalGameUrl } from '@/features/media/canonical-url';
 import { colors, radii, spacing, typography } from '@/theme';
-import type { ProgressStatus, RatingDetails, RatingMode, VoteChoice, VoteReason } from '@clube-do-jogo/domain';
+import type { AvatarCrop, GameMugshot, ProgressStatus, RatingDetails, RatingMode, VoteChoice, VoteReason } from '@clube-do-jogo/domain';
 
 const statusOrder: ProgressStatus[] = ['not_started', 'started', 'finished'];
 
 export default function GameDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const gameId = String(id);
-  const { userId, isHistorical } = useApp();
+  const { userId, isHistorical, isDemo } = useApp();
 
   const gameQuery = useGame(gameId);
   const libraryQuery = useLibrary();
   const rankingQuery = useRanking();
   const progressQuery = useProgress(gameId);
+  const mugshotsQuery = useGameMugshots(gameId);
 
   const backlog = useBacklog();
   const favorite = useFavorite();
   const vote = useVote();
   const setProgress = useSetProgress();
   const setRating = useSetRating();
+  const updateProfile = useUpdateProfile();
 
   const [reasonOpen, setReasonOpen] = useState(false);
   const [reasonToken, setReasonToken] = useState(0);
   const [ratingOpen, setRatingOpen] = useState(false);
   const [ratingToken, setRatingToken] = useState(0);
+  const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
+  const [trailerOpen, setTrailerOpen] = useState(false);
+  const [avatarSource, setAvatarSource] = useState<{ url: string; name: string } | null>(null);
 
   const game = gameQuery.data ?? null;
   const libraryEntry = useMemo(
@@ -123,12 +135,57 @@ export default function GameDetailScreen() {
   }
 
   const mutationError = backlog.error || favorite.error || vote.error || setProgress.error;
+  const galleryImages = [game.image_url, ...(game.screenshot_urls ?? [])].filter(Boolean) as string[];
+  const mugshots = mugshotsQuery.data ?? [];
+  const allGalleryImages = [...galleryImages, ...mugshots.map(mugshot => mugshot.image_url)];
+
+  async function shareGame() {
+    const url = getCanonicalGameUrl(gameId);
+    if (!url) return;
+    try {
+      await Share.share({ message: `${game!.title} — ${url}`, url });
+    } catch {
+      // usuário cancelou o compartilhamento
+    }
+  }
+
+  function chooseAvatarFromScreenshot(url: string) {
+    setAvatarSource({ url, name: game!.title });
+  }
+
+  function chooseAvatarFromMugshot(mugshot: GameMugshot) {
+    setAvatarSource({ url: mugshot.image_url, name: mugshot.name });
+  }
+
+  function saveAvatarCrop(crop: AvatarCrop) {
+    if (!avatarSource) return;
+    updateProfile.mutate(
+      { avatar_url: avatarSource.url, avatar_crop: crop },
+      { onSuccess: () => setAvatarSource(null) },
+    );
+  }
 
   return (
     <Screen onRefresh={() => gameQuery.refetch()} refreshing={gameQuery.isRefetching}>
-      <AppHeader title={game.title} />
+      <AppHeader
+        title={game.title}
+        right={
+          <Pressable onPress={shareGame} accessibilityRole="button" accessibilityLabel="Compartilhar jogo" hitSlop={8}>
+            <Ionicons name="share-outline" size={20} color={colors.zinc300} />
+          </Pressable>
+        }
+      />
 
-      <Image source={{ uri: game.image_url }} style={styles.cover} contentFit="cover" accessibilityLabel={`Capa de ${game.title}`} />
+      <Pressable onPress={() => setGalleryIndex(0)} accessibilityRole="button" accessibilityLabel={`Ampliar capa de ${game.title}`}>
+        <Image source={{ uri: game.image_url }} style={styles.cover} contentFit="cover" accessibilityLabel={`Capa de ${game.title}`} />
+      </Pressable>
+
+      {game.trailer_url ? (
+        <Pressable onPress={() => setTrailerOpen(true)} accessibilityRole="button" accessibilityLabel={`Assistir trailer de ${game.title}`} style={styles.trailerButton}>
+          <Ionicons name="play-circle" size={18} color={colors.violet300} />
+          <Text style={styles.trailerButtonLabel}>Assistir trailer</Text>
+        </Pressable>
+      ) : null}
 
       <View style={styles.metaRow}>
         <MetaChip icon="time-outline" label={`${game.duration_hours} h`} />
@@ -168,11 +225,30 @@ export default function GameDetailScreen() {
       </View>
 
       {game.screenshot_urls?.length ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.gallery} contentContainerStyle={{ gap: spacing.sm }}>
-          {game.screenshot_urls.map(url => (
-            <Image key={url} source={{ uri: url }} style={styles.screenshot} contentFit="cover" accessibilityLabel={`Captura de tela de ${game.title}`} />
-          ))}
-        </ScrollView>
+        <View style={styles.gallery}>
+          <ScreenshotsCarousel
+            title={game.title}
+            images={game.screenshot_urls}
+            avatarUrl={undefined}
+            updatingAvatarUrl={updateProfile.isPending ? avatarSource?.url : null}
+            onOpen={index => setGalleryIndex(index + 1)}
+            onChooseAvatar={chooseAvatarFromScreenshot}
+          />
+        </View>
+      ) : null}
+
+      {!isDemo ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Personagens</Text>
+          <MugshotsGrid
+            mugshots={mugshots}
+            isLoading={mugshotsQuery.isLoading}
+            updatingAvatarUrl={updateProfile.isPending ? avatarSource?.url : null}
+            title={game.title}
+            onOpen={index => setGalleryIndex(galleryImages.length + index)}
+            onChooseAvatar={chooseAvatarFromMugshot}
+          />
+        </View>
       ) : null}
 
       <View style={styles.card}>
@@ -282,6 +358,32 @@ export default function GameDetailScreen() {
         onSave={saveRating}
         onRemove={removeRating}
       />
+
+      <ImageGalleryModal
+        visible={galleryIndex !== null}
+        title={game.title}
+        images={allGalleryImages}
+        activeIndex={galleryIndex ?? 0}
+        onActiveIndexChange={setGalleryIndex}
+        onClose={() => setGalleryIndex(null)}
+      />
+
+      <TrailerModal
+        visible={trailerOpen}
+        url={game.trailer_url}
+        title={game.title}
+        onClose={() => setTrailerOpen(false)}
+      />
+
+      <AvatarCropEditor
+        visible={avatarSource !== null}
+        imageUrl={avatarSource?.url ?? null}
+        name={avatarSource?.name ?? ''}
+        crop={DEFAULT_AVATAR_SELECTION_CROP}
+        saving={updateProfile.isPending}
+        onClose={() => setAvatarSource(null)}
+        onSave={saveAvatarCrop}
+      />
     </Screen>
   );
 }
@@ -297,6 +399,8 @@ function MetaChip({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; label
 
 const styles = StyleSheet.create({
   cover: { width: '100%', aspectRatio: 16 / 9, borderRadius: radii.xl, backgroundColor: colors.zinc900, marginBottom: spacing.md },
+  trailerButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, alignSelf: 'flex-start', borderRadius: radii.full, backgroundColor: 'rgba(139,92,246,0.16)', paddingHorizontal: spacing.md, paddingVertical: spacing.xs, marginBottom: spacing.md },
+  trailerButtonLabel: { fontSize: 12, fontWeight: '800', color: colors.violet300 },
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
   metaChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: spacing.sm, paddingVertical: 6, borderRadius: radii.full, backgroundColor: colors.surfaceDeep },
   metaText: { fontSize: 11, fontWeight: '700', color: colors.zinc400 },
