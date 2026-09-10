@@ -9,6 +9,15 @@ type FixtureUser = { id: string; email: string; password: string };
 type LocalConfig = { url: string; anonKey: string; serviceRoleKey: string; users: FixtureUser[]; nextUrl?: string };
 type Account = { fixture: FixtureUser; client: SupabaseClient; id: string };
 type Accounts = { member: Account; other: Account; admin: Account };
+type DataClient = {
+  readCycles(isDemo: boolean): Promise<{ activeMonth: string; months: string[] }>;
+  readProfile(profileId: string, isDemo: boolean): Promise<{ id: string } | null>;
+  readGame(input: { userId: string; isDemo: boolean; gameId: string }): Promise<{ id: string } | null>;
+  readGameOfMonth(input: { userId: string; isDemo: boolean; month: string }): Promise<{ id: string } | null>;
+  setVote(input: { userId: string; isDemo: boolean; month: string; historical?: boolean; gameId: string; choice: 'would_play' | 'would_not_play' | null; reason?: 'other'; reasonText?: string }): Promise<void>;
+  setProgress(input: { userId: string; isDemo: boolean; gameId: string; status: 'started' | 'finished' }): Promise<void>;
+};
+type DataModule = { createDataClient(options: { supabase: SupabaseClient }): DataClient; DataError: new (...args: never[]) => Error };
 
 const fixtureGameIds = [
   '00000000-0000-4000-a000-000000000001',
@@ -17,9 +26,9 @@ const fixtureGameIds = [
   '00000000-0000-4000-a000-000000000004',
 ] as const;
 const fixtureCycleMonths = ['2026-08', '2026-09'] as const;
+const activeCycleMonth = '2026-09';
 const testGameId = randomUUID();
-const testCycleMonth = `${9000 + Math.floor(Math.random() * 900)}-${String(1 + Math.floor(Math.random() * 12)).padStart(2, '0')}`;
-const testVoteMonth = nextMonth(testCycleMonth);
+const testVoteMonth = '2026-10';
 const localSkip = 'SKIP: defina LOCAL_SUPABASE_TEST_CONFIG ou TEST_SUPABASE_* para habilitar o contrato local';
 
 function readJson(path: string): unknown {
@@ -125,12 +134,6 @@ function rejected(response: { data: unknown; error: { message?: string } | null 
   assert.ok(response.error, `${label} deveria ser rejeitado por RLS ou constraint`);
 }
 
-function nextMonth(month: string): string {
-  const [year, rawMonth] = month.split('-').map(Number);
-  const next = rawMonth === 12 ? 1 : rawMonth + 1;
-  return `${rawMonth === 12 ? year + 1 : year}-${String(next).padStart(2, '0')}`;
-}
-
 function previousMonth(month: string): string {
   const [year, rawMonth] = month.split('-').map(Number);
   const previous = rawMonth === 1 ? 12 : rawMonth - 1;
@@ -146,6 +149,12 @@ const configuredNextUrl = nextUrl(config?.nextUrl);
 let accounts: Accounts | undefined;
 let service: SupabaseClient | undefined;
 let setupError: Error | undefined;
+let dataModule: DataModule | undefined;
+
+async function realDataClient(supabase: SupabaseClient): Promise<DataClient> {
+  dataModule ||= await import('@clube-do-jogo/data') as unknown as DataModule;
+  return dataModule.createDataClient({ supabase });
+}
 
 async function signIn(configValue: LocalConfig, fixture: FixtureUser, scope: string): Promise<Account> {
   const client = makeClient(configValue, configValue.anonKey, scope);
@@ -155,16 +164,29 @@ async function signIn(configValue: LocalConfig, fixture: FixtureUser, scope: str
   return { fixture, client, id: data.user.id };
 }
 
+async function freshAccount(label: keyof Accounts): Promise<Account> {
+  const current = readyAccounts();
+  assert.ok(config, 'configuração local ausente');
+  return signIn(config, current[label].fixture, `${label}-${randomUUID()}`);
+}
+
 function readyAccounts(): Accounts {
   assert.ok(accounts, `ambiente local não preparado${setupError ? `: ${setupError.message}` : ''}`);
   return accounts as Accounts;
 }
 
-function readyOwnData(): { accounts: Accounts; service: SupabaseClient } {
-  const current = readyAccounts();
+async function readyOwnData(): Promise<{ accounts: Accounts; service: SupabaseClient }> {
+  readyAccounts();
   assert.equal(setupError, undefined, `fixtures próprios não preparados: ${setupError?.message || 'erro desconhecido'}`);
   assert.ok(service, 'cliente service_role não preparado');
-  return { accounts: current, service: service as SupabaseClient };
+  return {
+    accounts: {
+      member: await freshAccount('member'),
+      other: await freshAccount('other'),
+      admin: await freshAccount('admin'),
+    },
+    service: service as SupabaseClient,
+  };
 }
 
 before(async () => {
@@ -189,19 +211,6 @@ before(async () => {
       platform_ids: [],
     }).select('id').single(), 'criação do jogo próprio');
     assert.equal(game.id, testGameId);
-    const cycle = noError(await service.from('club_months').insert({
-      month: testCycleMonth,
-      game_id: testGameId,
-      finalized_at: timestamp,
-      created_at: timestamp,
-      status: 'active',
-      started_at: timestamp,
-      closed_at: null,
-      selected_by: admin.id,
-      updated_at: timestamp,
-      updated_by: admin.id,
-    }).select('month').single(), 'criação do ciclo próprio');
-    assert.equal(cycle.month, testCycleMonth);
   } catch (error) {
     setupError = error instanceof Error ? error : new Error(String(error));
   }
@@ -218,37 +227,41 @@ after(async () => {
     await service.from('votes').delete().eq('game_id', testGameId);
     await service.from('game_progress').delete().eq('game_id', testGameId);
     await service.from('game_notes').delete().eq('game_id', testGameId);
-    await service.from('backlogs').delete().eq('game_id', testGameId);
-    await service.from('favorite_games').delete().eq('game_id', testGameId);
-    await service.from('club_months').delete().eq('month', testCycleMonth).eq('game_id', testGameId);
     await service.from('games').delete().eq('id', testGameId);
   }
   if (accounts) {
-    await Promise.all([accounts.member.client.auth.signOut(), accounts.other.client.auth.signOut(), accounts.admin.client.auth.signOut()]);
+    await Promise.all([
+      accounts.member.client.auth.signOut({ scope: 'local' }),
+      accounts.other.client.auth.signOut({ scope: 'local' }),
+      accounts.admin.client.auth.signOut({ scope: 'local' }),
+    ]);
   }
 });
 
-test('autenticação mantém sessão e troca de contas', { skip: config ? false : localSkip }, async () => {
-  const { member, other } = readyAccounts();
+test('autenticação mantém sessão e troca de contas', { skip: config ? false : localSkip, concurrency: false }, async () => {
+  const member = await freshAccount('member');
+  const other = await freshAccount('other');
   const initial = await member.client.auth.getSession();
   noError(initial, 'sessão member');
   assert.equal(initial.data.session?.user.id, member.id);
 
-  noError(await member.client.auth.signOut(), 'saída member');
+  noError(await member.client.auth.signOut({ scope: 'local' }), 'saída member');
   const switched = await member.client.auth.signInWithPassword({ email: other.fixture.email, password: other.fixture.password });
   noError(switched, 'troca para other');
   assert.equal(switched.data.user?.id, other.id);
   const otherSession = noError(await member.client.auth.getSession(), 'sessão other');
   assert.equal(otherSession.session?.user.id, other.id);
 
-  noError(await member.client.auth.signOut(), 'saída other');
+  noError(await member.client.auth.signOut({ scope: 'local' }), 'saída other');
   const restored = await member.client.auth.signInWithPassword({ email: member.fixture.email, password: member.fixture.password });
   noError(restored, 'retorno para member');
   assert.equal(restored.data.user?.id, member.id);
 });
 
-test('conta autenticada lê perfis, jogos, ciclos e voto do mês 10', { skip: config ? false : localSkip }, async () => {
-  const { member, other, admin } = readyAccounts();
+test('conta autenticada lê perfis, jogos, ciclos e voto do mês 10', { skip: config ? false : localSkip, concurrency: false }, async () => {
+  const member = await freshAccount('member');
+  const other = await freshAccount('other');
+  const admin = await freshAccount('admin');
   const profileRows = noError(await member.client.from('profiles').select('id').in('id', [member.id, other.id, admin.id]), 'leitura dos perfis');
   assert.deepEqual(new Set(profileRows.map(row => row.id)), new Set([member.id, other.id, admin.id]));
 
@@ -266,29 +279,26 @@ test('conta autenticada lê perfis, jogos, ciclos e voto do mês 10', { skip: co
   assert.ok(seededVote.some(row => row.user_id === other.id && row.choice === 'would_play'));
   const roles = noError(await member.client.from('user_roles').select('user_id,role').eq('user_id', admin.id).maybeSingle(), 'leitura do papel admin');
   assert.equal(roles?.role, 'admin');
+
+  const dataClient = await realDataClient(member.client);
+  const cycleState = await dataClient.readCycles(false);
+  assert.equal(cycleState.activeMonth, activeCycleMonth);
+  assert.deepEqual(cycleState.months.slice(0, 2), ['2026-09', '2026-08']);
+  assert.equal((await dataClient.readProfile(member.id, false))?.id, member.id);
+  assert.equal((await dataClient.readGame({ userId: member.id, isDemo: false, gameId: fixtureGameIds[0] }))?.id, fixtureGameIds[0]);
+  assert.equal((await dataClient.readGameOfMonth({ userId: member.id, isDemo: false, month: activeCycleMonth }))?.id, fixtureGameIds[0]);
 });
 
-test('voto permite primeiro, troca e remoção e rejeita outro mês', { skip: config ? false : localSkip }, async () => {
-  const { accounts: current } = readyOwnData();
+test('voto permite primeiro, troca e remoção e rejeita outro mês', { skip: config ? false : localSkip, concurrency: false }, async () => {
+  const { accounts: current } = await readyOwnData();
   const { member } = current;
-  await member.client.from('votes').delete().eq('user_id', member.id).eq('game_id', testGameId).eq('vote_month', testVoteMonth);
-
-  const first = noError(await member.client.from('votes').upsert({
-    user_id: member.id,
-    game_id: testGameId,
-    vote_month: testVoteMonth,
-    choice: 'would_play',
-  }, { onConflict: 'user_id,game_id,vote_month' }).select('choice').single(), 'primeiro voto');
+  const dataClient = await realDataClient(member.client);
+  await dataClient.setVote({ userId: member.id, isDemo: false, month: activeCycleMonth, gameId: testGameId, choice: 'would_play' });
+  const first = noError(await member.client.from('votes').select('choice').eq('user_id', member.id).eq('game_id', testGameId).eq('vote_month', testVoteMonth).single(), 'primeiro voto');
   assert.equal(first.choice, 'would_play');
 
-  const changed = noError(await member.client.from('votes').upsert({
-    user_id: member.id,
-    game_id: testGameId,
-    vote_month: testVoteMonth,
-    choice: 'would_not_play',
-    reason: 'other',
-    reason_text: 'contrato local',
-  }, { onConflict: 'user_id,game_id,vote_month' }).select('choice,reason').single(), 'troca de voto');
+  await dataClient.setVote({ userId: member.id, isDemo: false, month: activeCycleMonth, gameId: testGameId, choice: 'would_not_play', reason: 'other', reasonText: 'contrato local' });
+  const changed = noError(await member.client.from('votes').select('choice,reason').eq('user_id', member.id).eq('game_id', testGameId).eq('vote_month', testVoteMonth).single(), 'troca de voto');
   assert.equal(changed.choice, 'would_not_play');
   assert.equal(changed.reason, 'other');
 
@@ -300,38 +310,32 @@ test('voto permite primeiro, troca e remoção e rejeita outro mês', { skip: co
   });
   rejected(otherMonth, 'voto fora do mês ativo');
 
-  noError(await member.client.from('votes').delete().eq('user_id', member.id).eq('game_id', testGameId).eq('vote_month', testVoteMonth), 'remoção do voto');
+  await assert.rejects(
+    dataClient.setVote({ userId: member.id, isDemo: false, month: activeCycleMonth, historical: true, gameId: testGameId, choice: 'would_play' }),
+    (error: unknown) => Boolean(dataModule?.DataError && error instanceof dataModule.DataError && /somente leitura/i.test(error.message)),
+  );
+  await dataClient.setVote({ userId: member.id, isDemo: false, month: activeCycleMonth, gameId: testGameId, choice: null });
+  const afterRemoval = await member.client.from('votes').select('id').eq('user_id', member.id).eq('game_id', testGameId).eq('vote_month', testVoteMonth);
+  noError(afterRemoval, 'remoção do voto');
   const removed = noError(await member.client.from('votes').select('id').eq('user_id', member.id).eq('game_id', testGameId).eq('vote_month', testVoteMonth).maybeSingle(), 'confirmação da remoção');
   assert.equal(removed, null);
 });
 
-test('progresso persiste limites 0 e 10 e rejeita fora da faixa', { skip: config ? false : localSkip }, async () => {
-  const { accounts: current } = readyOwnData();
+test('progresso persiste limites 0 e 10 e rejeita fora da faixa', { skip: config ? false : localSkip, concurrency: false }, async () => {
+  const { accounts: current } = await readyOwnData();
   const { member } = current;
+  const dataClient = await realDataClient(member.client);
   await member.client.from('game_progress').delete().eq('user_id', member.id).eq('game_id', testGameId);
   const startedAt = now();
-  const started = noError(await member.client.from('game_progress').upsert({
-    user_id: member.id,
-    game_id: testGameId,
-    status: 'started',
-    rating: 0,
-    rating_mode: 'simple',
-    rating_details: null,
-    started_at: startedAt,
-    finished_at: null,
-    updated_at: startedAt,
-  }, { onConflict: 'user_id,game_id' }).select('status,rating,started_at,finished_at').single(), 'progresso com nota zero');
+  await dataClient.setProgress({ userId: member.id, isDemo: false, gameId: testGameId, status: 'started' });
+  const started = noError(await member.client.from('game_progress').update({ rating: 0, updated_at: startedAt }).eq('user_id', member.id).eq('game_id', testGameId).select('status,rating,started_at,finished_at').single(), 'progresso com nota zero');
   assert.equal(started.status, 'started');
   assert.equal(Number(started.rating), 0);
   assert.equal(started.finished_at, null);
 
   const finishedAt = now();
-  const finished = noError(await member.client.from('game_progress').update({
-    status: 'finished',
-    rating: 10,
-    finished_at: finishedAt,
-    updated_at: finishedAt,
-  }).eq('user_id', member.id).eq('game_id', testGameId).select('status,rating,finished_at').single(), 'progresso com nota dez');
+  await dataClient.setProgress({ userId: member.id, isDemo: false, gameId: testGameId, status: 'finished' });
+  const finished = noError(await member.client.from('game_progress').update({ rating: 10, finished_at: finishedAt, updated_at: finishedAt }).eq('user_id', member.id).eq('game_id', testGameId).select('status,rating,finished_at').single(), 'progresso com nota dez');
   assert.equal(finished.status, 'finished');
   assert.equal(Number(finished.rating), 10);
 
@@ -344,11 +348,11 @@ test('progresso persiste limites 0 e 10 e rejeita fora da faixa', { skip: config
   const persisted = noError(await fresh.from('game_progress').select('status,rating').eq('user_id', member.id).eq('game_id', testGameId).single(), 'leitura permanente do progresso');
   assert.equal(persisted.status, 'finished');
   assert.equal(Number(persisted.rating), 10);
-  await fresh.auth.signOut();
+  await fresh.auth.signOut({ scope: 'local' });
 });
 
-test('RLS limita escrita à conta e oculta notas alheias', { skip: config ? false : localSkip }, async () => {
-  const { accounts: current } = readyOwnData();
+test('RLS limita escrita à conta e oculta notas alheias', { skip: config ? false : localSkip, concurrency: false }, async () => {
+  const { accounts: current } = await readyOwnData();
   const { member, other } = current;
   const timestamp = now();
   const noteId = randomUUID();
@@ -374,22 +378,14 @@ test('RLS limita escrita à conta e oculta notas alheias', { skip: config ? fals
     updated_at: timestamp,
   }), 'criação de nota em outra conta');
 
-  noError(await member.client.from('game_progress').upsert({
-    user_id: member.id,
-    game_id: testGameId,
-    status: 'started',
-    rating: 0,
-    rating_mode: 'simple',
-    rating_details: null,
-    started_at: timestamp,
-    finished_at: null,
-    updated_at: timestamp,
-  }, { onConflict: 'user_id,game_id' }).select('id').single(), 'preparação do progresso RLS');
+  const dataClient = await realDataClient(member.client);
+  await member.client.from('game_progress').delete().eq('user_id', member.id).eq('game_id', testGameId);
+  await dataClient.setProgress({ userId: member.id, isDemo: false, gameId: testGameId, status: 'started' });
   const foreignProgress = await other.client.from('game_progress').update({ rating: 9 }).eq('user_id', member.id).eq('game_id', testGameId).select('rating');
   if (foreignProgress.error) rejected(foreignProgress, 'alteração de progresso de outra conta');
   else assert.equal(foreignProgress.data?.length, 0, 'outra conta não deve obter linha de progresso');
   const unchanged = noError(await member.client.from('game_progress').select('rating').eq('user_id', member.id).eq('game_id', testGameId).single(), 'confirmação do progresso protegido');
-  assert.equal(Number(unchanged.rating), 0);
+  assert.equal(unchanged.rating, null);
 
   rejected(await other.client.from('votes').insert({
     user_id: member.id,
@@ -400,8 +396,8 @@ test('RLS limita escrita à conta e oculta notas alheias', { skip: config ? fals
   noError(await member.client.from('game_notes').delete().eq('id', noteId).eq('user_id', member.id), 'limpeza da nota própria');
 });
 
-test('API Next rejeita anônimo e bearer inválido', { skip: config && configuredNextUrl ? false : 'SKIP: defina LOCAL_NEXT_API_URL=http://127.0.0.1:3101 para testar a API local' }, async () => {
-  const { member } = readyAccounts();
+test('API Next rejeita anônimo e bearer inválido', { skip: config && configuredNextUrl ? false : 'SKIP: defina LOCAL_NEXT_API_URL=http://127.0.0.1:3101 para testar a API local', concurrency: false }, async () => {
+  readyAccounts();
   const anonymous = await fetch(`${configuredNextUrl}/api/discover?source=friends&limit=1`);
   assert.equal(anonymous.status, 401);
 
@@ -410,6 +406,4 @@ test('API Next rejeita anônimo e bearer inválido', { skip: config && configure
   });
   assert.equal(invalidBearer.status, 401);
 
-  const session = noError(await member.client.auth.getSession(), 'token para smoke da API');
-  assert.ok(session.session?.access_token);
 });
