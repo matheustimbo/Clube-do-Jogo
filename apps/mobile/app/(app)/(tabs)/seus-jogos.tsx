@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { FlatList, Pressable, Text, TextInput, View } from 'react-native';
+import { FlatList, Pressable, Switch, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Screen } from '@/components/Screen';
@@ -12,10 +12,10 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/StateViews';
 import { useBacklog, useFavorite, useLibrary, useSetProgress } from '@/state/queries';
 import { usePersistentState } from '@/hooks/use-persistent-state';
 import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
-import type { LibraryGame, ProgressStatus } from '@clube-do-jogo/domain';
+import { selectLibraryGames, type LibraryGame, type LibraryQuickFilter, type LibrarySortMode, type ProgressStatus } from '@clube-do-jogo/domain';
 
-type QuickFilter = 'all' | 'started' | 'finished' | 'not_started' | 'favorites';
-type SortMode = 'updated_desc' | 'updated_asc' | 'title_asc' | 'title_desc' | 'duration_asc' | 'duration_desc' | 'rating_desc' | 'rating_asc';
+type QuickFilter = LibraryQuickFilter;
+type SortMode = LibrarySortMode;
 
 const quickFilters: Array<{ value: QuickFilter; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
   { value: 'all', label: 'Todos', icon: 'albums-outline' },
@@ -38,6 +38,12 @@ const sortOptions: Array<[SortMode, string]> = [
 
 const statusLabel: Record<ProgressStatus, string> = { not_started: 'Não iniciado', started: 'Comecei', finished: 'Finalizado' };
 
+const filterToggles: Array<{ key: 'playableOnly' | 'shortOnly' | 'ratedOnly'; label: string }> = [
+  { key: 'playableOnly', label: 'Nos meus consoles' },
+  { key: 'shortOnly', label: 'Até 12 horas' },
+  { key: 'ratedOnly', label: 'Com nota' },
+];
+
 export default function YourGamesScreen() {
   const colors = useThemeColors();
   const styles = useStyles();
@@ -48,30 +54,31 @@ export default function YourGamesScreen() {
   const setProgress = useSetProgress();
   const [quickFilter, setQuickFilter] = usePersistentState<QuickFilter>('clube-do-jogo:mobile:library-quick-filter', 'all');
   const [sortMode, setSortMode] = usePersistentState<SortMode>('clube-do-jogo:mobile:library-sort', 'updated_desc');
+  const [playableOnly, setPlayableOnly] = usePersistentState('clube-do-jogo:mobile:library-playable', false);
+  const [shortOnly, setShortOnly] = usePersistentState('clube-do-jogo:mobile:library-short', false);
+  const [ratedOnly, setRatedOnly] = usePersistentState('clube-do-jogo:mobile:library-rated', false);
   const [search, setSearch] = useState('');
   const [actionsTarget, setActionsTarget] = useState<LibraryGame | null>(null);
   const [sortSheetOpen, setSortSheetOpen] = useState(false);
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
 
-  const visible = useMemo(() => {
-    const library = libraryQuery.data?.library ?? [];
-    const normalized = search.trim().toLocaleLowerCase('pt-BR');
-    const matches = library.filter(item => {
-      const status = item.progress?.status ?? 'not_started';
-      if (quickFilter === 'favorites' ? !item.favorite : quickFilter !== 'all' && status !== quickFilter) return false;
-      if (normalized && !item.game.title.toLocaleLowerCase('pt-BR').includes(normalized)) return false;
-      return true;
-    });
-    return [...matches].sort((a, b) => {
-      if (sortMode === 'title_asc') return a.game.title.localeCompare(b.game.title, 'pt-BR');
-      if (sortMode === 'title_desc') return b.game.title.localeCompare(a.game.title, 'pt-BR');
-      if (sortMode === 'duration_asc') return a.game.duration_hours - b.game.duration_hours;
-      if (sortMode === 'duration_desc') return b.game.duration_hours - a.game.duration_hours;
-      if (sortMode === 'rating_desc') return Number(b.game.average_rating ?? -Infinity) - Number(a.game.average_rating ?? -Infinity);
-      if (sortMode === 'rating_asc') return Number(a.game.average_rating ?? Infinity) - Number(b.game.average_rating ?? Infinity);
-      if (sortMode === 'updated_asc') return (a.updatedAt || '').localeCompare(b.updatedAt || '');
-      return (b.updatedAt || '').localeCompare(a.updatedAt || '');
-    });
-  }, [libraryQuery.data, quickFilter, search, sortMode]);
+  const filterValues: Record<'playableOnly' | 'shortOnly' | 'ratedOnly', boolean> = { playableOnly, shortOnly, ratedOnly };
+  const filterSetters: Record<'playableOnly' | 'shortOnly' | 'ratedOnly', (value: boolean) => void> = {
+    playableOnly: setPlayableOnly,
+    shortOnly: setShortOnly,
+    ratedOnly: setRatedOnly,
+  };
+
+  const ownedPlatformIds = useMemo(
+    () => new Set((libraryQuery.data?.platforms ?? []).map(platform => platform.igdb_platform_id)),
+    [libraryQuery.data?.platforms],
+  );
+
+  const visible = useMemo(() => selectLibraryGames(
+    libraryQuery.data?.library ?? [],
+    { quickFilter, text: search, sortMode, playableOnly, shortOnly, ratedOnly },
+    ownedPlatformIds,
+  ), [libraryQuery.data?.library, ownedPlatformIds, playableOnly, quickFilter, ratedOnly, search, shortOnly, sortMode]);
 
   function toggleFavorite(item: LibraryGame) {
     favorite.mutate({ gameId: item.game.id, favorite: !item.favorite });
@@ -146,15 +153,26 @@ export default function YourGamesScreen() {
 
             <View style={styles.countRow}>
               <Text style={styles.count}>{visible.length} {visible.length === 1 ? 'jogo' : 'jogos'}</Text>
-              <Pressable
-                onPress={() => setSortSheetOpen(true)}
-                accessibilityRole="button"
-                accessibilityLabel="Ordenar"
-                style={styles.sortButton}
-              >
-                <Ionicons name="swap-vertical" size={13} color={colors.zinc300} />
-                <Text style={styles.sortButtonLabel}>Ordenar</Text>
-              </Pressable>
+              <View style={styles.countRowActions}>
+                <Pressable
+                  onPress={() => setFilterSheetOpen(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Filtros"
+                  style={styles.sortButton}
+                >
+                  <Ionicons name="filter-outline" size={13} color={colors.zinc300} />
+                  <Text style={styles.sortButtonLabel}>Filtros</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setSortSheetOpen(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Ordenar"
+                  style={styles.sortButton}
+                >
+                  <Ionicons name="swap-vertical" size={13} color={colors.zinc300} />
+                  <Text style={styles.sortButtonLabel}>Ordenar</Text>
+                </Pressable>
+              </View>
             </View>
             {mutationError ? <Text style={styles.formError}>{mutationError.message}</Text> : null}
           </View>
@@ -188,6 +206,21 @@ export default function YourGamesScreen() {
             </Pressable>
           )}
         />
+      </Sheet>
+
+      <Sheet visible={filterSheetOpen} title="Filtros" onClose={() => setFilterSheetOpen(false)}>
+        <View style={styles.sheetBody}>
+          {filterToggles.map(({ key, label }) => (
+            <View key={key} style={[styles.sheetItem, styles.sheetItemToggle]}>
+              <Text style={styles.sheetItemLabel}>{label}</Text>
+              <Switch
+                value={filterValues[key]}
+                onValueChange={value => filterSetters[key](value)}
+                accessibilityLabel={label}
+              />
+            </View>
+          ))}
+        </View>
       </Sheet>
 
       <Sheet visible={Boolean(actionsTarget)} title={actionsTarget?.game.title ?? ''} onClose={() => setActionsTarget(null)}>
@@ -247,6 +280,7 @@ const useStyles = themedStyles(colors => ({
   searchInput: { flex: 1, color: colors.foreground, fontSize: 14 },
   chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.md },
   countRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.md },
+  countRowActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   count: { ...typography.tiny, color: colors.zinc600 },
   sortButton: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 30, paddingHorizontal: spacing.md, borderRadius: radii.full, borderWidth: 1, borderColor: colors.hairline, backgroundColor: colors.surfaceSofter },
   sortButtonLabel: { fontSize: 11, fontWeight: '700', color: colors.zinc300 },
@@ -258,6 +292,7 @@ const useStyles = themedStyles(colors => ({
   sheetBody: { padding: spacing.lg, gap: spacing.sm },
   sheetItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 48, paddingHorizontal: spacing.md, borderRadius: radii.lg, backgroundColor: colors.surfaceSofter },
   sheetItemSelected: { backgroundColor: 'rgba(139,92,246,0.15)', justifyContent: 'space-between' },
+  sheetItemToggle: { justifyContent: 'space-between' },
   sheetItemDisabled: { opacity: 0.4 },
   sheetItemLabel: { ...typography.small, color: colors.zinc300 },
   sheetItemDanger: { backgroundColor: 'rgba(239,68,68,0.08)' },
