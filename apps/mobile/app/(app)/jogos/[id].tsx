@@ -22,9 +22,14 @@ import { ImageGalleryModal } from '@/features/media/ImageGalleryModal';
 import { MugshotsGrid } from '@/features/media/MugshotsGrid';
 import { TrailerModal } from '@/features/media/TrailerModal';
 import { AvatarCropEditor, DEFAULT_AVATAR_SELECTION_CROP } from '@/features/profile/AvatarCropEditor';
+import { GameDetailVoteParticipantsSheet } from '@/features/game-detail/GameDetailVoteParticipantsSheet';
 import { getCanonicalGameUrl } from '@/features/media/canonical-url';
+import { getRankingFormula } from '@/platform/config';
 import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
 import type { AvatarCrop, GameMugshot, ProgressStatus, RatingDetails, RatingMode, VoteChoice, VoteReason } from '@clube-do-jogo/domain';
+
+const rankingFormula = getRankingFormula();
+const DESCRIPTION_EXPAND_THRESHOLD = 180;
 
 const statusOrder: ProgressStatus[] = ['not_started', 'started', 'finished'];
 
@@ -57,6 +62,8 @@ export default function GameDetailScreen() {
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
   const [trailerOpen, setTrailerOpen] = useState(false);
   const [avatarSource, setAvatarSource] = useState<{ url: string; name: string } | null>(null);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const [participantsChoice, setParticipantsChoice] = useState<VoteChoice | null>(null);
 
   const game = mediaQuery.data ?? gameQuery.data ?? null;
   const libraryEntry = useMemo(
@@ -77,6 +84,17 @@ export default function GameDetailScreen() {
   const inBacklog = libraryEntry?.inBacklog ?? false;
   const isFavorite = libraryEntry?.favorite ?? false;
   const myChoice = rankingEntry?.myChoice ?? null;
+  const totalPoints = rankingEntry?.totalPoints ?? 0;
+  const ownedPlatformIds = useMemo(
+    () => new Set((libraryQuery.data?.platforms ?? []).map(platform => platform.igdb_platform_id)),
+    [libraryQuery.data],
+  );
+  const orderedPlatforms = useMemo(() => (game?.platforms ?? [])
+    .map((name, index) => ({ name, platformId: game?.platform_ids?.[index] ?? -1, index }))
+    .sort((first, second) =>
+      Number(ownedPlatformIds.has(second.platformId)) - Number(ownedPlatformIds.has(first.platformId))
+      || first.index - second.index,
+    ), [game?.platforms, game?.platform_ids, ownedPlatformIds]);
 
   function choose(choice: VoteChoice) {
     if (isHistorical) return;
@@ -208,7 +226,29 @@ export default function GameDetailScreen() {
         </View>
       ) : null}
 
-      <Text style={styles.description}>{game.description}</Text>
+      {orderedPlatforms.length ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Plataformas</Text>
+          <View style={styles.tagsRow}>
+            {orderedPlatforms.map(platform => {
+              const owned = ownedPlatformIds.has(platform.platformId);
+              return (
+                <View key={platform.name} style={[styles.platformChip, owned && styles.platformChipOwned]}>
+                  {owned ? <Ionicons name="checkmark-circle" size={13} color={colors.emerald400} /> : null}
+                  <Text style={[styles.tagText, owned && styles.platformChipOwnedText]}>{platform.name}</Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      ) : null}
+
+      <Text style={styles.description} numberOfLines={descriptionExpanded ? undefined : 3}>{game.description}</Text>
+      {game.description && game.description.length > DESCRIPTION_EXPAND_THRESHOLD ? (
+        <Pressable onPress={() => setDescriptionExpanded(value => !value)} accessibilityRole="button" style={styles.descriptionToggle}>
+          <Text style={styles.descriptionToggleLabel}>{descriptionExpanded ? 'Ver menos' : 'Ver mais'}</Text>
+        </Pressable>
+      ) : null}
 
       <View style={styles.actionsRow}>
         <Button
@@ -263,16 +303,31 @@ export default function GameDetailScreen() {
       ) : null}
 
       <View style={styles.card}>
+        <Text style={styles.cardTitle}>Pontuação do clube</Text>
+        <Text style={styles.scoreValue}>{totalPoints.toFixed(rankingFormula === 'legacy' ? 1 : 0)}<Text style={styles.scoreUnit}> pts</Text></Text>
+      </View>
+
+      <View style={styles.card}>
         <Text style={styles.cardTitle}>Sua preferência</Text>
         <View style={styles.countsRow}>
-          <View style={styles.countChip}>
+          <Pressable
+            onPress={() => setParticipantsChoice('would_play')}
+            accessibilityRole="button"
+            accessibilityLabel="Ver quem escolheu Jogaria"
+            style={styles.countChip}
+          >
             <Ionicons name="thumbs-up" size={13} color={colors.emerald400} />
             <Text style={styles.countText}>{rankingEntry?.choiceCounts.would_play ?? 0}</Text>
-          </View>
-          <View style={styles.countChip}>
+          </Pressable>
+          <Pressable
+            onPress={() => setParticipantsChoice('would_not_play')}
+            accessibilityRole="button"
+            accessibilityLabel="Ver quem escolheu Não jogaria"
+            style={styles.countChip}
+          >
             <Ionicons name="thumbs-down" size={13} color={colors.red400} />
             <Text style={styles.countText}>{rankingEntry?.choiceCounts.would_not_play ?? 0}</Text>
-          </View>
+          </Pressable>
         </View>
         {myChoice === 'would_not_play' && rankingEntry?.myReason ? (
           <Text style={styles.myReason}>Meu motivo: {voteReasonLabel(rankingEntry.myReason)}</Text>
@@ -361,6 +416,15 @@ export default function GameDetailScreen() {
         onConfirm={confirmReason}
       />
 
+      {participantsChoice ? (
+        <GameDetailVoteParticipantsSheet
+          visible={participantsChoice !== null}
+          profiles={rankingEntry?.choiceProfiles ?? { would_play: [], would_not_play: [] }}
+          initialChoice={participantsChoice}
+          onClose={() => setParticipantsChoice(null)}
+        />
+      ) : null}
+
       <RatingSheet
         key={`rating-${ratingToken}`}
         visible={ratingOpen}
@@ -427,7 +491,9 @@ const useStyles = themedStyles(colors => ({
   tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginBottom: spacing.md },
   tag: { paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radii.full, backgroundColor: 'rgba(139,92,246,0.12)' },
   tagText: { fontSize: 10, fontWeight: '700', color: colors.violet300 },
-  description: { ...typography.small, color: colors.zinc400, lineHeight: 20, marginBottom: spacing.lg },
+  description: { ...typography.small, color: colors.zinc400, lineHeight: 20, marginBottom: spacing.xs },
+  descriptionToggle: { alignSelf: 'flex-start', marginBottom: spacing.lg },
+  descriptionToggleLabel: { fontSize: 11, fontWeight: '800', color: colors.violet300 },
   actionsRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
   actionButton: { flex: 1 },
   gallery: { marginBottom: spacing.lg },
@@ -435,6 +501,11 @@ const useStyles = themedStyles(colors => ({
   card: { borderRadius: radii.xxl, borderWidth: 1, borderColor: colors.hairline, backgroundColor: colors.surfaceSofter, padding: spacing.lg, gap: spacing.md, marginBottom: spacing.lg },
   cardHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   cardTitle: { ...typography.h3, color: colors.foreground },
+  scoreValue: { fontSize: 40, fontWeight: '900', letterSpacing: -1, color: colors.emerald300 },
+  scoreUnit: { fontSize: 14, fontWeight: '700', color: colors.zinc500 },
+  platformChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radii.full, backgroundColor: 'rgba(139,92,246,0.12)' },
+  platformChipOwned: { backgroundColor: 'rgba(52,211,153,0.14)' },
+  platformChipOwnedText: { color: colors.emerald300 },
   countsRow: { flexDirection: 'row', gap: spacing.sm },
   countChip: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 34, borderRadius: radii.md, backgroundColor: colors.surfaceDeep },
   countText: { fontSize: 11, fontWeight: '800', color: colors.zinc300 },
