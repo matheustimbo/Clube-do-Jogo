@@ -10,7 +10,7 @@
 
 ## How to get to it (user POV)
 
-No web, essa ação só aparece para administrador (`isAdmin`). Em `Ranking`, cada cartão tem um ícone de coroa no canto (`Definir <jogo> como jogo do clube`); no detalhe de um jogo (`Todos os jogos` → cartão), o mesmo diálogo aparece como botão `Gerenciar jogo do clube`. Escolha `Definir/Trocar Jogo de <mês>` ou `Definir <jogo> para <próximo mês>`, confirme, e depois use `Desfazer` no próprio diálogo se precisar reverter.
+Essa ação só aparece para administrador (`isAdmin`) e existe hoje tanto no web quanto no Expo. No web, `Ranking` tem um ícone de coroa por cartão (`Definir <jogo> como jogo do clube`); o detalhe de um jogo (`Todos os jogos` → cartão) tem o mesmo diálogo como botão `Gerenciar jogo do clube`. No Expo, `Ranking` chega lá por dois toques: `Opções de <jogo>` no cartão abre uma folha de ações, e dentro dela, só para admin, `Gerenciar jogo do clube` abre a mesma folha de mudança de ciclo (`apps/mobile/app/(app)/(tabs)/ranking.tsx`); no detalhe do jogo (`apps/mobile/app/(app)/jogos/[id].tsx`) o mesmo botão `Gerenciar jogo do clube` aparece direto na tela, sem sheet intermediária. As duas telas mobile importam `useClubGameAdminAction` de `apps/mobile/src/features/admin` e chamam `clubGameAdmin.openFor(game)`. Em qualquer plataforma, escolha `Definir/Trocar Jogo de <mês>` ou `Definir <jogo> para <próximo mês>`, confirme, e depois use `Desfazer` se precisar reverter.
 
 ## Driving it with Playwright
 
@@ -18,7 +18,7 @@ Não há subcomando dedicado; dirija manualmente com uma sessão demo de adminis
 
 ## Driving it with Maestro
 
-Nenhum fluxo mobile exercita a ação por cartão hoje: o hook `useClubGameAdminAction` (`apps/mobile/src/features/admin/ClubGameAdminAction.tsx`) existe e reaproveita a mesma folha de mudança (`ClubGameChangeSheet`), mas não está conectado a nenhuma tela ou cartão no momento desta leva. A cobertura mobile existente para essa decisão passa pelo seletor central em Configurações:
+O código está conectado nas duas telas mobile (`apps/mobile/app/(app)/(tabs)/ranking.tsx` linhas 17, 73, 377-384; `apps/mobile/app/(app)/jogos/[id].tsx` linhas 25, 44, 276-280), mas nenhum fluxo em `apps/mobile/.maestro/` exercita a ação por cartão hoje — isso é uma afirmação sobre cobertura de fluxo, não sobre existência de código. Um yaml novo precisaria: em `Ranking`, tocar `Opções de <jogo>` e depois `Gerenciar jogo do clube`; no detalhe do jogo, tocar `Gerenciar jogo do clube` direto. A cobertura mobile existente para essa decisão passa pelo seletor central em Configurações, não pelo cartão:
 
 ```sh
 maestro --device <UDID> test apps/mobile/.maestro/admin-cycle.yaml
@@ -31,5 +31,5 @@ maestro --device <UDID> test apps/mobile/.maestro/admin-picker-cancel.yaml
 - A troca do jogo do ciclo atual apaga os comentários do ciclo; a troca para o próximo mês não apaga nada do ciclo atual.
 - `Desfazer` abre uma pré-visualização com contagens exatas (`comments`, `votes`, `ranking_rows`, `progress_snapshots`, `note_snapshots`, `reward_grants`) antes de remover qualquer coisa; não pule essa tela ao provar o fluxo.
 - A janela de `Refazer` é 5 minutos e uma nova definição manual cancela a possibilidade de refazer.
-- Este recurso só é visível para `isAdmin`; uma sessão sem esse papel não deve nem ver o ícone de coroa ou o botão.
-- O hook mobile por cartão não tem cobertura Maestro própria porque não está conectado a nenhuma tela; não afirme paridade mobile-web para esta ação até que ele seja ligado a um cartão e um yaml novo o exercite.
+- Este recurso só é visível para `isAdmin`; uma sessão sem esse papel não deve nem ver o ícone de coroa, o item `Gerenciar jogo do clube` na folha de ações do cartão, nem o botão no detalhe.
+- Não confunda "hook conectado" com "cobertura Maestro": o código por cartão está ligado nas duas telas mobile citadas acima; o que falta é um yaml que o exercite. Procure a implementação em `apps/mobile/src/features/admin/` e o ponto de uso em `apps/mobile/app/`; buscar só em `src/` já produziu um falso "não está conectado" nesta mesma leva.

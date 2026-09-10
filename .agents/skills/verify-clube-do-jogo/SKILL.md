@@ -7,6 +7,16 @@ description: Execute verificações reproduzíveis do Clube do Jogo em Next demo
 
 Use esta skill a partir da raiz do checkout. Ela usa a pasta fonte `.agents/skills/verify-clube-do-jogo`; Claude Code encontra a mesma fonte pelo symlink `.claude/skills/verify-clube-do-jogo`. Os helpers de processos usam /proc e o comando ss e rodam em Linux/WSL. Uma porta ocupada sem PID inspecionável faz a verificação falhar. Os comandos iOS são executados remotamente no Mac indicado. O padrão web usa somente uma das portas dedicadas `3102` e `3103`, modo demo e nenhuma credencial Supabase. Nunca aponte o modo local autenticado para produção.
 
+## Busca no repositório: dois diretórios mobile, não um
+
+O mobile do Expo divide propositalmente componentes/estado de telas/rotas em dois diretórios de topo dentro de `apps/mobile`: `src/` guarda hooks, componentes e estado; `app/` guarda as rotas do Expo Router — as telas de fato. Uma feature pode existir e nunca ser usada, ou existir e estar plenamente conectada; a única forma de saber é procurar nos dois lugares. Buscar só em `src/` já produziu, nesta mesma leva, três falsos negativos de "não existe"/"não está conectado" (duas vezes sobre chaves de estado persistido, uma vez sobre `useClubGameAdminAction`, que na verdade está ligado em `apps/mobile/app/(app)/(tabs)/ranking.tsx` e `apps/mobile/app/(app)/jogos/[id].tsx`). Qualquer afirmação sobre existência ou uso de código mobile — em um mapa de feature, em um recibo de verificação, em um relatório — precisa cobrir os dois diretórios antes de ser escrita. Comando pronto:
+
+```sh
+grep -rn "<símbolo>" apps/mobile/src apps/mobile/app
+```
+
+Se o símbolo não aparecer em `apps/mobile/app`, ele pode ainda não ter uma tela que o use — mas essa é uma conclusão que só se pode tirar depois de rodar o grep nos dois diretórios, nunca só em `src/`.
+
 ## Run contract
 
 Cada execução recebe um `RUN_ID` e grava o manifesto, log, snapshots, screenshots, resultado e hashes em `evidence/verify-clube-do-jogo/<RUN_ID>/`. O estado operacional fica em `state/verify-clube-do-jogo/<RUN_ID>/`. Essas pastas são artefatos ignorados; os caminhos são derivados do `RUN_ID`, os diretórios canônicos não podem ser symlinks e a evidência só aceita artefatos que preservem o worktree, porta, modo e SHA do manifesto. Launch, drive e evidence registram um snapshot limpo do checkout antes e depois da condução. A limpeza encerra apenas o grupo de processos registrado no manifesto e preserva a evidência.
@@ -143,8 +153,14 @@ ssh macbook-2 'curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:3101/jo
 Uma falha causada por qualquer uma dessas duas pré-condições não é um defeito do app; é ambiente não preparado. Não classifique o app como quebrado ou lento sem antes confirmar as duas.
 
 ```sh
-npm run start --workspace @clube-do-jogo/mobile
+EXPO_PUBLIC_AUTO_OPEN_PRODUCT_UPDATE=false npm run start --workspace @clube-do-jogo/mobile
 ```
+
+### Escotilha de abertura automática do diálogo de novidades
+
+O ambiente de condução mobile deve passar `EXPO_PUBLIC_AUTO_OPEN_PRODUCT_UPDATE=false`, análogo ao que `launch` já faz para a web (`NEXT_PUBLIC_AUTO_OPEN_PRODUCT_UPDATE=false`, ver `scripts/verify-clube-do-jogo.mjs:126`). A semântica é `!== 'false'` nos dois lados: só o valor exato `'false'` desliga a abertura automática; qualquer outro valor ou a ausência da variável mantém o diálogo abrindo sozinho no primeiro login de uma versão nova. Essa escotilha mobile é recente (PR #33, `pstack/expo-35-product-update-flag`); antes dela o mobile não tinha como suprimir a abertura automática e a verificação mobile do diálogo de novidades ficava bloqueada por essa assimetria entre plataformas — a próxima feature com abertura automática deve nascer com escotilha nas duas plataformas, não só na web.
+
+A escotilha suprime **só** a abertura automática. A reabertura manual por `Configurações` → `Preferências` → `Novidades da V1.1` continua funcionando com a variável em `'false'`. Isso é o que permite um fluxo suprimir o diálogo automático no início de uma sessão (para não competir com outro diálogo do mesmo login, como a folha de recompensas) e ainda assim exercitar a reabertura manual como prova de funcionalidade separada; um fluxo que assumir que a variável desliga o recurso inteiro nunca vai escrever esse segundo passo.
 
 No dev client, Metro precisa estar acessível para carregar o bundle. Foreground só é requisito de uma ação que dependa da UI ativa ou do cenário específico de restauração de sessão. O callback `clubedojogo://auth/callback` também deve ser testado com o app Release instalado e frio, quando o sistema abre o app pelo deep link sem Metro. Use um dispositivo dedicado e não conduza o mesmo simulador ou emulador em duas sessões.
 
