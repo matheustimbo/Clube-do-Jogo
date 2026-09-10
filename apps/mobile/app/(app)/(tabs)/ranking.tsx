@@ -14,6 +14,7 @@ import { VoteReasonSheet, voteReasonLabel } from '@/components/VoteReasonSheet';
 import { EmptyState, ErrorState, LoadingState } from '@/components/StateViews';
 import { formatMonth, formatShortDate, shiftMonth } from '@/lib/format';
 import { getRankingFormula } from '@/platform/config';
+import { useClubGameAdminAction } from '@/features/admin';
 import { useApp } from '@/state/app-provider';
 import { useBacklog, useRanking, useVote } from '@/state/queries';
 import { usePersistentState } from '@/hooks/use-persistent-state';
@@ -64,11 +65,12 @@ export default function RankingScreen() {
   const colors = useThemeColors();
   const styles = useStyles();
   const router = useRouter();
-  const { isHistorical, selectedMonth } = useApp();
+  const { isAdmin, isHistorical, selectedMonth } = useApp();
   const voteMonth = shiftMonth(selectedMonth, 1);
   const rankingQuery = useRanking();
   const vote = useVote();
   const backlog = useBacklog();
+  const clubGameAdmin = useClubGameAdminAction();
   const [reasonTarget, setReasonTarget] = useState<{ item?: RankingItem; game?: Game } | null>(null);
   const [reasonToken, setReasonToken] = useState(0);
   const [addSheetOpen, setAddSheetOpen] = useState(false);
@@ -367,9 +369,26 @@ export default function RankingScreen() {
                 {actionsTarget.inBacklog ? 'Já está em Meus Jogos' : 'Adicionar a Meus Jogos'}
               </Text>
             </Pressable>
+            {isAdmin ? (
+              <Pressable
+                onPress={() => {
+                  const game = actionsTarget.game;
+                  setActionsTarget(null);
+                  clubGameAdmin.openFor(game);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Gerenciar jogo do clube"
+                style={styles.sheetItem}
+              >
+                <Ionicons name="ribbon-outline" size={18} color={colors.amber400} />
+                <Text style={styles.sheetItemLabel}>Gerenciar jogo do clube</Text>
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
       </Sheet>
+
+      {clubGameAdmin.sheet}
     </Screen>
   );
 }
