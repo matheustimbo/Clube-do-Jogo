@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Pressable, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Screen } from '@/components/Screen';
@@ -11,7 +11,7 @@ import { Sheet } from '@/components/Sheet';
 import { EmptyState, ErrorState, LoadingState } from '@/components/StateViews';
 import { useBacklog, useFavorite, useLibrary, useSetProgress } from '@/state/queries';
 import { usePersistentState } from '@/hooks/use-persistent-state';
-import { colors, radii, spacing, typography } from '@/theme';
+import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
 import type { LibraryGame, ProgressStatus } from '@clube-do-jogo/domain';
 
 type QuickFilter = 'all' | 'started' | 'finished' | 'not_started' | 'favorites';
@@ -39,6 +39,8 @@ const sortOptions: Array<[SortMode, string]> = [
 const statusLabel: Record<ProgressStatus, string> = { not_started: 'Não iniciado', started: 'Comecei', finished: 'Finalizado' };
 
 export default function YourGamesScreen() {
+  const colors = useThemeColors();
+  const styles = useStyles();
   const router = useRouter();
   const libraryQuery = useLibrary();
   const backlog = useBacklog();
@@ -229,7 +231,7 @@ export default function YourGamesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   searchField: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -260,4 +262,4 @@ const styles = StyleSheet.create({
   sheetItemLabel: { ...typography.small, color: colors.zinc300 },
   sheetItemDanger: { backgroundColor: 'rgba(239,68,68,0.08)' },
   sheetItemDangerLabel: { color: colors.red300 },
-});
+}));

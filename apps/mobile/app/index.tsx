@@ -1,9 +1,11 @@
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { Redirect } from 'expo-router';
 import { useApp } from '@/state/app-provider';
-import { colors } from '@/theme';
+import { themedStyles, useThemeColors } from '@/theme';
 
 export default function Index() {
+  const colors = useThemeColors();
+  const styles = useStyles();
   const { ready, userId } = useApp();
 
   if (ready && !userId) return <Redirect href="/(auth)/login" />;
@@ -15,6 +17,6 @@ export default function Index() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   container: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
-});
+}));

@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import type { UserPlatform } from '@clube-do-jogo/domain';
@@ -7,9 +7,11 @@ import { Sheet } from '@/components/Sheet';
 import { EmptyState } from '@/components/StateViews';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useAddUserPlatform, useRemoveUserPlatform, useSearchPlatforms, useUserPlatforms } from '@/state/profile-queries';
-import { colors, radii, spacing, typography } from '@/theme';
+import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
 
 export function PlatformPicker({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const colors = useThemeColors();
+  const styles = useStyles();
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebouncedValue(query, 350);
 
@@ -103,6 +105,8 @@ export function PlatformPicker({ visible, onClose }: { visible: boolean; onClose
 }
 
 function PlatformRow({ platform, action, busy }: { platform: UserPlatform; action: ReactNode; busy?: boolean }) {
+  const colors = useThemeColors();
+  const styles = useStyles();
   return (
     <View style={styles.row}>
       <View style={styles.rowIcon}>
@@ -118,7 +122,7 @@ function PlatformRow({ platform, action, busy }: { platform: UserPlatform; actio
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   content: { padding: spacing.lg, gap: spacing.lg },
   input: {
     height: 44,
@@ -140,4 +144,4 @@ const styles = StyleSheet.create({
   iconButtonDanger: { backgroundColor: 'rgba(239,68,68,0.1)' },
   emptyText: { ...typography.small, color: colors.zinc600 },
   error: { color: colors.red300, fontSize: 11, fontWeight: '600' },
-});
+}));

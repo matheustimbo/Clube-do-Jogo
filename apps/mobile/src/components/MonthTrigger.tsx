@@ -1,9 +1,11 @@
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radii, spacing } from '@/theme';
+import { radii, spacing, themedStyles, useThemeColors } from '@/theme';
 import { formatMonth } from '@/lib/format';
 
 export function MonthTrigger({ month, onPress }: { month: string; onPress: () => void }) {
+  const colors = useThemeColors();
+  const styles = useStyles();
   return (
     <Pressable
       onPress={onPress}
@@ -18,7 +20,7 @@ export function MonthTrigger({ month, onPress }: { month: string; onPress: () =>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   button: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -33,4 +35,4 @@ const styles = StyleSheet.create({
   },
   pressed: { opacity: 0.8 },
   label: { fontSize: 11, fontWeight: '800', color: colors.zinc300, flexShrink: 1 },
-});
+}));

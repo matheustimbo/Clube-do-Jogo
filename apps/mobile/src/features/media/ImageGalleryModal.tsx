@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Dimensions, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Dimensions, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSharedValue } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
-import { colors, radii, spacing } from '@/theme';
+import { themedStyles, useThemeColors, radii, spacing } from '@/theme';
 
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 3;
@@ -18,6 +18,8 @@ export function ImageGalleryModal({ visible, title, images, activeIndex, onActiv
   onActiveIndexChange: (index: number) => void;
   onClose: () => void;
 }) {
+  const colors = useThemeColors();
+  const styles = useStyles();
   const window = Dimensions.get('window');
   const insets = useSafeAreaInsets();
   const [zoom, setZoom] = useState(1);
@@ -133,7 +135,7 @@ export function ImageGalleryModal({ visible, title, images, activeIndex, onActiv
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.94)', alignItems: 'center', justifyContent: 'center', gap: spacing.md },
   viewport: { width: '100%', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   image: { width: '100%', height: '100%' },
@@ -148,4 +150,4 @@ const styles = StyleSheet.create({
   thumbRow: { maxHeight: 60 },
   thumb: { width: 76, height: 52, borderRadius: radii.sm, opacity: 0.55 },
   thumbActive: { opacity: 1, borderWidth: 2, borderColor: colors.white },
-});
+}));

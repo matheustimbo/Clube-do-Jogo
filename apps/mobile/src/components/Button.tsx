@@ -1,8 +1,13 @@
 import type { ReactNode } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, radii, spacing, typography } from '@/theme';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { radii, spacing, themedStyles, typography, useThemeColors, type ThemeColors } from '@/theme';
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
+
+function spinnerColor(variant: Variant, colors: ThemeColors): string {
+  if (variant === 'secondary' || variant === 'ghost') return colors.violet300;
+  return variant === 'danger' ? colors.white : colors.primaryOn;
+}
 
 export function Button({ label, onPress, variant = 'primary', disabled, loading, icon, accessibilityLabel, style }: {
   label: string;
@@ -14,6 +19,8 @@ export function Button({ label, onPress, variant = 'primary', disabled, loading,
   accessibilityLabel?: string;
   style?: object;
 }) {
+  const colors = useThemeColors();
+  const styles = useStyles();
   const isDisabled = disabled || loading;
   return (
     <Pressable
@@ -24,25 +31,25 @@ export function Button({ label, onPress, variant = 'primary', disabled, loading,
       accessibilityState={{ disabled: isDisabled }}
       style={({ pressed }) => [
         styles.base,
-        variantStyles[variant],
+        styles[variant],
         isDisabled && styles.disabled,
         pressed && !isDisabled && styles.pressed,
         style,
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'secondary' || variant === 'ghost' ? colors.violet300 : colors.white} size="small" />
+        <ActivityIndicator color={spinnerColor(variant, colors)} size="small" />
       ) : (
         <View style={styles.row}>
           {icon}
-          <Text style={[styles.label, labelVariantStyles[variant]]}>{label}</Text>
+          <Text style={[styles.label, styles[`${variant}Label`]]}>{label}</Text>
         </View>
       )}
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   base: {
     height: 48,
     borderRadius: radii.md,
@@ -54,18 +61,12 @@ const styles = StyleSheet.create({
   label: { ...typography.small, fontWeight: '800' },
   disabled: { opacity: 0.5 },
   pressed: { opacity: 0.85 },
-});
-
-const variantStyles: Record<Variant, object> = StyleSheet.create({
   primary: { backgroundColor: colors.violet600 },
   secondary: { backgroundColor: colors.surfaceSoft, borderWidth: 1, borderColor: colors.hairline },
   danger: { backgroundColor: colors.red600 },
   ghost: { backgroundColor: 'transparent' },
-});
-
-const labelVariantStyles: Record<Variant, object> = StyleSheet.create({
-  primary: { color: colors.white },
-  secondary: { color: colors.zinc300 },
-  danger: { color: colors.white },
-  ghost: { color: colors.violet300 },
-});
+  primaryLabel: { color: colors.primaryOn },
+  secondaryLabel: { color: colors.zinc300 },
+  dangerLabel: { color: colors.white },
+  ghostLabel: { color: colors.violet300 },
+}));

@@ -1,4 +1,4 @@
-import { Share, StyleSheet, Text, View, Pressable } from 'react-native';
+import { Share, Text, View, Pressable } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '@/components/Screen';
@@ -9,9 +9,11 @@ import { EmptyState, ErrorState, LoadingState, Section } from '@/components/Stat
 import { useApp } from '@/state/app-provider';
 import { useProfile } from '@/state/profile-queries';
 import { getCanonicalProfileUrl } from '@/features/media/canonical-url';
-import { colors, radii, spacing, typography } from '@/theme';
+import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
 
 export default function MemberProfileScreen() {
+  const colors = useThemeColors();
+  const styles = useStyles();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const profileId = String(id);
@@ -21,7 +23,7 @@ export default function MemberProfileScreen() {
 
   if (profileQuery.isLoading) {
     return (
-      <Screen>
+      <Screen edges={[]}>
         <LoadingState label="Carregando perfil…" />
       </Screen>
     );
@@ -29,7 +31,7 @@ export default function MemberProfileScreen() {
 
   if (profileQuery.isError) {
     return (
-      <Screen>
+      <Screen edges={[]}>
         <ErrorState message={profileQuery.error.message} onRetry={() => profileQuery.refetch()} />
       </Screen>
     );
@@ -38,7 +40,7 @@ export default function MemberProfileScreen() {
   const data = profileQuery.data;
   if (!data?.profile) {
     return (
-      <Screen>
+      <Screen edges={[]}>
         <EmptyState icon="person-outline" title="Perfil não encontrado" description="Esse membro pode não existir mais." />
       </Screen>
     );
@@ -57,7 +59,7 @@ export default function MemberProfileScreen() {
   }
 
   return (
-    <Screen onRefresh={() => profileQuery.refetch()} refreshing={profileQuery.isRefetching}>
+    <Screen edges={[]} onRefresh={() => profileQuery.refetch()} refreshing={profileQuery.isRefetching}>
       <AppHeader
         title="Perfil"
         right={
@@ -159,6 +161,8 @@ export default function MemberProfileScreen() {
 }
 
 function StatCard({ label, value, icon }: { label: string; value: number; icon: keyof typeof Ionicons.glyphMap }) {
+  const colors = useThemeColors();
+  const styles = useStyles();
   return (
     <View style={styles.statCard}>
       <Ionicons name={icon} size={18} color={colors.violet300} />
@@ -168,7 +172,7 @@ function StatCard({ label, value, icon }: { label: string; value: number; icon: 
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   profileCard: {
     alignItems: 'center',
     gap: spacing.xs,
@@ -200,4 +204,4 @@ const styles = StyleSheet.create({
   platformChip: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: radii.full, borderWidth: 1, borderColor: colors.hairline, backgroundColor: colors.surfaceSofter, paddingHorizontal: spacing.sm, paddingVertical: 6 },
   platformChipLabel: { fontSize: 11, fontWeight: '800', color: colors.zinc300 },
   list: { gap: spacing.sm },
-});
+}));

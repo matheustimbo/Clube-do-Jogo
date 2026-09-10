@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { ClubGameUndoPreview, ClubGameUndoResult } from '@clube-do-jogo/data';
 import { formatMonth } from '@/lib/format';
 import { Button } from '@/components/Button';
 import { Sheet } from '@/components/Sheet';
 import { useUndoClubGameChange } from '@/state/admin-queries';
-import { colors, radii, spacing, typography } from '@/theme';
+import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
 
 const AFFECTED_LABELS: Array<{ key: 'comments' | 'reactions' | 'votes' | 'ranking_rows' | 'progress_snapshots' | 'note_snapshots' | 'reward_grants'; label: string }> = [
   { key: 'comments', label: 'Comentários' },
@@ -23,6 +23,8 @@ export function UndoConfirmSheet({ target, onClose, onUndone }: {
   onClose: () => void;
   onUndone: (result: ClubGameUndoResult) => void;
 }) {
+  const colors = useThemeColors();
+  const styles = useStyles();
   const [confirmDeletion, setConfirmDeletion] = useState(false);
   const undoChange = useUndoClubGameChange();
 
@@ -100,7 +102,7 @@ export function UndoConfirmSheet({ target, onClose, onUndone }: {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   body: { padding: spacing.lg, gap: spacing.md },
   description: { ...typography.small, color: colors.zinc300, lineHeight: 18 },
   affectedCard: {
@@ -131,4 +133,4 @@ const styles = StyleSheet.create({
   error: { ...typography.small, color: colors.red300, lineHeight: 16 },
   actions: { flexDirection: 'row', gap: spacing.sm },
   actionButton: { flex: 1 },
-});
+}));

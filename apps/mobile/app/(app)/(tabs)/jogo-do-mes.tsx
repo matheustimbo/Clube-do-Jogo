@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -8,7 +8,7 @@ import { AppHeader } from '@/components/AppHeader';
 import { Chip } from '@/components/Chip';
 import { MonthTrigger } from '@/components/MonthTrigger';
 import { MonthPicker } from '@/components/MonthPicker';
-import { StatusPill, statusMeta } from '@/components/StatusPill';
+import { StatusPill, useStatusMeta } from '@/components/StatusPill';
 import { RatingSheet } from '@/components/RatingSheet';
 import { RatingValue } from '@/components/RatingValue';
 import { EmptyState, ErrorState, LoadingState } from '@/components/StateViews';
@@ -17,7 +17,7 @@ import { PrivateNotes } from '@/features/notes/PrivateNotes';
 import { useApp } from '@/state/app-provider';
 import { useGameOfMonth, useProgress, useSetProgress } from '@/state/queries';
 import { useSetRating } from '@/state/library-queries';
-import { colors, radii, spacing, typography } from '@/theme';
+import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
 import type { ProgressStatus, RatingDetails, RatingMode } from '@clube-do-jogo/domain';
 
 const statusOrder: ProgressStatus[] = ['not_started', 'started', 'finished'];
@@ -31,7 +31,10 @@ const tabs: { key: GameOfMonthTab; label: string; icon: keyof typeof Ionicons.gl
 ];
 
 export default function GameOfMonthScreen() {
+  const colors = useThemeColors();
+  const styles = useStyles();
   const router = useRouter();
+  const statusMeta = useStatusMeta();
   const { userId, selectedMonth, activeMonth, months, isHistorical, setSelectedMonth } = useApp();
   const [monthPickerVisible, setMonthPickerVisible] = useState(false);
   const gameQuery = useGameOfMonth();
@@ -243,7 +246,7 @@ export default function GameOfMonthScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   content: { gap: spacing.lg },
   tabRow: { flexDirection: 'row', gap: spacing.sm },
   hero: {
@@ -323,4 +326,4 @@ const styles = StyleSheet.create({
   memberName: { ...typography.small, color: colors.zinc300, flex: 1, marginRight: spacing.sm },
   memberMeta: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   emptyMembers: { ...typography.small, color: colors.zinc600 },
-});
+}));

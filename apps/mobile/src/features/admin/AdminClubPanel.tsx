@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AppState, Image, StyleSheet, Text, View } from 'react-native';
+import { AppState, Image, Text, View } from 'react-native';
 import type { ClubGameUndoPreview } from '@clube-do-jogo/data';
 import { formatMonth, formatShortDate } from '@/lib/format';
 import { Button } from '@/components/Button';
@@ -7,7 +7,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/StateViews';
 import { useGameOfMonth } from '@/state/queries';
 import { usePreviewClubGameUndo, useRedoClubGameChange } from '@/state/admin-queries';
 import { useApp } from '@/state/app-provider';
-import { colors, radii, spacing, typography } from '@/theme';
+import { themedStyles, radii, spacing, typography } from '@/theme';
 import { ClubGameChangeSheet } from './ClubGameChangeSheet';
 import { UndoConfirmSheet } from './UndoConfirmSheet';
 import { usePersistedClubDecision, type RecentDecision } from './use-persisted-club-decision';
@@ -35,6 +35,7 @@ function useRedoExpired(redoExpiresAt: string | undefined): boolean {
 }
 
 export function AdminClubPanel() {
+  const styles = useStyles();
   const { activeMonth, userId, isDemo } = useApp();
   const gameOfMonthQuery = useGameOfMonth(activeMonth);
   const previewUndo = usePreviewClubGameUndo();
@@ -137,6 +138,7 @@ function DecisionBanner({ decision, undoPending, undoError, redoError, redoPendi
   onRedo: (eventId: string) => void;
   onDismiss: () => void;
 }) {
+  const styles = useStyles();
   const redoExpiresAt = decision.kind === 'undone' ? decision.result.redoExpiresAt : undefined;
   const expired = useRedoExpired(redoExpiresAt);
 
@@ -197,7 +199,7 @@ function DecisionBanner({ decision, undoPending, undoError, redoError, redoPendi
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   container: { gap: spacing.md },
   card: {
     borderRadius: radii.xl,
@@ -236,4 +238,4 @@ const styles = StyleSheet.create({
   bannerSubtitle: { ...typography.tiny, color: colors.zinc400, textTransform: 'none' },
   bannerError: { ...typography.tiny, color: colors.red300, textTransform: 'none' },
   bannerActions: { flexDirection: 'row', gap: spacing.sm, justifyContent: 'flex-end' },
-});
+}));

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Pressable, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Screen } from '@/components/Screen';
@@ -12,7 +12,7 @@ import { useBacklog, useLibrary } from '@/state/queries';
 import { useDiscoveryPages, type DiscoveryFilters } from '@/state/library-queries';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { usePersistentState } from '@/hooks/use-persistent-state';
-import { colors, radii, spacing, typography } from '@/theme';
+import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
 import type { DiscoverItem, DiscoverSource } from '@clube-do-jogo/domain';
 
 const sources: Array<{ value: DiscoverSource; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
@@ -42,6 +42,8 @@ const platforms: Array<[number | null, string]> = [
 ];
 
 export default function DiscoverScreen() {
+  const colors = useThemeColors();
+  const styles = useStyles();
   const router = useRouter();
   const [source, setSource] = usePersistentState<DiscoverSource>('clube-do-jogo:mobile:discover-source', 'popular');
   const [genre, setGenre] = usePersistentState<number | null>('clube-do-jogo:mobile:discover-genre', null);
@@ -222,7 +224,7 @@ export default function DiscoverScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   flatList: { flex: 1 },
   list: { paddingBottom: spacing.xxxl, gap: spacing.sm },
   searchRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
@@ -289,4 +291,4 @@ const styles = StyleSheet.create({
   },
   clearButton: { height: 44, borderRadius: radii.md, backgroundColor: colors.surfaceSoft, alignItems: 'center', justifyContent: 'center', marginTop: spacing.sm },
   clearButtonLabel: { fontSize: 12, fontWeight: '800', color: colors.zinc400 },
-});
+}));

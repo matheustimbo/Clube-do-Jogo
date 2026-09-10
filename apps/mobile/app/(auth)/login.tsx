@@ -1,14 +1,16 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '@/components/Screen';
 import { Button } from '@/components/Button';
 import { useApp } from '@/state/app-provider';
-import { colors, radii, spacing, typography } from '@/theme';
+import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
 
 type Mode = 'login' | 'signup';
 
 export default function LoginScreen() {
+  const colors = useThemeColors();
+  const styles = useStyles();
   const { signIn, signUp, enterDemo, error } = useApp();
   const [mode, setMode] = useState<Mode>('login');
   const [name, setName] = useState('');
@@ -138,7 +140,7 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   flex: { flex: 1, backgroundColor: colors.background },
   content: { flexGrow: 1, justifyContent: 'center', gap: spacing.xl },
   brand: { alignItems: 'center', gap: spacing.sm },
@@ -185,4 +187,4 @@ const styles = StyleSheet.create({
   switchModeText: { color: colors.violet300, fontSize: 12, fontWeight: '800' },
   demoButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, height: 48 },
   demoButtonText: { color: colors.violet300, fontSize: 13, fontWeight: '800' },
-});
+}));

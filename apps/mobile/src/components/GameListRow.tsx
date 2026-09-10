@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radii, spacing, typography } from '@/theme';
+import { radii, spacing, themedStyles, typography, useThemeColors } from '@/theme';
 import type { Game } from '@clube-do-jogo/domain';
 
 export function GameListRow({ game, onPress, action, subtitle }: {
@@ -11,6 +11,8 @@ export function GameListRow({ game, onPress, action, subtitle }: {
   action?: ReactNode;
   subtitle?: ReactNode;
 }) {
+  const colors = useThemeColors();
+  const styles = useStyles();
   const content = (
     <View style={styles.row}>
       <Image source={{ uri: game.image_url }} style={styles.cover} contentFit="cover" accessibilityLabel={`Capa de ${game.title}`} />
@@ -38,7 +40,7 @@ export function GameListRow({ game, onPress, action, subtitle }: {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   card: {
     borderRadius: radii.lg,
     borderWidth: 1,
@@ -54,4 +56,4 @@ const styles = StyleSheet.create({
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   metaText: { ...typography.tiny, color: colors.zinc500, textTransform: 'none' },
   action: { alignItems: 'flex-end', justifyContent: 'center', gap: spacing.xs },
-});
+}));

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { Stack, usePathname, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -12,14 +13,18 @@ import {
   AUTHENTICATED_INTENT_NAVIGATION_OPTIONS,
   peekNavIntent,
 } from '@/lib/nav-intent';
-import { colors } from '@/theme';
+import { ThemeBackdrop, ThemeSceneProvider } from '@/features/themes';
+import { ThemeProvider, useNativeTheme } from '@/theme';
 
 export default function RootLayout() {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
         <AppProvider>
-          <RootNavigator />
+          <ThemeProvider>
+            <ThemeSceneProvider>
+              <RootNavigator />
+            </ThemeSceneProvider>
         </AppProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
@@ -28,6 +33,7 @@ export default function RootLayout() {
 
 function RootNavigator() {
   const { ready, userId } = useApp();
+  const theme = useNativeTheme();
   const router = useRouter();
   const pathname = usePathname();
   const settledUserId = useRef<string | null | undefined>(undefined);
@@ -50,10 +56,18 @@ function RootNavigator() {
     }
   }, [pathname, ready, router, userId]);
 
+  const scenic = theme.scene !== 'none';
+
   return (
-    <>
-      <StatusBar style="light" />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
+    <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
+      <ThemeBackdrop />
+      <StatusBar style={theme.isLight ? 'dark' : 'light'} />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: scenic ? 'transparent' : theme.colors.background },
+        }}
+      >
         <Stack.Screen name="index" />
         <Stack.Screen name="auth/callback" />
         <Stack.Protected guard={ready && !userId}>
@@ -63,6 +77,10 @@ function RootNavigator() {
           <Stack.Screen name="(app)" />
         </Stack.Protected>
       </Stack>
-    </>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+});

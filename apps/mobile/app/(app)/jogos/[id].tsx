@@ -1,13 +1,13 @@
 import { PrivateNotes } from '@/features/notes/PrivateNotes';
 import { useMemo, useState } from 'react';
-import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Share, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { AppHeader } from '@/components/AppHeader';
 import { Button } from '@/components/Button';
-import { StatusPill, statusMeta } from '@/components/StatusPill';
+import { StatusPill, useStatusMeta } from '@/components/StatusPill';
 import { PreferenceButtons } from '@/components/PreferenceButtons';
 import { VoteReasonSheet, voteReasonLabel } from '@/components/VoteReasonSheet';
 import { RatingSheet } from '@/components/RatingSheet';
@@ -23,14 +23,17 @@ import { MugshotsGrid } from '@/features/media/MugshotsGrid';
 import { TrailerModal } from '@/features/media/TrailerModal';
 import { AvatarCropEditor, DEFAULT_AVATAR_SELECTION_CROP } from '@/features/profile/AvatarCropEditor';
 import { getCanonicalGameUrl } from '@/features/media/canonical-url';
-import { colors, radii, spacing, typography } from '@/theme';
+import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
 import type { AvatarCrop, GameMugshot, ProgressStatus, RatingDetails, RatingMode, VoteChoice, VoteReason } from '@clube-do-jogo/domain';
 
 const statusOrder: ProgressStatus[] = ['not_started', 'started', 'finished'];
 
 export default function GameDetailScreen() {
+  const colors = useThemeColors();
+  const styles = useStyles();
   const { id } = useLocalSearchParams<{ id: string }>();
   const gameId = String(id);
+  const statusMeta = useStatusMeta();
   const { userId, isHistorical, isDemo } = useApp();
 
   const gameQuery = useGame(gameId);
@@ -114,7 +117,7 @@ export default function GameDetailScreen() {
 
   if (gameQuery.isLoading) {
     return (
-      <Screen>
+      <Screen edges={[]}>
         <LoadingState label="Carregando jogo…" />
       </Screen>
     );
@@ -122,7 +125,7 @@ export default function GameDetailScreen() {
 
   if (gameQuery.isError) {
     return (
-      <Screen>
+      <Screen edges={[]}>
         <ErrorState message={gameQuery.error.message} onRetry={() => gameQuery.refetch()} />
       </Screen>
     );
@@ -130,7 +133,7 @@ export default function GameDetailScreen() {
 
   if (!game) {
     return (
-      <Screen>
+      <Screen edges={[]}>
         <EmptyState icon="alert-circle-outline" title="Jogo não encontrado" description="Esse jogo pode ter sido removido." />
       </Screen>
     );
@@ -168,7 +171,7 @@ export default function GameDetailScreen() {
   }
 
   return (
-    <Screen onRefresh={() => gameQuery.refetch()} refreshing={gameQuery.isRefetching}>
+    <Screen edges={[]} onRefresh={() => gameQuery.refetch()} refreshing={gameQuery.isRefetching}>
       <AppHeader
         title={game.title}
         right={
@@ -404,6 +407,8 @@ export default function GameDetailScreen() {
 }
 
 function MetaChip({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; label: string }) {
+  const colors = useThemeColors();
+  const styles = useStyles();
   return (
     <View style={styles.metaChip}>
       <Ionicons name={icon} size={13} color={colors.zinc400} />
@@ -412,7 +417,7 @@ function MetaChip({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; label
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   cover: { width: '100%', aspectRatio: 16 / 9, borderRadius: radii.xl, backgroundColor: colors.zinc900, marginBottom: spacing.md },
   trailerButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, alignSelf: 'flex-start', borderRadius: radii.full, backgroundColor: 'rgba(139,92,246,0.16)', paddingHorizontal: spacing.md, paddingVertical: spacing.xs, marginBottom: spacing.md },
   trailerButtonLabel: { fontSize: 12, fontWeight: '800', color: colors.violet300 },
@@ -452,4 +457,4 @@ const styles = StyleSheet.create({
   memberMeta: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   emptyMembers: { ...typography.small, color: colors.zinc600 },
   formError: { color: colors.red300, fontSize: 11, fontWeight: '600', marginBottom: spacing.lg },
-});
+}));

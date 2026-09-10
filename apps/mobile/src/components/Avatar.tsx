@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { StyleSheet, Text, View } from 'react-native';
-import { colors, radii } from '@/theme';
+import { radii, themedStyles } from '@/theme';
 import { initials } from '@/lib/format';
 import { normalizeAvatarCrop, type AvatarCrop } from '@clube-do-jogo/domain';
 
@@ -10,6 +10,7 @@ export function Avatar({ uri, crop, name, size = 40 }: {
   name?: string | null;
   size?: number;
 }) {
+  const styles = useStyles();
   const dimension = { width: size, height: size, borderRadius: radii.full };
   if (uri) {
     const normalized = normalizeAvatarCrop(crop);
@@ -32,8 +33,8 @@ export function Avatar({ uri, crop, name, size = 40 }: {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   imageClip: { overflow: 'hidden', backgroundColor: colors.zinc800 },
   fallback: { backgroundColor: colors.zinc800, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.hairline },
   initials: { color: colors.zinc300, fontWeight: '800' },
-});
+}));
