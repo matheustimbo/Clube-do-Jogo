@@ -1,16 +1,25 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radii, spacing } from '@/theme';
+import { radii, spacing, themedStyles, useThemeColors, type ThemeColors } from '@/theme';
 import type { ProgressStatus } from '@clube-do-jogo/domain';
 
-const statusMeta: Record<ProgressStatus, { label: string; icon: keyof typeof Ionicons.glyphMap; color: string }> = {
-  not_started: { label: 'Não iniciado', icon: 'ellipse-outline', color: colors.zinc500 },
-  started: { label: 'Comecei', icon: 'play-circle-outline', color: colors.sky400 },
-  finished: { label: 'Finalizado', icon: 'checkmark-circle', color: colors.emerald400 },
-};
+type StatusMeta = Record<ProgressStatus, { label: string; icon: keyof typeof Ionicons.glyphMap; color: string }>;
+
+function buildStatusMeta(colors: ThemeColors): StatusMeta {
+  return {
+    not_started: { label: 'Não iniciado', icon: 'ellipse-outline', color: colors.zinc500 },
+    started: { label: 'Comecei', icon: 'play-circle-outline', color: colors.sky400 },
+    finished: { label: 'Finalizado', icon: 'checkmark-circle', color: colors.emerald400 },
+  };
+}
+
+export function useStatusMeta(): StatusMeta {
+  return buildStatusMeta(useThemeColors());
+}
 
 export function StatusPill({ status }: { status: ProgressStatus }) {
-  const meta = statusMeta[status];
+  const styles = useStyles();
+  const meta = useStatusMeta()[status];
   return (
     <View style={styles.row}>
       <Ionicons name={meta.icon} size={13} color={meta.color} />
@@ -19,9 +28,7 @@ export function StatusPill({ status }: { status: ProgressStatus }) {
   );
 }
 
-export { statusMeta };
-
-const styles = StyleSheet.create({
+const useStyles = themedStyles(() => ({
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, borderRadius: radii.full },
   label: { fontSize: 11, fontWeight: '800' },
-});
+}));

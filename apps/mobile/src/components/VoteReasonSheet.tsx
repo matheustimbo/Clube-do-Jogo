@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radii, spacing, typography } from '@/theme';
+import { radii, spacing, themedStyles, typography, useThemeColors } from '@/theme';
 import { Sheet } from './Sheet';
 import { Button } from './Button';
 import type { VoteReason } from '@clube-do-jogo/domain';
@@ -26,6 +26,8 @@ export function VoteReasonSheet({ visible, initialReason, initialText, onClose, 
 }) {
   const [reason, setReason] = useState<VoteReason | null>(initialReason || null);
   const [text, setText] = useState(initialText || '');
+  const colors = useThemeColors();
+  const styles = useStyles();
   const valid = Boolean(reason) && (reason !== 'other' || Boolean(text.trim()));
 
   return (
@@ -75,7 +77,7 @@ export function VoteReasonSheet({ visible, initialReason, initialText, onClose, 
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   body: { padding: spacing.lg, gap: spacing.sm },
   option: {
     flexDirection: 'row',
@@ -88,7 +90,7 @@ const styles = StyleSheet.create({
     borderColor: colors.hairline,
     backgroundColor: colors.surfaceSofter,
   },
-  optionSelected: { borderColor: 'rgba(248,113,113,0.35)', backgroundColor: 'rgba(239,68,68,0.1)' },
+  optionSelected: { borderColor: colors.red400, backgroundColor: colors.surfaceSoft },
   optionLabel: { ...typography.small, color: colors.zinc300, flex: 1 },
   optionLabelSelected: { color: colors.red300 },
   textInput: {
@@ -104,4 +106,4 @@ const styles = StyleSheet.create({
   },
   actions: { flexDirection: 'row', gap: spacing.sm, paddingTop: spacing.sm },
   actionButton: { flex: 1 },
-});
+}));

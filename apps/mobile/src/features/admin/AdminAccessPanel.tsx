@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 import type { AdminUser, AppRole } from '@clube-do-jogo/domain';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
@@ -7,9 +7,11 @@ import { Sheet } from '@/components/Sheet';
 import { EmptyState, ErrorState, LoadingState } from '@/components/StateViews';
 import { useAdminUsers, useSetAdminUserRole } from '@/state/admin-queries';
 import { useApp } from '@/state/app-provider';
-import { colors, radii, spacing, typography } from '@/theme';
+import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
 
 export function AdminAccessPanel() {
+  const colors = useThemeColors();
+  const styles = useStyles();
   const { userId } = useApp();
   const usersQuery = useAdminUsers();
   const [search, setSearch] = useState('');
@@ -76,6 +78,7 @@ function UserRow({ user, isSelf, lastAdmin, onPress }: {
   lastAdmin: boolean;
   onPress: () => void;
 }) {
+  const styles = useStyles();
   const promote = user.role !== 'admin';
   const label = lastAdmin
     ? `${user.name || 'Membro'} é o último administrador`
@@ -114,6 +117,7 @@ function RoleChangeSheet({ target, lastAdmin, onClose }: {
   lastAdmin: boolean;
   onClose: () => void;
 }) {
+  const styles = useStyles();
   const setRole = useSetAdminUserRole();
   if (!target) return null;
   const nextRole: AppRole = target.role === 'admin' ? 'member' : 'admin';
@@ -164,7 +168,7 @@ function RoleChangeSheet({ target, lastAdmin, onClose }: {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   container: { gap: spacing.md },
   search: {
     height: 44,
@@ -207,4 +211,4 @@ const styles = StyleSheet.create({
   sheetError: { ...typography.small, color: colors.red300 },
   sheetActions: { flexDirection: 'row', gap: spacing.sm },
   sheetActionButton: { flex: 1 },
-});
+}));

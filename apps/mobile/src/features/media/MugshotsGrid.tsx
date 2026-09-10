@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radii, spacing, typography } from '@/theme';
+import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
 import { EmptyState, LoadingState } from '@/components/StateViews';
 import type { GameMugshot } from '@clube-do-jogo/domain';
 
@@ -14,6 +14,8 @@ export function MugshotsGrid({ mugshots, isLoading, avatarUrl, updatingAvatarUrl
   onOpen: (index: number) => void;
   onChooseAvatar: (mugshot: GameMugshot) => void;
 }) {
+  const colors = useThemeColors();
+  const styles = useStyles();
   if (isLoading) return <LoadingState label="Carregando personagens…" />;
   if (!mugshots.length) return <EmptyState icon="people-outline" title="Sem personagens" description="A IGDB ainda não tem personagens associados a esse jogo." />;
 
@@ -52,7 +54,7 @@ export function MugshotsGrid({ mugshots, isLoading, avatarUrl, updatingAvatarUrl
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   card: { width: '31%', aspectRatio: 1, borderRadius: radii.lg, overflow: 'hidden', backgroundColor: colors.zinc900 },
   image: { width: '100%', height: '100%' },
@@ -61,4 +63,4 @@ const styles = StyleSheet.create({
   avatarButton: { position: 'absolute', right: 6, top: 6, width: 26, height: 26, borderRadius: radii.full, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.6)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
   avatarButtonSelected: { backgroundColor: colors.emerald500, borderColor: 'rgba(255,255,255,0.4)' },
   footnote: { ...typography.tiny, color: colors.zinc600, width: '100%', marginTop: spacing.xs },
-});
+}));

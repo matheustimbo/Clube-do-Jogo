@@ -1,7 +1,7 @@
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radii, spacing } from '@/theme';
+import { themedStyles, useThemeColors, radii, spacing } from '@/theme';
 
 export function ScreenshotsCarousel({ title, images, avatarUrl, updatingAvatarUrl, onOpen, onChooseAvatar }: {
   title: string;
@@ -11,6 +11,8 @@ export function ScreenshotsCarousel({ title, images, avatarUrl, updatingAvatarUr
   onOpen: (index: number) => void;
   onChooseAvatar?: (url: string) => void;
 }) {
+  const colors = useThemeColors();
+  const styles = useStyles();
   if (!images.length) return null;
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
@@ -45,10 +47,10 @@ export function ScreenshotsCarousel({ title, images, avatarUrl, updatingAvatarUr
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   row: { gap: spacing.sm, paddingVertical: spacing.xs },
   card: { width: 220, height: 132, borderRadius: radii.lg, overflow: 'hidden', backgroundColor: colors.zinc900 },
   image: { width: '100%', height: '100%' },
   avatarButton: { position: 'absolute', right: spacing.xs, top: spacing.xs, width: 32, height: 32, borderRadius: radii.full, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.6)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
   avatarButtonSelected: { backgroundColor: colors.emerald500, borderColor: 'rgba(255,255,255,0.4)' },
-});
+}));

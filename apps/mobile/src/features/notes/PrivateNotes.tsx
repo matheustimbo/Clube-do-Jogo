@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, Text, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,7 +9,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/StateViews';
 import { ImageGalleryModal } from '@/features/media/ImageGalleryModal';
 import { useAppInternal } from '@/state/app-provider';
 import { createNativeNoteId, useCreateNote, useDeleteNote, useNoteDraft, useNotes, useUpdateNote } from '@/state/discussion-queries';
-import { colors, radii, spacing, typography } from '@/theme';
+import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
 import { NotesConflictError } from '@clube-do-jogo/data';
 import { formatShortDate, formatTime, type LocalNote } from '@clube-do-jogo/domain';
 
@@ -23,6 +23,8 @@ export function PrivateNotes(props: PrivateNotesProps) {
 }
 
 function NotesEditor({ gameId, snapshotMonth }: PrivateNotesProps) {
+  const colors = useThemeColors();
+  const styles = useStyles();
   const { isDemo, isHistorical } = useAppInternal();
   const readOnly = Boolean(snapshotMonth) || isHistorical;
 
@@ -281,7 +283,7 @@ function NotesEditor({ gameId, snapshotMonth }: PrivateNotesProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   container: { gap: spacing.md },
   syncNotice: {
     flexDirection: 'row',
@@ -363,4 +365,4 @@ const styles = StyleSheet.create({
   deleteText: { ...typography.body, color: colors.zinc400 },
   deleteActions: { flexDirection: 'row', gap: spacing.sm },
   deleteButton: { flex: 1 },
-});
+}));

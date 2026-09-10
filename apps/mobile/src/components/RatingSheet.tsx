@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ratingForScale, ratingFromScale, type RatingScale } from '@clube-do-jogo/domain';
 import type { RatingCriterion, RatingDetails, RatingMode } from '@clube-do-jogo/domain';
-import { colors, radii, spacing, typography } from '@/theme';
+import { radii, spacing, themedStyles, typography, useThemeColors } from '@/theme';
 import { useRatingScale } from '@/hooks/use-rating-scale';
 import { formatRatingValue } from './RatingValue';
 import { Sheet } from './Sheet';
@@ -50,6 +50,8 @@ export function RatingSheet({
   onRemove: () => void;
 }) {
   const [scale, setScale] = useRatingScale();
+  const colors = useThemeColors();
+  const styles = useStyles();
   const fallback = initialRating ?? 5;
   const filledDetails = useMemo(() => detailsFrom(initialDetails, fallback), [initialDetails, fallback]);
 
@@ -194,6 +196,8 @@ function RatingStepper({ value, scale, disabled, onChange, accessibilityLabel, t
   accessibilityLabel: string;
   testID: string;
 }) {
+  const colors = useThemeColors();
+  const styles = useStyles();
   const max = scale;
   const step = 0.5;
   const shown = ratingForScale(value, scale);
@@ -255,7 +259,7 @@ function RatingStepper({ value, scale, disabled, onChange, accessibilityLabel, t
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   bodyScroll: { flexShrink: 1 },
   footer: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.md },
   body: { padding: spacing.lg, gap: spacing.lg },
@@ -306,4 +310,4 @@ const styles = StyleSheet.create({
   errorText: { ...typography.small, color: colors.red300, fontWeight: '600' },
   actions: { flexDirection: 'row', gap: spacing.sm },
   actionButton: { flex: 1 },
-});
+}));

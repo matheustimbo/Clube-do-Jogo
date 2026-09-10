@@ -1,20 +1,21 @@
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '@/components/Screen';
-import { AppHeader } from '@/components/AppHeader';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { useApp } from '@/state/app-provider';
-import { colors, radii, spacing, typography } from '@/theme';
+import { radii, spacing, themedStyles, typography, useThemeColors } from '@/theme';
 import { AdminPanel } from '@/features/admin';
+import { AppearanceSettings } from '@/features/settings';
+import { ReceivedRewards } from '@/features/rewards';
 
 export default function SettingsScreen() {
   const { profile, userId, isDemo, isAdmin, signOut } = useApp();
+  const colors = useThemeColors();
+  const styles = useStyles();
 
   return (
-    <Screen>
-      <AppHeader title="Configurações" />
-
+    <Screen edges={[]}>
       <View style={styles.card}>
         <View style={styles.profileRow}>
           <Avatar uri={profile?.avatar_url ?? null} name={profile?.name ?? 'Membro'} size={56} />
@@ -36,13 +37,9 @@ export default function SettingsScreen() {
         <InfoRow label="ID do membro" value={userId ?? '—'} />
       </View>
 
-      <View style={styles.noticeCard}>
-        <Ionicons name="information-circle-outline" size={16} color={colors.zinc500} />
-        <Text style={styles.noticeText}>
-          Preferências de tema, notificações push e escala de avaliação ainda não estão disponíveis no app móvel e chegarão em uma
-          atualização futura.
-        </Text>
-      </View>
+      <AppearanceSettings />
+
+      <ReceivedRewards />
 
       {isAdmin ? <AdminPanel key={userId ?? 'anonymous'} /> : null}
 
@@ -60,6 +57,7 @@ export default function SettingsScreen() {
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
+  const styles = useStyles();
   return (
     <View style={styles.infoRow}>
       <Text style={styles.infoLabel}>{label}</Text>
@@ -68,7 +66,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   card: {
     borderRadius: radii.xxl,
     borderWidth: 1,
@@ -88,15 +86,4 @@ const styles = StyleSheet.create({
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md },
   infoLabel: { ...typography.small, color: colors.zinc500 },
   infoValue: { ...typography.small, color: colors.zinc300, flexShrink: 1, textAlign: 'right' },
-  noticeCard: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.hairline,
-    backgroundColor: colors.surfaceDeep,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  noticeText: { flex: 1, ...typography.tiny, color: colors.zinc500, lineHeight: 16 },
-});
+}));

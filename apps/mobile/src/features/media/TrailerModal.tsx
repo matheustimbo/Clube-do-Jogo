@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
-import { AppState, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { AppState, Modal, Pressable, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radii, spacing } from '@/theme';
+import { themedStyles, useThemeColors, radii, spacing } from '@/theme';
 import { isAllowedYoutubeOrigin, youtubeEmbedUrl } from './youtube';
 
 // Let the request guard reject outside links; a whitelist rejection opens the system browser.
@@ -14,6 +14,8 @@ export function TrailerModal({ visible, url, title, onClose }: {
   title: string;
   onClose: () => void;
 }) {
+  const colors = useThemeColors();
+  const styles = useStyles();
   const embedUrl = youtubeEmbedUrl(url);
 
   useEffect(() => {
@@ -63,9 +65,9 @@ export function TrailerModal({ visible, url, title, onClose }: {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', alignItems: 'center', justifyContent: 'center', padding: spacing.md },
   frame: { width: '100%', aspectRatio: 16 / 9, borderRadius: radii.lg, overflow: 'hidden', backgroundColor: colors.black },
   webview: { flex: 1, backgroundColor: colors.black },
   close: { position: 'absolute', right: spacing.sm, top: spacing.sm, zIndex: 1, width: 36, height: 36, borderRadius: radii.full, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.65)' },
-});
+}));

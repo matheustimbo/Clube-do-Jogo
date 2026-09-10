@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import type { UseMutationResult } from '@tanstack/react-query';
@@ -12,7 +12,7 @@ import { EmptyState } from '@/components/StateViews';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useGame } from '@/state/queries';
 import { useAdminGameOptions, usePreviewClubGameChange, useSetClubGame, type SetClubGameVariables } from '@/state/admin-queries';
-import { colors, radii, spacing, typography } from '@/theme';
+import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
 
 type Phase =
   | { step: 'pick-game' }
@@ -64,6 +64,8 @@ export function ClubGameChangeSheet({ visible, onClose, onApplied }: {
 }
 
 function GamePicker({ onSelect }: { onSelect: (game: Game) => void }) {
+  const colors = useThemeColors();
+  const styles = useStyles();
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebouncedValue(query, 350);
   const catalog = useAdminGameOptions(debouncedQuery);
@@ -114,6 +116,8 @@ function ModeChoice({ game, onBack, onPreviewed }: {
   onBack: () => void;
   onPreviewed: (preview: ClubGameChangePreview) => void;
 }) {
+  const colors = useThemeColors();
+  const styles = useStyles();
   const previewChange = usePreviewClubGameChange();
 
   return (
@@ -163,6 +167,8 @@ function ChoiceButton({ icon, title, description, loading, disabled, onPress, te
   onPress: () => void;
   testID: string;
 }) {
+  const colors = useThemeColors();
+  const styles = useStyles();
   return (
     <Pressable
       onPress={onPress}
@@ -191,6 +197,7 @@ function ConfirmChange({ game, preview, setClubGame, onBack, onApplied }: {
   onBack: () => void;
   onApplied: (result: ClubGameChangeResult) => void;
 }) {
+  const styles = useStyles();
   const currentGameQuery = useGame(preview.activeCycle?.gameId || '');
 
   const currentGameTitle = currentGameQuery.data?.title;
@@ -237,7 +244,7 @@ function ConfirmChange({ game, preview, setClubGame, onBack, onApplied }: {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   pickerBody: { padding: spacing.lg, gap: spacing.md, maxHeight: '100%' },
   search: {
     height: 44,
@@ -292,4 +299,4 @@ const styles = StyleSheet.create({
   error: { ...typography.small, color: colors.red300, lineHeight: 16 },
   confirmActions: { flexDirection: 'row', gap: spacing.sm },
   confirmActionButton: { flex: 1 },
-});
+}));

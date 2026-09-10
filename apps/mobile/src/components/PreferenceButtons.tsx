@@ -1,6 +1,6 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radii, spacing } from '@/theme';
+import { radii, spacing, themedStyles, useThemeColors } from '@/theme';
 import type { VoteChoice } from '@clube-do-jogo/domain';
 
 const options: Array<{ value: VoteChoice; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
@@ -13,6 +13,8 @@ export function PreferenceButtons({ value, disabled, onChange }: {
   disabled?: boolean;
   onChange: (choice: VoteChoice) => void;
 }) {
+  const colors = useThemeColors();
+  const styles = useStyles();
   return (
     <View style={styles.row}>
       {options.map(option => {
@@ -41,7 +43,7 @@ export function PreferenceButtons({ value, disabled, onChange }: {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   row: { flexDirection: 'row', gap: spacing.sm },
   button: {
     flex: 1,
@@ -56,10 +58,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceDeep,
   },
   label: { fontSize: 11, fontWeight: '800', color: colors.zinc400 },
-  activePlay: { borderColor: 'rgba(52,211,153,0.35)', backgroundColor: 'rgba(16,185,129,0.12)' },
+  activePlay: { borderColor: colors.emerald400, backgroundColor: colors.surfaceSoft },
   activePlayLabel: { color: colors.emerald300 },
-  activeSkip: { borderColor: 'rgba(248,113,113,0.35)', backgroundColor: 'rgba(239,68,68,0.1)' },
+  activeSkip: { borderColor: colors.red400, backgroundColor: colors.surfaceSoft },
   activeSkipLabel: { color: colors.red300 },
   disabled: { opacity: 0.5 },
   pressed: { opacity: 0.85 },
-});
+}));

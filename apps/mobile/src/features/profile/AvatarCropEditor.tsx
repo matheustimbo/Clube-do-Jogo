@@ -7,7 +7,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { DEFAULT_AVATAR_CROP, normalizeAvatarCrop, type AvatarCrop } from '@clube-do-jogo/domain';
 import { Sheet } from '@/components/Sheet';
 import { Button } from '@/components/Button';
-import { colors, radii, spacing, typography } from '@/theme';
+import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
 
 export const DEFAULT_AVATAR_SELECTION_CROP: AvatarCrop = { ...DEFAULT_AVATAR_CROP, zoom: 1.1 };
 
@@ -22,6 +22,8 @@ export function AvatarCropEditor({ visible, imageUrl, name, crop: initialCrop, s
   onClose: () => void;
   onSave: (crop: AvatarCrop) => void;
 }) {
+  const colors = useThemeColors();
+  const styles = useStyles();
   const [crop, setCrop] = useState(initialCrop);
   const dragStart = useSharedValue(initialCrop);
 
@@ -101,6 +103,8 @@ export function AvatarCropEditor({ visible, imageUrl, name, crop: initialCrop, s
 }
 
 function ZoomButton({ icon, onPress }: { icon: keyof typeof Ionicons.glyphMap; onPress: () => void }) {
+  const colors = useThemeColors();
+  const styles = useStyles();
   return (
     <Pressable
       onPress={onPress}
@@ -114,7 +118,7 @@ function ZoomButton({ icon, onPress }: { icon: keyof typeof Ionicons.glyphMap; o
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   content: { padding: spacing.lg, gap: spacing.lg },
   previewWrap: {
     alignSelf: 'center',
@@ -136,4 +140,4 @@ const styles = StyleSheet.create({
   zoomValue: { ...typography.small, color: colors.zinc300, minWidth: 48, textAlign: 'center', fontVariant: ['tabular-nums'] },
   actionsRow: { flexDirection: 'row', gap: spacing.sm },
   actionButton: { flex: 1 },
-});
+}));

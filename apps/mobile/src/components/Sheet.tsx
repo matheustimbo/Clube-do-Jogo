@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radii, spacing, typography } from '@/theme';
+import { radii, spacing, themedStyles, typography, useNativeTheme } from '@/theme';
 
 export function Sheet({ visible, title, onClose, children, avoidKeyboard = false }: {
   visible: boolean;
@@ -11,12 +11,14 @@ export function Sheet({ visible, title, onClose, children, avoidKeyboard = false
   children: ReactNode;
   avoidKeyboard?: boolean;
 }) {
+  const theme = useNativeTheme();
+  const styles = useStyles();
   const content = (
     <Pressable style={styles.sheet} onPress={event => event.stopPropagation()} accessible={false}>
       <View style={styles.header}>
         <Text style={styles.title} accessibilityRole="header">{title}</Text>
         <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Fechar" hitSlop={12}>
-          <Ionicons name="close" size={22} color={colors.zinc400} />
+          <Ionicons name="close" size={22} color={theme.colors.zinc400} />
         </Pressable>
       </View>
       {children}
@@ -29,10 +31,13 @@ export function Sheet({ visible, title, onClose, children, avoidKeyboard = false
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           enabled={avoidKeyboard}
-
           style={styles.keyboardAvoider}
         >
-          <Pressable style={styles.backdrop} onPress={onClose} accessible={false}>
+          <Pressable
+            style={[styles.backdrop, theme.isLight && styles.backdropLight]}
+            onPress={onClose}
+            accessible={false}
+          >
             {content}
           </Pressable>
         </KeyboardAvoidingView>
@@ -41,8 +46,9 @@ export function Sheet({ visible, title, onClose, children, avoidKeyboard = false
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  backdropLight: { backgroundColor: 'rgba(24,24,27,0.35)' },
   keyboardAvoider: { flex: 1 },
   sheet: {
     backgroundColor: colors.surface,
@@ -63,4 +69,4 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.hairline,
   },
   title: { ...typography.h3, color: colors.foreground },
-});
+}));

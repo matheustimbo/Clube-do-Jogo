@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Screen } from '@/components/Screen';
@@ -12,7 +12,7 @@ import { PlatformPicker } from '@/features/profile/PlatformPicker';
 import { useApp } from '@/state/app-provider';
 import { useProfile, useUpdateProfile } from '@/state/profile-queries';
 import { formatShortDate } from '@/lib/format';
-import { colors, radii, spacing, typography } from '@/theme';
+import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
 import type { Game } from '@clube-do-jogo/domain';
 
 const TABS = [
@@ -24,6 +24,8 @@ const TABS = [
 type TabKey = typeof TABS[number]['key'];
 
 export default function ProfileScreen() {
+  const colors = useThemeColors();
+  const styles = useStyles();
   const router = useRouter();
   const { signOut } = useApp();
   const profileQuery = useProfile();
@@ -205,7 +207,7 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   hero: {
     alignItems: 'center',
     gap: spacing.xs,
@@ -262,4 +264,4 @@ const styles = StyleSheet.create({
   menuLabel: { flex: 1, ...typography.small, color: colors.zinc300 },
   menuRowDanger: { borderColor: 'rgba(239,68,68,0.25)', backgroundColor: 'rgba(239,68,68,0.06)' },
   menuLabelDanger: { color: colors.red300 },
-});
+}));

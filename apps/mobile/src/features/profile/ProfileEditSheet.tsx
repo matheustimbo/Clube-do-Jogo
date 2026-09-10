@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ScrollView, Text, TextInput, View } from 'react-native';
 import type { Profile } from '@clube-do-jogo/domain';
 import { Sheet } from '@/components/Sheet';
 import { Button } from '@/components/Button';
 import { Avatar } from '@/components/Avatar';
-import { colors, radii, spacing, typography } from '@/theme';
+import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
 
 export function ProfileEditSheet({ visible, profile, saving, error, onClose, onSave }: {
   visible: boolean;
@@ -14,6 +14,8 @@ export function ProfileEditSheet({ visible, profile, saving, error, onClose, onS
   onClose: () => void;
   onSave: (input: { name: string; bio: string }) => void;
 }) {
+  const colors = useThemeColors();
+  const styles = useStyles();
   const [name, setName] = useState(profile.name || '');
   const [bio, setBio] = useState(profile.bio || '');
 
@@ -67,7 +69,7 @@ export function ProfileEditSheet({ visible, profile, saving, error, onClose, onS
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   content: { padding: spacing.lg, gap: spacing.lg },
   avatarRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   avatarHint: { flex: 1, ...typography.small, color: colors.zinc500 },
@@ -85,4 +87,4 @@ const styles = StyleSheet.create({
   },
   textarea: { minHeight: 84, textAlignVertical: 'top', paddingTop: spacing.sm },
   error: { color: colors.red300, fontSize: 11, fontWeight: '600' },
-});
+}));

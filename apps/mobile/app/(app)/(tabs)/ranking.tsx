@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -11,7 +11,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/StateViews';
 import { formatShortDate } from '@/lib/format';
 import { useApp } from '@/state/app-provider';
 import { useRanking, useVote } from '@/state/queries';
-import { colors, radii, spacing, typography } from '@/theme';
+import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
 import type { RankingItem, VoteChoice, VoteReason } from '@clube-do-jogo/domain';
 
 function withPlacements(items: RankingItem[]) {
@@ -25,6 +25,8 @@ function withPlacements(items: RankingItem[]) {
 }
 
 export default function RankingScreen() {
+  const colors = useThemeColors();
+  const styles = useStyles();
   const router = useRouter();
   const { isHistorical } = useApp();
   const rankingQuery = useRanking();
@@ -127,7 +129,7 @@ export default function RankingScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   formError: { color: colors.red300, fontSize: 11, fontWeight: '600', marginBottom: spacing.md },
   list: { gap: spacing.md },
   card: {
@@ -164,4 +166,4 @@ const styles = StyleSheet.create({
   },
   countText: { fontSize: 11, fontWeight: '800', color: colors.zinc300 },
   myReason: { fontSize: 11, color: colors.red300, fontWeight: '600' },
-});
+}));

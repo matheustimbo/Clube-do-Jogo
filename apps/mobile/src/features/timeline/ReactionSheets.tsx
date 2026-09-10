@@ -1,7 +1,7 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Sheet } from '@/components/Sheet';
 import { Avatar } from '@/components/Avatar';
-import { colors, radii, spacing, typography } from '@/theme';
+import { themedStyles, radii, spacing, typography } from '@/theme';
 import type { ClubComment } from '@clube-do-jogo/domain';
 import { QUICK_REACTION_EMOJIS } from './emojis';
 
@@ -10,6 +10,7 @@ export function ReactionPickerSheet({ visible, onSelect, onClose }: {
   onSelect: (emoji: string) => void;
   onClose: () => void;
 }) {
+  const styles = useStyles();
   return (
     <Sheet visible={visible} title="Adicionar reação" onClose={onClose}>
       <View style={styles.grid}>
@@ -34,6 +35,7 @@ export function ReactionsListSheet({ visible, comment, onClose }: {
   comment: ClubComment | null;
   onClose: () => void;
 }) {
+  const styles = useStyles();
   const people = comment?.reactions.flatMap(reaction => reaction.users.map(user => ({ user, emoji: reaction.emoji }))) ?? [];
   return (
     <Sheet visible={visible} title="Reações" onClose={onClose}>
@@ -52,7 +54,7 @@ export function ReactionsListSheet({ visible, comment, onClose }: {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, padding: spacing.lg },
   emojiButton: {
     width: 52,
@@ -71,4 +73,4 @@ const styles = StyleSheet.create({
   person: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm, paddingHorizontal: spacing.sm },
   personName: { ...typography.body, color: colors.foreground, flex: 1 },
   personEmoji: { fontSize: 20 },
-});
+}));

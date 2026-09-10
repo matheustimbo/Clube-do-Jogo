@@ -1,6 +1,6 @@
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radii, spacing, typography } from '@/theme';
+import { radii, spacing, themedStyles, typography, useThemeColors } from '@/theme';
 import { formatMonth } from '@/lib/format';
 import { Sheet } from './Sheet';
 
@@ -12,6 +12,8 @@ export function MonthPicker({ visible, months, selectedMonth, activeMonth, onSel
   onSelect: (month: string) => void;
   onClose: () => void;
 }) {
+  const colors = useThemeColors();
+  const styles = useStyles();
   return (
     <Sheet visible={visible} title="Ciclo do clube" onClose={onClose}>
       <FlatList
@@ -41,7 +43,7 @@ export function MonthPicker({ visible, months, selectedMonth, activeMonth, onSel
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   list: { padding: spacing.lg, gap: spacing.sm },
   item: {
     flexDirection: 'row',
@@ -50,11 +52,13 @@ const styles = StyleSheet.create({
     minHeight: 52,
     paddingHorizontal: spacing.md,
     borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: 'transparent',
     backgroundColor: colors.surfaceSofter,
     marginBottom: spacing.sm,
   },
-  itemSelected: { backgroundColor: 'rgba(139,92,246,0.12)' },
+  itemSelected: { backgroundColor: colors.surface, borderColor: colors.violet400 },
   label: { ...typography.small, color: colors.zinc300, fontSize: 13 },
   labelSelected: { color: colors.violet300 },
   activeTag: { ...typography.tiny, color: colors.zinc600, marginTop: 2 },
-});
+}));

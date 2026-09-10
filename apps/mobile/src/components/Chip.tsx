@@ -1,6 +1,6 @@
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radii, spacing } from '@/theme';
+import { radii, spacing, themedStyles, useThemeColors } from '@/theme';
 
 export function Chip({ label, icon, selected, onPress }: {
   label: string;
@@ -8,6 +8,8 @@ export function Chip({ label, icon, selected, onPress }: {
   selected?: boolean;
   onPress: () => void;
 }) {
+  const colors = useThemeColors();
+  const styles = useStyles();
   return (
     <Pressable
       onPress={onPress}
@@ -22,7 +24,7 @@ export function Chip({ label, icon, selected, onPress }: {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -34,7 +36,7 @@ const styles = StyleSheet.create({
     borderColor: colors.hairline,
     backgroundColor: colors.surfaceSofter,
   },
-  chipSelected: { borderColor: 'rgba(139,92,246,0.4)', backgroundColor: 'rgba(139,92,246,0.15)' },
+  chipSelected: { borderColor: colors.violet400, backgroundColor: colors.surface },
   label: { fontSize: 11, fontWeight: '700', color: colors.zinc400 },
   labelSelected: { color: colors.violet300 },
-});
+}));

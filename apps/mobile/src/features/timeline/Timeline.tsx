@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Avatar } from '@/components/Avatar';
@@ -14,7 +14,7 @@ import {
   useSetCommentReaction,
   useUpdateComment,
 } from '@/state/discussion-queries';
-import { colors, radii, spacing, typography } from '@/theme';
+import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
 import { formatDateTime, type ClubComment } from '@clube-do-jogo/domain';
 import { ReactionPickerSheet, ReactionsListSheet } from './ReactionSheets';
 
@@ -31,6 +31,8 @@ export function Timeline(props: TimelineProps) {
 }
 
 function Discussion({ gameId, clubMonth }: TimelineProps) {
+  const colors = useThemeColors();
+  const styles = useStyles();
   const router = useRouter();
   const { userId, profile, isHistorical } = useAppInternal();
   const commentsQuery = useComments(gameId, clubMonth);
@@ -308,6 +310,8 @@ function CommentCard({
   onOpenReactionsList: () => void;
   onToggleReaction: (emoji: string) => void;
 }) {
+  const colors = useThemeColors();
+  const styles = useStyles();
   const isMine = Boolean(userId) && comment.user_id === userId;
   const authorName = comment.profile?.name || 'Membro';
   return (
@@ -392,7 +396,7 @@ function CommentCard({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   container: { gap: spacing.md },
   composerCard: {
     borderRadius: radii.xl,
@@ -483,4 +487,4 @@ const styles = StyleSheet.create({
   deleteText: { ...typography.body, color: colors.zinc400 },
   deleteActions: { flexDirection: 'row', gap: spacing.sm },
   deleteButton: { flex: 1 },
-});
+}));

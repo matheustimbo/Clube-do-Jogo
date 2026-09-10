@@ -353,10 +353,12 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
     }));
   }, [dataClient, resetSessionBoundary, supabase]);
 
+  const isSessionCurrent = useCallback((epoch: number) => sessionEpochRef.current === epoch, []);
+
   const value = useMemo<AppContextValue>(() => ({
     ...state,
     sessionEpoch,
-    isSessionCurrent: epoch => sessionEpochRef.current === epoch,
+    isSessionCurrent,
     queryClient,
     dataClient,
     isHistorical: state.selectedMonth !== state.activeMonth,
@@ -366,7 +368,7 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
     signOut,
     enterDemo,
     refresh,
-  }), [dataClient, enterDemo, queryClient, refresh, sessionEpoch, setSelectedMonth, signIn, signOut, signUp, state]);
+  }), [dataClient, enterDemo, isSessionCurrent, queryClient, refresh, sessionEpoch, setSelectedMonth, signIn, signOut, signUp, state]);
 
   return (
     <QueryClientProvider client={queryClient}>

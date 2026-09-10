@@ -1,16 +1,18 @@
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Chip } from '@/components/Chip';
 import { Section } from '@/components/StateViews';
 import { useAppInternal } from '@/state/app-provider';
-import { colors, spacing, typography } from '@/theme';
+import { themedStyles, useThemeColors, spacing, typography } from '@/theme';
 import { AdminAccessPanel } from './AdminAccessPanel';
 import { AdminClubPanel } from './AdminClubPanel';
 
 type AdminTab = 'club' | 'access';
 
 export function AdminPanel() {
+  const colors = useThemeColors();
+  const styles = useStyles();
   const [tab, setTab] = useState<AdminTab>('club');
   const { sessionEpoch } = useAppInternal();
 
@@ -33,9 +35,9 @@ export function AdminPanel() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   container: { gap: spacing.md, marginBottom: spacing.lg },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   title: { ...typography.h2, color: colors.foreground },
   tabs: { flexDirection: 'row', gap: spacing.sm },
-});
+}));

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Button } from '@/components/Button';
 import { completeAuthCallback } from '@/platform/auth';
@@ -9,7 +9,7 @@ import {
   DEFAULT_APP_ROUTE,
 } from '@/lib/nav-intent';
 import { useApp } from '@/state/app-provider';
-import { colors, spacing, typography } from '@/theme';
+import { themedStyles, useThemeColors, spacing, typography } from '@/theme';
 
 const SESSION_WAIT_TIMEOUT_MS = 10_000;
 
@@ -19,6 +19,8 @@ type CallbackState =
   | { status: 'error'; requestId: number; message: string };
 
 export default function AuthCallbackScreen() {
+  const colors = useThemeColors();
+  const styles = useStyles();
   const params = useLocalSearchParams<Record<string, string | string[]>>();
   const router = useRouter();
   const { ready, userId } = useApp();
@@ -102,8 +104,8 @@ export default function AuthCallbackScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = themedStyles(colors => ({
   container: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, backgroundColor: colors.background, padding: spacing.xl },
   label: { ...typography.small, color: colors.zinc400 },
   errorText: { ...typography.body, color: colors.red300, textAlign: 'center' },
-});
+}));
