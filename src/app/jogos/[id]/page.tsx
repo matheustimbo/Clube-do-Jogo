@@ -1,5 +1,7 @@
 'use client';
 
+import { apiFetch } from '@/lib/api-client';
+
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
@@ -9,7 +11,7 @@ import { createClient } from '@/lib/supabase/client';
 import { demoRanking } from '@/lib/demo-data';
 import { fetchGame, fetchUserPlatforms } from '@/lib/data';
 import type { Profile, UserPlatform, VoteChoice, VoteParticipant, VoteReason } from '@/lib/types';
-import { ACTIVE_RANKING_FORMULA, legacyRankingScore, preferenceRankingScore } from '@/lib/ranking';
+import { ACTIVE_RANKING_FORMULA, rankingScore } from '@/lib/ranking';
 import { shiftMonth, youtubeEmbedUrl } from '@/lib/utils';
 import { useStaleQuery } from '@/hooks/use-stale-query';
 import { useApp } from '@/components/app-provider';
@@ -104,7 +106,7 @@ export default function GamePage() {
   useEffect(() => {
     if (isDemo || !game || ((game.screenshot_urls?.length || 0) >= 3 && game.genres?.length && game.platforms?.length && game.platform_ids?.length) || mediaRequested.current.has(game.id)) return;
     mediaRequested.current.add(game.id);
-    void fetch(`/api/games/${game.id}/media`, { method: 'POST' })
+    void apiFetch(`/api/games/${game.id}/media`, { method: 'POST' })
       .then(response => response.ok ? response.json() : null)
       .then(updated => { if (updated) gameQuery.setData(updated); })
       .catch(() => undefined);
@@ -169,7 +171,7 @@ export default function GamePage() {
   const screenshots = game.screenshot_urls || [];
   const galleryImages = Array.from(new Set([game.image_url, ...screenshots].filter(Boolean)));
   const choiceCounts = { would_play: people.choiceProfiles.would_play.length, would_not_play: people.choiceProfiles.would_not_play.length };
-  const totalPoints = ACTIVE_RANKING_FORMULA === 'legacy' ? legacyRankingScore(game, people.voters.length, people.completed.length) : preferenceRankingScore(choiceCounts);
+  const totalPoints = rankingScore(ACTIVE_RANKING_FORMULA, game, choiceCounts, people.completed.length);
   const ratingValue = game.average_rating === null || game.average_rating === undefined ? null : Math.max(0, Math.min(10, game.average_rating / 10));
   const orderedPlatforms = (game.platforms || [])
     .map((name, index) => ({ name, platformId: game.platform_ids?.[index] ?? -1, index }))

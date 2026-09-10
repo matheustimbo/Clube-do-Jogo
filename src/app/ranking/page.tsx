@@ -1,5 +1,7 @@
 'use client';
 
+import { apiFetch } from '@/lib/api-client';
+
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
@@ -8,7 +10,7 @@ import { motion, useMotionValue, useSpring, useTransform } from 'motion/react';
 import { CalendarPlus, Check, ChevronDown, ChevronUp, Clock3, Library, ListOrdered, MoreHorizontal, Plus, Search, ThumbsDown, ThumbsUp, Trophy } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { fetchRankingData } from '@/lib/data';
-import { ACTIVE_RANKING_FORMULA, compareRankingItems, legacyPlaytimePoints, legacyRankingScore, preferenceRankingScore } from '@/lib/ranking';
+import { ACTIVE_RANKING_FORMULA, compareRankingItems, legacyPlaytimePoints, legacyRankingScore, rankingScore } from '@/lib/ranking';
 import type { Game, RankingItem, VoteChoice, VoteParticipant, VoteReason } from '@/lib/types';
 import { formatMonth, formatShortDate, shiftMonth } from '@/lib/utils';
 import { useStaleQuery } from '@/hooks/use-stale-query';
@@ -128,7 +130,7 @@ export default function RankingPage() {
   const visibleGroups = showAll ? rankingGroups : rankingGroups.slice(0, 10);
 
   function notifyRankingLeader(previousLeaderId: string | null, leaderId: string | null) {
-    void fetch('/api/push/ranking-leader', {
+    void apiFetch('/api/push/ranking-leader', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ voteMonth, previousLeaderId, leaderId }),
@@ -153,7 +155,7 @@ export default function RankingPage() {
       votesCount: voters.length,
       votedByMe: choice !== null,
       legacyTotalPoints,
-      totalPoints: ACTIVE_RANKING_FORMULA === 'legacy' ? legacyTotalPoints : preferenceRankingScore(choiceCounts),
+      totalPoints: rankingScore(ACTIVE_RANKING_FORMULA, item.game, choiceCounts, item.completedCount),
     };
   }
 
@@ -184,7 +186,7 @@ export default function RankingPage() {
       return;
     }
     try {
-      const response = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`);
+      const response = await apiFetch(`/api/search?q=${encodeURIComponent(searchQuery)}`);
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || 'Não foi possível buscar jogos.');
       setResults(payload);
@@ -204,7 +206,7 @@ export default function RankingPage() {
       game, addedAt: new Date().toISOString(), choiceCounts, choiceProfiles, myChoice: choice, myReason: reason || null, myReasonText: reasonText || null,
       votesCount: 1, completedCount: 0, voters: choiceProfiles[choice], completedBy: [],
       playtimePoints: legacyPlaytimePoints(game.duration_hours), ratingMultiplier: Number(game.average_rating ?? 50) / 100,
-      totalPoints: ACTIVE_RANKING_FORMULA === 'legacy' ? legacyTotalPoints : preferenceRankingScore(choiceCounts), legacyTotalPoints,
+      totalPoints: rankingScore(ACTIVE_RANKING_FORMULA, game, choiceCounts, 0), legacyTotalPoints,
       votedByMe: true, completedByMe: false, inBacklog: false,
     };
     const next = [...ranking, item].sort(compareRankingItems);

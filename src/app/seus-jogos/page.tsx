@@ -1,5 +1,7 @@
 'use client';
 
+import { apiFetch } from '@/lib/api-client';
+
 import { useMemo, useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useAutoAnimate } from '@formkit/auto-animate/react';
@@ -150,7 +152,7 @@ function YourGamesPanel() {
     if (!searchQuery.trim()) return;
     setSearching(true); setSearchError('');
     if (isDemo) { const { demoGames } = await import('@/lib/demo-data'); const normalized = searchQuery.toLocaleLowerCase('pt-BR'); setResults(demoGames.filter(game => game.title.toLocaleLowerCase('pt-BR').includes(normalized))); setSearching(false); return; }
-    try { const response = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`); const payload = await response.json(); if (!response.ok) throw new Error(payload.error); setResults(payload); }
+    try { const response = await apiFetch(`/api/search?q=${encodeURIComponent(searchQuery)}`); const payload = await response.json(); if (!response.ok) throw new Error(payload.error); setResults(payload); }
     catch (value) { setSearchError(value instanceof Error ? value.message : 'Não foi possível buscar jogos.'); }
     finally { setSearching(false); }
   }
@@ -158,7 +160,7 @@ function YourGamesPanel() {
   async function searchPlatforms(event: React.FormEvent) {
     event.preventDefault(); if (!platformQuery.trim()) return; setPlatformSearching(true); setPlatformError('');
     if (isDemo) { const available: UserPlatform[] = [{ igdb_platform_id: 130, name: 'Nintendo Switch', abbreviation: 'Switch' }, { igdb_platform_id: 6, name: 'PC (Microsoft Windows)', abbreviation: 'PC' }, { igdb_platform_id: 167, name: 'PlayStation 5', abbreviation: 'PS5' }, { igdb_platform_id: 169, name: 'Xbox Series X|S', abbreviation: 'Xbox' }]; const normalized = platformQuery.toLocaleLowerCase('pt-BR'); setPlatformResults(available.filter(platform => platform.name.toLocaleLowerCase('pt-BR').includes(normalized))); setPlatformSearching(false); return; }
-    try { const response = await fetch(`/api/platforms/search?q=${encodeURIComponent(platformQuery)}`); const payload = await response.json(); if (!response.ok) throw new Error(payload.error); setPlatformResults(payload); }
+    try { const response = await apiFetch(`/api/platforms/search?q=${encodeURIComponent(platformQuery)}`); const payload = await response.json(); if (!response.ok) throw new Error(payload.error); setPlatformResults(payload); }
     catch (value) { setPlatformError(value instanceof Error ? value.message : 'Não foi possível buscar consoles.'); }
     finally { setPlatformSearching(false); }
   }
