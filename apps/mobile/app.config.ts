@@ -24,6 +24,7 @@ const config: ExpoConfig = {
   },
   plugins: [
     'expo-router',
+    ['expo-image-picker', { photosPermission: 'Escolha imagens para suas anotações privadas.', cameraPermission: false, microphonePermission: false }],
     ['expo-splash-screen', { backgroundColor: '#0c0a13', image: './assets/icon.png' }],
   ],
   experiments: { typedRoutes: true },
