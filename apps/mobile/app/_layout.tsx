@@ -25,6 +25,7 @@ export default function RootLayout() {
             <ThemeSceneProvider>
               <RootNavigator />
             </ThemeSceneProvider>
+          </ThemeProvider>
         </AppProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
