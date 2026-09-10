@@ -69,6 +69,7 @@ export function usePersistedClubDecision(userId: string | null, persist: boolean
   const options = useMemo(() => ({
     parse: parseDecision,
     storage: persist ? nativeStorage : memoryStorage,
+    scope: false,
   }), [persist]);
   const [decision, setStored, status] = usePersistentState<StoredDecision | null>(key, null, options);
   const setDecision = useCallback((next: RecentDecision | null) => {

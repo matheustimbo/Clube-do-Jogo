@@ -7,7 +7,7 @@ import { DEFAULT_MOBILE_PREFERENCES, mobilePreferencesStorageKey, parseMobilePre
 export function useRatingScale(): [RatingScale, (scale: RatingScale) => void] {
   const { userId, isDemo, sessionEpoch, ready, isSessionCurrent } = useAppInternal();
   const key = mobilePreferencesStorageKey(userId, isDemo, sessionEpoch);
-  const options = useMemo(() => ({ parse: parseMobilePreferences }), []);
+  const options = useMemo(() => ({ parse: parseMobilePreferences, scope: false }), []);
   const [preferences, setPreferences] = usePersistentState(key, DEFAULT_MOBILE_PREFERENCES, options);
   const setScale = useCallback((ratingScale: RatingScale) => {
     if (!ready || !userId || !isSessionCurrent(sessionEpoch) || (ratingScale !== 5 && ratingScale !== 10)) return;
