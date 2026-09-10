@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { FlatList, Pressable, Switch, Text, TextInput, View } from 'react-native';
+import { FlatList, Pressable, SectionList, Switch, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Screen } from '@/components/Screen';
@@ -10,6 +10,7 @@ import { StatusPill } from '@/components/StatusPill';
 import { Sheet } from '@/components/Sheet';
 import { EmptyState, ErrorState, LoadingState } from '@/components/StateViews';
 import { PlatformPicker } from '@/features/profile/PlatformPicker';
+import { AddGameToLibrarySheet } from '@/components/AddGameToLibrarySheet';
 import { useBacklog, useFavorite, useLibrary, useSetProgress } from '@/state/queries';
 import { usePersistentState } from '@/hooks/use-persistent-state';
 import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
@@ -58,11 +59,13 @@ export default function YourGamesScreen() {
   const [playableOnly, setPlayableOnly] = usePersistentState('clube-do-jogo:mobile:library-playable', false);
   const [shortOnly, setShortOnly] = usePersistentState('clube-do-jogo:mobile:library-short', false);
   const [ratedOnly, setRatedOnly] = usePersistentState('clube-do-jogo:mobile:library-rated', false);
+  const [grouped, setGrouped] = usePersistentState('clube-do-jogo:mobile:library-grouped', false);
   const [search, setSearch] = useState('');
   const [actionsTarget, setActionsTarget] = useState<LibraryGame | null>(null);
   const [sortSheetOpen, setSortSheetOpen] = useState(false);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const [platformsOpen, setPlatformsOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<LibraryGame | null>(null);
 
   const filterValues: Record<'playableOnly' | 'shortOnly' | 'ratedOnly', boolean> = { playableOnly, shortOnly, ratedOnly };
@@ -82,6 +85,18 @@ export default function YourGamesScreen() {
     { quickFilter, text: search, sortMode, playableOnly, shortOnly, ratedOnly },
     ownedPlatformIds,
   ), [libraryQuery.data?.library, ownedPlatformIds, playableOnly, quickFilter, ratedOnly, search, shortOnly, sortMode]);
+
+  const libraryIds = useMemo(
+    () => new Set((libraryQuery.data?.library ?? []).filter(item => item.inBacklog).map(item => item.game.id)),
+    [libraryQuery.data?.library],
+  );
+
+  const sections = useMemo<Array<{ status: ProgressStatus | null; title: string | null; data: LibraryGame[] }>>(() => grouped
+    ? (['started', 'not_started', 'finished'] as ProgressStatus[])
+      .map(status => ({ status, title: statusLabel[status], data: visible.filter(item => (item.progress?.status ?? 'not_started') === status) }))
+      .filter(section => section.data.length > 0)
+    : [{ status: null, title: null, data: visible }],
+    [grouped, visible]);
 
   function toggleFavorite(item: LibraryGame) {
     favorite.mutate({ gameId: item.game.id, favorite: !item.favorite });
@@ -107,10 +122,11 @@ export default function YourGamesScreen() {
 
   return (
     <Screen scroll={false}>
-      <FlatList
+      <SectionList
         style={styles.flatList}
-        data={visible}
+        sections={sections}
         keyExtractor={item => item.game.id}
+        renderSectionHeader={({ section }) => section.title ? <Text style={styles.sectionHeader}>{section.title}</Text> : null}
         renderItem={({ item }) => {
           const status = item.progress?.status ?? 'not_started';
           return (
@@ -138,20 +154,32 @@ export default function YourGamesScreen() {
         refreshing={libraryQuery.isRefetching}
         onRefresh={() => libraryQuery.refetch()}
         keyboardShouldPersistTaps="handled"
+        stickySectionHeadersEnabled={false}
         ListHeaderComponent={
           <View>
             <AppHeader
               title="Meus jogos"
               subtitle="Sua biblioteca pessoal"
               right={
-                <Pressable
-                  onPress={() => setPlatformsOpen(true)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Gerenciar consoles"
-                  style={styles.platformsButton}
-                >
-                  <Ionicons name="game-controller-outline" size={18} color={colors.violet300} />
-                </Pressable>
+                <View style={styles.headerActions}>
+                  <Pressable
+                    onPress={() => setPlatformsOpen(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Gerenciar consoles"
+                    style={styles.platformsButton}
+                  >
+                    <Ionicons name="game-controller-outline" size={18} color={colors.violet300} />
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setAddOpen(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Adicionar"
+                    style={styles.addPill}
+                  >
+                    <Ionicons name="add" size={16} color={colors.white} />
+                    <Text style={styles.addPillLabel}>Adicionar</Text>
+                  </Pressable>
+                </View>
               }
             />
 
@@ -205,7 +233,7 @@ export default function YourGamesScreen() {
           ) : libraryQuery.isError ? (
             <ErrorState message={libraryQuery.error.message} onRetry={() => libraryQuery.refetch()} />
           ) : (
-            <EmptyState icon="library-outline" title="Nenhum jogo encontrado" description="Adicione jogos pela aba Explorar." />
+            <EmptyState icon="library-outline" title="Nenhum jogo encontrado" description="Toque em Adicionar para buscar um jogo." />
           )
         }
       />
@@ -242,8 +270,18 @@ export default function YourGamesScreen() {
               />
             </View>
           ))}
+          <View style={[styles.sheetItem, styles.sheetItemToggle]}>
+            <Text style={styles.sheetItemLabel}>Agrupar por status</Text>
+            <Switch
+              value={grouped}
+              onValueChange={setGrouped}
+              accessibilityLabel="Agrupar por status"
+            />
+          </View>
         </View>
       </Sheet>
+
+      <AddGameToLibrarySheet visible={addOpen} onClose={() => setAddOpen(false)} libraryIds={libraryIds} />
 
       <Sheet visible={Boolean(actionsTarget)} title={actionsTarget?.game.title ?? ''} onClose={() => setActionsTarget(null)}>
         {actionsTarget ? (
@@ -313,6 +351,18 @@ export default function YourGamesScreen() {
 }
 
 const useStyles = themedStyles(colors => ({
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  addPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 40,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.lg,
+    backgroundColor: colors.violet600,
+  },
+  addPillLabel: { fontSize: 11, fontWeight: '800', color: colors.white },
+  sectionHeader: { ...typography.tiny, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1, color: colors.zinc500, marginBottom: spacing.sm, marginTop: spacing.sm },
   searchField: {
     flexDirection: 'row',
     alignItems: 'center',
