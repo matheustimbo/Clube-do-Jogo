@@ -165,13 +165,7 @@ function NotesEditor({ gameId, snapshotMonth }: PrivateNotesProps) {
                   <Text style={styles.dateSeparatorText}>{formatDate(note.createdAt)}</Text>
                 </View>
               ) : null}
-              <Pressable
-                onLongPress={() => { if (!readOnly && !pendingIds.has(note.id)) setActionsTarget(note); }}
-                accessibilityRole={readOnly ? undefined : 'button'}
-                accessibilityLabel={readOnly ? undefined : `${note.body || "Anotação com imagem"}. Opções da anotação de ${formatShortDate(note.createdAt)}`}
-                testID={`note-row-${note.id}`}
-                style={styles.bubbleRow}
-              >
+              <View style={styles.bubbleRow}>
                 <View style={[styles.bubble, pendingIds.has(note.id) && styles.bubblePending]}>
                   {note.imageDataUrl ? (
                     <Pressable
@@ -182,14 +176,21 @@ function NotesEditor({ gameId, snapshotMonth }: PrivateNotesProps) {
                       <Image source={{ uri: note.imageDataUrl }} style={styles.bubbleImage} contentFit="cover" />
                     </Pressable>
                   ) : null}
-                  {note.body ? <Text style={styles.bubbleText}>{note.body}</Text> : null}
-                  <View style={styles.bubbleFooter}>
-                    {pendingIds.has(note.id) ? <Text style={styles.bubbleMeta}>enviando… · </Text>
-                      : note.updatedAt !== note.createdAt ? <Text style={styles.bubbleMeta}>editada · </Text> : null}
-                    <Text style={styles.bubbleMeta}>{formatTime(note.createdAt)}</Text>
-                  </View>
+                  <Pressable
+                    onLongPress={() => { if (!readOnly && !pendingIds.has(note.id)) setActionsTarget(note); }}
+                    accessibilityRole={readOnly ? undefined : 'button'}
+                    accessibilityLabel={readOnly ? undefined : `${note.body || "Anotação com imagem"}. Opções da anotação de ${formatShortDate(note.createdAt)}`}
+                    testID={`note-row-${note.id}`}
+                  >
+                    {note.body ? <Text style={styles.bubbleText}>{note.body}</Text> : null}
+                    <View style={styles.bubbleFooter}>
+                      {pendingIds.has(note.id) ? <Text style={styles.bubbleMeta}>enviando… · </Text>
+                        : note.updatedAt !== note.createdAt ? <Text style={styles.bubbleMeta}>editada · </Text> : null}
+                      <Text style={styles.bubbleMeta}>{formatTime(note.createdAt)}</Text>
+                    </View>
+                  </Pressable>
                 </View>
-              </Pressable>
+              </View>
             </View>
           ))}
         </ScrollView>
