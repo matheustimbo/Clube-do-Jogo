@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ratingForScale, ratingFromScale, type RatingScale } from '@clube-do-jogo/domain';
 import type { RatingCriterion, RatingDetails, RatingMode } from '@clube-do-jogo/domain';
@@ -49,7 +49,7 @@ export function RatingSheet({
   onSave: (input: { rating: number; ratingMode: RatingMode; ratingDetails: RatingDetails | null }) => void;
   onRemove: () => void;
 }) {
-  const [scale] = useRatingScale();
+  const [scale, setScale] = useRatingScale();
   const fallback = initialRating ?? 5;
   const filledDetails = useMemo(() => detailsFrom(initialDetails, fallback), [initialDetails, fallback]);
 
@@ -97,9 +97,19 @@ export function RatingSheet({
   }
 
   return (
-    <Sheet visible={visible} title="Sua avaliação" onClose={onClose}>
-      <View style={styles.body}>
+    <Sheet visible={visible} title="Sua avaliação" onClose={onClose} avoidKeyboard>
+      <ScrollView
+        style={styles.bodyScroll}
+        contentContainerStyle={styles.body}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         {disabled ? <Text style={styles.readonlyNote}>O histórico é somente leitura.</Text> : null}
+
+        <View style={styles.modeRow}>
+          <Chip label="Escala 5" selected={scale === 5} onPress={() => !loading && setScale(5)} />
+          <Chip label="Escala 10" selected={scale === 10} onPress={() => !loading && setScale(10)} />
+        </View>
 
         <View style={styles.modeRow}>
           <Chip label="Simples" selected={mode === 'simple'} onPress={() => !disabled && !loading && setMode('simple')} />
@@ -110,6 +120,7 @@ export function RatingSheet({
           <View style={styles.block}>
             <Text style={styles.fieldLabel}>Nota geral</Text>
             <RatingStepper
+              key={scale}
               value={simpleValue}
               scale={scale}
               disabled={disabled || loading}
@@ -142,6 +153,7 @@ export function RatingSheet({
                     </Pressable>
                   </View>
                   <RatingStepper
+                    key={scale}
                     value={values[key]}
                     scale={scale}
                     disabled={disabled || loading || !isEnabled}
@@ -167,7 +179,7 @@ export function RatingSheet({
             ) : null}
           </>
         ) : null}
-      </View>
+      </ScrollView>
     </Sheet>
   );
 }
@@ -182,11 +194,7 @@ function RatingStepper({ value, scale, disabled, onChange, accessibilityLabel }:
   const max = scale;
   const step = 0.5;
   const shown = ratingForScale(value, scale);
-  const [draft, setDraft] = useState(formatRatingValue(shown));
-
-  useEffect(() => {
-    setDraft(formatRatingValue(shown));
-  }, [shown]);
+  const [draft, setDraft] = useState<string | null>(null);
 
   function commitShown(nextShown: number) {
     const clamped = Math.min(max, Math.max(0, nextShown));
@@ -194,16 +202,24 @@ function RatingStepper({ value, scale, disabled, onChange, accessibilityLabel }:
   }
 
   function submitDraft() {
-    const parsed = Number(draft.replace(',', '.'));
+    const parsed = Number((draft ?? String(shown)).replace(',', '.'));
     if (Number.isFinite(parsed)) commitShown(parsed);
-    else setDraft(formatRatingValue(shown));
+    setDraft(null);
+  }
+
+  function handleChangeText(text: string) {
+    setDraft(text);
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    const parsed = Number(trimmed.replace(',', '.'));
+    if (Number.isFinite(parsed)) commitShown(parsed);
   }
 
   return (
     <View style={styles.stepperRow}>
       <Pressable
         disabled={disabled}
-        onPress={() => commitShown(shown - step)}
+        onPress={() => { setDraft(null); commitShown(shown - step); }}
         accessibilityRole="button"
         accessibilityLabel={`Diminuir ${accessibilityLabel}`}
         style={({ pressed }) => [styles.stepButton, disabled && styles.stepButtonDisabled, pressed && !disabled && styles.stepButtonPressed]}
@@ -211,9 +227,9 @@ function RatingStepper({ value, scale, disabled, onChange, accessibilityLabel }:
         <Ionicons name="remove" size={16} color={disabled ? colors.zinc700 : colors.violet300} />
       </Pressable>
       <TextInput
-        value={draft}
+        value={draft ?? formatRatingValue(shown)}
         editable={!disabled}
-        onChangeText={setDraft}
+        onChangeText={handleChangeText}
         onBlur={submitDraft}
         onSubmitEditing={submitDraft}
         keyboardType="decimal-pad"
@@ -223,7 +239,7 @@ function RatingStepper({ value, scale, disabled, onChange, accessibilityLabel }:
       <Text style={styles.stepperMax}>/ {max}</Text>
       <Pressable
         disabled={disabled}
-        onPress={() => commitShown(shown + step)}
+        onPress={() => { setDraft(null); commitShown(shown + step); }}
         accessibilityRole="button"
         accessibilityLabel={`Aumentar ${accessibilityLabel}`}
         style={({ pressed }) => [styles.stepButton, disabled && styles.stepButtonDisabled, pressed && !disabled && styles.stepButtonPressed]}
@@ -235,6 +251,7 @@ function RatingStepper({ value, scale, disabled, onChange, accessibilityLabel }:
 }
 
 const styles = StyleSheet.create({
+  bodyScroll: { flexShrink: 1 },
   body: { padding: spacing.lg, gap: spacing.lg },
   readonlyNote: { ...typography.small, color: colors.zinc500 },
   modeRow: { flexDirection: 'row', gap: spacing.sm },

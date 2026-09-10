@@ -50,8 +50,8 @@ export default function YourGamesScreen() {
   const [actionsTarget, setActionsTarget] = useState<LibraryGame | null>(null);
   const [sortSheetOpen, setSortSheetOpen] = useState(false);
 
-  const library = useMemo(() => libraryQuery.data?.library ?? [], [libraryQuery.data?.library]);
   const visible = useMemo(() => {
+    const library = libraryQuery.data?.library ?? [];
     const normalized = search.trim().toLocaleLowerCase('pt-BR');
     const matches = library.filter(item => {
       const status = item.progress?.status ?? 'not_started';
@@ -69,7 +69,7 @@ export default function YourGamesScreen() {
       if (sortMode === 'updated_asc') return (a.updatedAt || '').localeCompare(b.updatedAt || '');
       return (b.updatedAt || '').localeCompare(a.updatedAt || '');
     });
-  }, [library, quickFilter, search, sortMode]);
+  }, [libraryQuery.data, quickFilter, search, sortMode]);
 
   function toggleFavorite(item: LibraryGame) {
     favorite.mutate({ gameId: item.game.id, favorite: !item.favorite });
