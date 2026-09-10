@@ -15,6 +15,7 @@ appId: com.clubedojogo.mobile.dev
     direction: DOWN
     waitToSettleTimeoutMs: 500
     timeout: 60000
+    centerElement: true
 - tapOn:
     id: settings-theme-crossing
     enabled: true
@@ -38,9 +39,13 @@ appId: com.clubedojogo.mobile.dev
     direction: UP
     waitToSettleTimeoutMs: 500
     timeout: 60000
+    centerElement: true
 - tapOn:
     id: settings-theme-ori
     enabled: true
+- assertVisible:
+    id: settings-theme-ori
+    selected: true
 - scrollUntilVisible:
     element:
       id: theme-scene-ori-call
@@ -58,9 +63,13 @@ appId: com.clubedojogo.mobile.dev
     direction: UP
     waitToSettleTimeoutMs: 500
     timeout: 60000
+    centerElement: true
 - tapOn:
     id: settings-theme-cosmic-campfire
     enabled: true
+- assertVisible:
+    id: settings-theme-cosmic-campfire
+    selected: true
 - scrollUntilVisible:
     element:
       id: theme-scene-mode-spaceflight
@@ -82,8 +91,17 @@ appId: com.clubedojogo.mobile.dev
     waitToSettleTimeoutMs: 500
     timeout: 60000
     centerElement: true
-- tapOn:
+- runFlow:
+    when:
+      visible:
+        id: settings-reduce-motion
+        checked: false
+    commands:
+      - tapOn:
+          id: settings-reduce-motion
+- assertVisible:
     id: settings-reduce-motion
+    checked: true
 - scrollUntilVisible:
     element: Sem animação
     direction: UP
