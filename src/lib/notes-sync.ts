@@ -98,7 +98,6 @@ function canonicalNote(note: LocalNote) {
   ]);
 }
 
-/** A deterministic cache fingerprint; it is not used as a security primitive. */
 export function noteFingerprint(note: LocalNote) {
   const input = canonicalNote(note);
   let first = 0x811c9dc5;
@@ -228,7 +227,6 @@ async function markError(
       lastError: message,
     });
   } catch {
-    // The original local note is still the recovery copy when metadata storage fails.
   }
   return message;
 }

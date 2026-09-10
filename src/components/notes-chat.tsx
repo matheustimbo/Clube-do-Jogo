@@ -111,7 +111,6 @@ export function NotesChat({ game, snapshotMonth }: { game: Game; snapshotMonth?:
           try {
             await rememberConfirmedNote(noteToSave, confirmed);
           } catch {
-            // The remote write is already confirmed; a cache failure must not invite a duplicate retry.
             setLocalCacheError(true);
           }
         })());
@@ -157,7 +156,6 @@ export function NotesChat({ game, snapshotMonth }: { game: Game; snapshotMonth?:
         await rememberConfirmedDeletion({ userId: user!.id, gameId: game.id }, id);
       } catch {
         setLocalCacheError(true);
-        // The remote deletion is confirmed. Removing this stale cache is safer than resurrecting it.
         await deleteNote(id).catch(() => undefined);
       }
     });
