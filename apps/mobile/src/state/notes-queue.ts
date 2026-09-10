@@ -92,14 +92,29 @@ function isLocalNoteLike(value: unknown): value is LocalNote {
     && (note.imageDataUrl === undefined || typeof note.imageDataUrl === 'string');
 }
 
-function isPendingLocalNoteLike(value: unknown): value is PendingLocalNote {
-  if (!value || typeof value !== 'object') return false;
+// Recovers as much of a stored entry as the payload allows instead of
+// discarding it whole. The note itself (id, body, image) is what the user
+// actually typed and hit send on, so it is kept whenever it parses, even if
+// the sync metadata around it (origin, expectedUpdatedAt) is missing or from
+// an older format. A downgraded 'update' that lost its expectedUpdatedAt
+// falls back to 'create': that path already re-reads the remote row and, if
+// the content matches, returns it instead of duplicating (packages/data/src/
+// notes.ts createNote, matchesSavedNote), and raises the existing
+// NotesConflictError('changed', existing) if it does not, so this device
+// still asks the user rather than silently overwriting or duplicating.
+function recoverPendingLocalNote(value: unknown): PendingLocalNote | null {
+  if (!value || typeof value !== 'object') return null;
   const entry = value as Partial<PendingLocalNote>;
-  if (!isLocalNoteLike(entry.note)) return false;
-  if (entry.origin !== 'create' && entry.origin !== 'update') return false;
-  if (typeof entry.generation !== 'number') return false;
-  if (entry.origin === 'update' && typeof entry.expectedUpdatedAt !== 'string') return false;
-  return true;
+  if (!isLocalNoteLike(entry.note)) return null;
+  const canUpdate = entry.origin === 'update' && typeof entry.expectedUpdatedAt === 'string' && entry.expectedUpdatedAt.trim().length > 0;
+  return {
+    note: entry.note,
+    origin: canUpdate ? 'update' : 'create',
+    expectedUpdatedAt: canUpdate ? entry.expectedUpdatedAt : undefined,
+    generation: typeof entry.generation === 'number' ? entry.generation : 0,
+    lastAttemptAt: typeof entry.lastAttemptAt === 'string' ? entry.lastAttemptAt : undefined,
+    lastError: typeof entry.lastError === 'string' ? entry.lastError : undefined,
+  };
 }
 
 // A single JSON blob under one AsyncStorage key, not one key per note: the
@@ -109,17 +124,30 @@ export function serializeQueue(queue: PendingNotesQueue): string {
   return JSON.stringify(Array.from(queue.values()));
 }
 
+export interface ParsedQueue {
+  queue: PendingNotesQueue;
+  // Entries whose `note` payload itself didn't parse: there is no text left
+  // to recover for these, so the caller must show this count rather than
+  // pretend the queue is intact.
+  unrecoverableCount: number;
+}
+
 // Malformed input never silently empties the whole queue: unlike the
 // composition draft (fine to lose, it's only what's being typed right now),
-// this holds notes the user already hit send on. A corrupt top-level blob
-// is surfaced to the caller instead of swallowed.
-export function parseQueue(value: string | null): PendingNotesQueue {
-  if (!value) return createQueue();
+// this holds notes the user already hit send on and considers saved. A
+// corrupt top-level blob throws instead of resolving to an empty queue, and
+// an individual entry that fails to parse is dropped from the result without
+// taking any of the other valid entries down with it.
+export function parseQueue(value: string | null): ParsedQueue {
+  if (!value) return { queue: createQueue(), unrecoverableCount: 0 };
   const parsed: unknown = JSON.parse(value);
   if (!Array.isArray(parsed)) throw new Error('A fila de anotações pendentes está corrompida.');
   const entries: [string, PendingLocalNote][] = [];
+  let unrecoverableCount = 0;
   for (const item of parsed) {
-    if (isPendingLocalNoteLike(item)) entries.push([item.note.id, item]);
+    const recovered = recoverPendingLocalNote(item);
+    if (recovered) entries.push([recovered.note.id, recovered]);
+    else unrecoverableCount += 1;
   }
-  return new Map(entries);
+  return { queue: new Map(entries), unrecoverableCount };
 }
