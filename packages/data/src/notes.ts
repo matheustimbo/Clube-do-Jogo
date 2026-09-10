@@ -119,6 +119,12 @@ function noteFromRow(value: unknown, userId: string, gameId: string, operation: 
   return note;
 }
 
+function matchesSavedNote(remote: LocalNote, input: LocalNote) {
+  return remote.id === input.id && remote.body === input.body && remote.imageDataUrl === input.imageDataUrl
+    && Date.parse(remote.createdAt) === Date.parse(input.createdAt)
+    && Date.parse(remote.updatedAt) === Date.parse(input.updatedAt);
+}
+
 function cloneNote(note: LocalNote): LocalNote {
   return { ...note };
 }
@@ -172,7 +178,11 @@ class DemoNotesStore {
     validateNote(input.note, input.userId, input.note.gameId, 'criar anotação');
     const key = this.key(input.userId, input.note.gameId);
     const current = this.notes.get(key) || [];
-    if (current.some(note => note.id === input.note.id)) throw new NotesConflictError('changed', current.find(note => note.id === input.note.id) || null);
+    const existing = current.find(note => note.id === input.note.id);
+    if (existing) {
+      if (matchesSavedNote(existing, input.note)) return cloneNote(existing);
+      throw new NotesConflictError('changed', cloneNote(existing));
+    }
     current.push(cloneNote(input.note));
     this.notes.set(key, current);
     return cloneNote(input.note);
@@ -229,7 +239,14 @@ export function createNotesClient(options: { supabase?: SupabaseClient | null; d
         created_at: input.note.createdAt,
         updated_at: input.note.updatedAt,
       }).select('*').single();
-      if (error) throw error;
+      if (error) {
+        const existing = await readRemoteById(client, {
+          userId: input.userId, isDemo: input.isDemo, gameId: input.note.gameId, noteId: input.note.id,
+        }).catch(() => null);
+        if (existing && matchesSavedNote(existing, input.note)) return existing;
+        if (existing) throw new NotesConflictError('changed', existing);
+        throw error;
+      }
       const note = noteFromRow(data, input.userId, input.note.gameId, 'criar anotação');
       if (!note) throw new DataError('criar anotação', 'O servidor devolveu uma anotação inválida.');
       return note;

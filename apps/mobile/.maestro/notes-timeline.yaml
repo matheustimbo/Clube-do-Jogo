@@ -1,0 +1,44 @@
+appId: com.clubedojogo.mobile.dev
+---
+- extendedWaitUntil:
+    visible: Jogo do Mês(, tab, 1 of 5)?
+    timeout: 30000
+- tapOn: Jogo do Mês(, tab, 1 of 5)?
+- scrollUntilVisible:
+    element:
+      text: Timeline
+    direction: DOWN
+- tapOn: Timeline
+- scrollUntilVisible:
+    element:
+      id: timeline-composer-input
+    direction: DOWN
+- tapOn:
+    id: timeline-composer-input
+- inputText: Conversa verificada no mobile
+- scrollUntilVisible:
+    element:
+      text: Comentar
+    direction: DOWN
+- tapOn: Comentar
+- scrollUntilVisible:
+    element:
+      text: (?i)Conversa verificada no mobile
+    direction: DOWN
+- assertVisible: (?i)Conversa verificada no mobile
+- takeScreenshot: comentario-publicado
+- scrollUntilVisible:
+    element:
+      text: Notas
+    direction: UP
+- tapOn: Notas
+- scrollUntilVisible:
+    element:
+      id: private-notes-input
+    direction: DOWN
+- tapOn:
+    id: private-notes-input
+- inputText: Anotacao privada verificada no mobile
+- tapOn: Salvar anotação
+- assertVisible: (?i).*Anotacao privada verificada no mobile.*
+- takeScreenshot: anotacao-confirmada

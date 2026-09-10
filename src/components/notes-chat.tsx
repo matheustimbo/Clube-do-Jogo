@@ -10,8 +10,11 @@ import {
   createSupabaseNotesRemote,
   rememberConfirmedDeletion,
   rememberConfirmedNote,
+  resolveNoteConflict,
   StaleNoteConflictError,
   syncNotes,
+  type NotesConflictResolution,
+  type NotesSyncConflict,
   type NotesSyncResult,
 } from '@/lib/notes-sync';
 import { formatDate, formatTime } from '@/lib/utils';
@@ -25,7 +28,24 @@ function dateKey(value: string) {
   return new Intl.DateTimeFormat('pt-BR', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'America/Fortaleza' }).format(new Date(value));
 }
 
-export function NotesChat({ game, snapshotMonth }: { game: Game; snapshotMonth?: string }) {
+function resolutionLabel(resolution: NotesConflictResolution): string {
+  switch (resolution) {
+    case 'use-local': return 'Manter minha versão';
+    case 'use-remote': return 'Usar versão do servidor';
+    case 'restore-local': return 'Restaurar minha versão';
+    case 'accept-remote-deletion': return 'Aceitar exclusão';
+    default: return resolution;
+  }
+}
+
+type NotesChatProps = { game: Game; snapshotMonth?: string };
+
+export function NotesChat(props: NotesChatProps) {
+  const { user, isDemo } = useApp();
+  return <ScopedNotesChat key={`${user?.id}:${isDemo}:${props.game.id}:${props.snapshotMonth || 'live'}`} {...props} />;
+}
+
+function ScopedNotesChat({ game, snapshotMonth }: NotesChatProps) {
   const supabase = useMemo(() => createClient(), []);
   const notesRemote = useMemo(() => createSupabaseNotesRemote(supabase), [supabase]);
   const { user, isDemo, runOptimistic } = useApp();
@@ -33,6 +53,11 @@ export function NotesChat({ game, snapshotMonth }: { game: Game; snapshotMonth?:
   const [syncResult, setSyncResult] = useState<NotesSyncResult>();
   const [localCacheError, setLocalCacheError] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [conflictErrors, setConflictErrors] = useState<Record<string, string>>({});
+  const generationRef = useRef(0);
   const [body, setBody] = useState('');
   const [imageDataUrl, setImageDataUrl] = useState<string>();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -44,6 +69,7 @@ export function NotesChat({ game, snapshotMonth }: { game: Game; snapshotMonth?:
 
   useEffect(() => {
     let alive = true;
+    generationRef.current += 1;
     void Promise.resolve().then(() => {
       if (!alive) return;
       setLoading(true);
@@ -71,7 +97,7 @@ export function NotesChat({ game, snapshotMonth }: { game: Game; snapshotMonth?:
         return snapshotMonth ? [] : loadNotes(user!.id, game.id);
       }).then(items => { if (alive) setNotes(items); }).finally(() => { if (alive) setLoading(false); });
     });
-    return () => { alive = false; };
+    return () => { alive = false; generationRef.current += 1; };
   }, [game.id, isDemo, notesRemote, snapshotMonth, supabase, user]);
 
   useEffect(() => {
@@ -162,7 +188,48 @@ export function NotesChat({ game, snapshotMonth }: { game: Game; snapshotMonth?:
     if (editingId === id) { setEditingId(null); setBody(''); }
   }
 
+  async function resync() {
+    if (isDemo || snapshotMonth) return;
+    const token = generationRef.current;
+    setSyncing(true);
+    try {
+      const result = await syncNotes({ userId: user!.id, gameId: game.id }, { remote: notesRemote });
+      if (token !== generationRef.current) return;
+      setSyncResult(result);
+      setNotes(result.notes);
+      setLocalCacheError(false);
+    } catch {
+      if (token !== generationRef.current) return;
+      setLocalCacheError(true);
+    } finally {
+      if (token === generationRef.current) setSyncing(false);
+    }
+  }
+
+  function manualResync() {
+    setRetryCount(count => count + 1);
+    void resync();
+  }
+
+  async function resolveConflict(conflict: NotesSyncConflict, resolution: NotesConflictResolution) {
+    const token = generationRef.current;
+    setResolvingId(conflict.noteId);
+    setConflictErrors(current => ({ ...current, [conflict.noteId]: '' }));
+    try {
+      await resolveNoteConflict({ userId: user!.id, gameId: game.id }, conflict.noteId, resolution, { remote: notesRemote });
+      if (token !== generationRef.current) return;
+      await resync();
+    } catch (error) {
+      if (token !== generationRef.current) return;
+      const message = error instanceof Error ? error.message : 'Não foi possível resolver o conflito.';
+      setConflictErrors(current => ({ ...current, [conflict.noteId]: message }));
+    } finally {
+      if (token === generationRef.current) setResolvingId(null);
+    }
+  }
+
   if (loading) return <div className="space-y-3 p-4"><Skeleton className="h-16 w-3/4" /><Skeleton className="ml-auto h-24 w-4/5" /><Skeleton className="h-20 w-2/3" /></div>;
+  const conflicts = syncResult?.conflicts || [];
   const noteImages = notes.flatMap(note => note.imageDataUrl ? [note.imageDataUrl] : []);
   const requestedGalleryIndex = Number(gallery.getParam('image') || 0);
   const galleryIndex = Number.isInteger(requestedGalleryIndex) && requestedGalleryIndex >= 0 && requestedGalleryIndex < noteImages.length ? requestedGalleryIndex : 0;
@@ -182,7 +249,71 @@ export function NotesChat({ game, snapshotMonth }: { game: Game; snapshotMonth?:
             </span>
           )}
         </div>
+        {!isDemo && !snapshotMonth && syncResult && (
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] font-bold text-zinc-500">
+            <span>{syncResult.summary.synced} sincronizada(s)</span>
+            {syncResult.summary.pending > 0 && <span className="text-amber-300">{syncResult.summary.pending} pendente(s)</span>}
+            {((syncResult.summary.errors || 0) > 0 || localCacheError) && (
+              <span className="text-red-300">Falha na sincronização{retryCount > 0 ? ` · tentativa ${retryCount}` : ''}</span>
+            )}
+            {((syncResult.summary.conflicts || 0) > 0 || (syncResult.summary.errors || 0) > 0 || localCacheError) && (
+              <button
+                type="button"
+                onClick={manualResync}
+                disabled={syncing}
+                className="rounded-full bg-white/10 px-2 py-1 text-zinc-300 transition hover:bg-white/15 disabled:opacity-50"
+              >
+                {syncing ? 'Sincronizando…' : 'Sincronizar novamente'}
+              </button>
+            )}
+          </div>
+        )}
       </div>
+      {!isDemo && !snapshotMonth && conflicts.length > 0 && (
+        <div className="space-y-3 border-b border-white/8 bg-amber-500/5 p-4">
+          <p className="text-xs font-bold text-amber-200">
+            {conflicts.length} {conflicts.length === 1 ? 'anotação precisa' : 'anotações precisam'} de revisão
+          </p>
+          {conflicts.map(conflict => (
+            <div key={conflict.noteId} className="rounded-2xl border border-amber-400/20 bg-black/30 p-3">
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div className="rounded-xl border border-white/10 bg-white/5 p-2">
+                  <p className="text-[10px] font-bold uppercase text-zinc-500">Sua versão</p>
+                  {conflict.local.imageDataUrl && <img src={conflict.local.imageDataUrl} alt="Imagem da sua versão" className="mt-1 h-20 w-full rounded-lg object-cover" />}
+                  <p className="mt-1 whitespace-pre-wrap break-words text-xs text-zinc-300">{conflict.local.body || '(sem texto)'}</p>
+                  <p className="mt-1 text-[10px] text-zinc-600">{formatDate(conflict.local.updatedAt)} · {formatTime(conflict.local.updatedAt)}</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-white/5 p-2">
+                  <p className="text-[10px] font-bold uppercase text-zinc-500">Versão do servidor</p>
+                  {conflict.remote ? (
+                    <>
+                      {conflict.remote.imageDataUrl && <img src={conflict.remote.imageDataUrl} alt="Imagem da versão do servidor" className="mt-1 h-20 w-full rounded-lg object-cover" />}
+                      <p className="mt-1 whitespace-pre-wrap break-words text-xs text-zinc-300">{conflict.remote.body || '(sem texto)'}</p>
+                      <p className="mt-1 text-[10px] text-zinc-600">{formatDate(conflict.remote.updatedAt)} · {formatTime(conflict.remote.updatedAt)}</p>
+                    </>
+                  ) : (
+                    <p className="mt-1 text-xs text-zinc-500">Removida no servidor.</p>
+                  )}
+                </div>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {conflict.resolutions.map(resolution => (
+                  <button
+                    key={resolution}
+                    type="button"
+                    disabled={resolvingId === conflict.noteId}
+                    onClick={() => void resolveConflict(conflict, resolution)}
+                    className="rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-bold text-zinc-200 transition hover:bg-white/15 disabled:opacity-50"
+                  >
+                    {resolvingId === conflict.noteId ? 'Aplicando…' : resolutionLabel(resolution)}
+                  </button>
+                ))}
+              </div>
+              {conflictErrors[conflict.noteId] && <p className="mt-2 text-[10px] font-bold text-red-300">{conflictErrors[conflict.noteId]}</p>}
+            </div>
+          ))}
+        </div>
+      )}
       <div className="h-[min(56dvh,560px)] min-h-80">
         {notes.length === 0 ? <div className="grid h-full place-items-center px-8 text-center"><div><Pencil className="mx-auto size-7 text-zinc-700" /><p className="mt-3 text-sm font-bold text-zinc-400">{snapshotMonth ? 'Nenhuma anotação neste ciclo' : 'Guarde ideias para a reunião'}</p><p className="mt-1 text-xs leading-relaxed text-zinc-600">{snapshotMonth ? 'Não havia anotações registradas quando o ciclo foi encerrado.' : 'Registre detalhes, teorias e momentos do jogo conforme avança.'}</p></div></div> : (
           <Virtuoso ref={virtuosoRef} data={notes} followOutput="smooth" itemContent={(index, note) => {

@@ -5,6 +5,8 @@ import {
   type UseQueryResult,
 } from '@tanstack/react-query';
 import * as React from 'react';
+
+export { randomUUID as createNativeNoteId } from 'expo-crypto';
 import type { ClubComment, LocalNote, Profile } from '@clube-do-jogo/domain';
 import {
   createCommentsClient,
@@ -77,7 +79,12 @@ export type NoteDeleteVariables = {
   historical?: boolean;
 };
 
+export type NoteDraftTarget =
+  | { kind: 'new'; id: string; createdAt: string }
+  | { kind: 'edit'; id: string; createdAt: string; expectedUpdatedAt: string };
+
 export interface NoteDraft {
+  target?: NoteDraftTarget;
   body: string;
   imageDataUrl?: string;
   updatedAt: string;
@@ -106,35 +113,6 @@ let demoCommentsClient: CommentsClient | undefined;
 let demoNotesClient: NotesClient | undefined;
 let liveCommentsClient: CommentsClient | undefined;
 let liveNotesClient: NotesClient | undefined;
-
-type ExpoCryptoModule = { randomUUID?: () => string };
-let expoCryptoModule: ExpoCryptoModule | null | undefined;
-
-function fallbackUuid() {
-  const bytes = Array.from({ length: 16 }, () => Math.floor(Math.random() * 256));
-  bytes[6] = (bytes[6] & 0x0f) | 0x40;
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  const hex = bytes.map(byte => byte.toString(16).padStart(2, '0')).join('');
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-}
-
-function nativeUuid() {
-  if (expoCryptoModule === undefined) {
-    try {
-      // Keep the Expo dependency optional for tests that load the data package only.
-      // The native app provides expo-crypto and uses its platform UUID implementation.
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      expoCryptoModule = require('expo-crypto') as ExpoCryptoModule;
-    } catch {
-      expoCryptoModule = null;
-    }
-  }
-  return expoCryptoModule?.randomUUID?.() || fallbackUuid();
-}
-
-export function createNativeNoteId() {
-  return nativeUuid();
-}
 
 const draftWrites = new Map<string, Promise<void>>();
 
@@ -651,6 +629,8 @@ function parseDraft(value: string | null): NoteDraft {
     const parsed = JSON.parse(value) as Partial<NoteDraft>;
     if (!parsed || typeof parsed !== 'object' || typeof parsed.body !== 'string' || (parsed.imageDataUrl !== undefined && typeof parsed.imageDataUrl !== 'string')) return { ...EMPTY_DRAFT };
     return {
+      target: parsed.target && typeof parsed.target.id === 'string' && typeof parsed.target.createdAt === 'string'
+        && (parsed.target.kind === 'new' || (parsed.target.kind === 'edit' && typeof parsed.target.expectedUpdatedAt === 'string')) ? parsed.target : undefined,
       body: parsed.body,
       imageDataUrl: parsed.imageDataUrl,
       updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : '',
@@ -667,28 +647,28 @@ export function useNoteDraft(gameId: string): NoteDraftState {
   const key = userId && gameId ? draftKey(userId, gameId) : null;
   const [draft, setDraftState] = React.useState<NoteDraft>({ ...EMPTY_DRAFT });
   const [loadedKey, setLoadedKey] = React.useState<string | null>(null);
-  const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<Error | null>(null);
   const [errorKey, setErrorKey] = React.useState<string | null>(null);
   const loadGeneration = React.useRef(0);
+  const latestDraft = React.useRef<{ key: string; epoch: number; value: NoteDraft } | null>(null);
 
   React.useEffect(() => {
     const generation = ++loadGeneration.current;
     if (!key || !context.ready) {
       return undefined;
     }
-    void nativeStorage.getItem(key).then(value => {
+    void (draftWrites.get(key) || Promise.resolve()).catch(() => undefined).then(() => nativeStorage.getItem(key)).then(value => {
       if (generation !== loadGeneration.current || !context.isSessionCurrent(epoch) || context.userId !== userId) return;
-      setDraftState(parseDraft(value));
+      const parsed = parseDraft(value);
+      latestDraft.current = { key, epoch, value: parsed };
+      setDraftState(parsed);
       setLoadedKey(key);
       setErrorKey(null);
-      setLoading(false);
     }).catch(reason => {
       if (generation !== loadGeneration.current || !context.isSessionCurrent(epoch) || context.userId !== userId) return;
       setLoadedKey(key);
       setErrorKey(key);
       setError(reason instanceof Error ? reason : new Error('Não foi possível carregar o rascunho.'));
-      setLoading(false);
     });
     return () => { loadGeneration.current += 1; };
   }, [context, context.ready, epoch, key, userId]);
@@ -697,7 +677,11 @@ export function useNoteDraft(gameId: string): NoteDraftState {
   const visibleError = errorKey === key ? error : null;
   const setDraft = React.useCallback((value: NoteDraft | ((current: NoteDraft) => NoteDraft)) => {
     if (!key || !context.isSessionCurrent(epoch)) return;
-    const next = typeof value === 'function' ? value(visibleDraft) : value;
+    loadGeneration.current += 1;
+    const current = latestDraft.current;
+    const previous = current?.key === key && current.epoch === epoch ? current.value : EMPTY_DRAFT;
+    const next = typeof value === 'function' ? value(previous) : value;
+    latestDraft.current = { key, epoch, value: next };
     setDraftState(next);
     setLoadedKey(key);
     setErrorKey(key);
@@ -708,10 +692,12 @@ export function useNoteDraft(gameId: string): NoteDraftState {
     void operation.catch(reason => {
       if (context.isSessionCurrent(epoch) && context.userId === userId) setError(reason instanceof Error ? reason : new Error('Não foi possível salvar o rascunho.'));
     });
-  }, [context, epoch, key, userId, visibleDraft]);
+  }, [context, epoch, key, userId]);
 
   const clearDraft = React.useCallback(() => {
     if (!key || !context.isSessionCurrent(epoch)) return;
+    loadGeneration.current += 1;
+    latestDraft.current = { key, epoch, value: { ...EMPTY_DRAFT } };
     setDraftState({ ...EMPTY_DRAFT });
     setLoadedKey(key);
     setErrorKey(key);
@@ -721,17 +707,5 @@ export function useNoteDraft(gameId: string): NoteDraftState {
     });
   }, [context, epoch, key, userId]);
 
-  return { draft: visibleDraft, loading: Boolean(key) && (loading || loadedKey !== key), error: visibleError, setDraft, clearDraft };
+  return { draft: visibleDraft, loading: Boolean(key) && loadedKey !== key, error: visibleError, setDraft, clearDraft };
 }
-
-export const useTimeline = useComments;
-export const useDiscussion = useComments;
-export const usePostComment = useCreateComment;
-export const useUpdateDiscussionComment = useUpdateComment;
-export const useDeleteDiscussionComment = useDeleteComment;
-export const useToggleCommentReaction = useSetCommentReaction;
-export const useConfirmedNotes = useNotes;
-export const usePrivateNotes = useNotes;
-export const useCreatePrivateNote = useCreateNote;
-export const useUpdatePrivateNote = useUpdateNote;
-export const useDeletePrivateNote = useDeleteNote;

@@ -1,0 +1,53 @@
+appId: com.clubedojogo.mobile.dev
+---
+- extendedWaitUntil:
+    visible: Jogo do Mês(, tab, 1 of 5)?
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: Notas
+    direction: DOWN
+- tapOn: Notas
+- scrollUntilVisible:
+    element:
+      id: private-notes-input
+    direction: DOWN
+- tapOn:
+    id: private-notes-input
+- inputText: ${DRAFT_BODY}
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: Jogo do Mês(, tab, 1 of 5)?
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: Notas
+    direction: DOWN
+- tapOn: Notas
+- scrollUntilVisible:
+    element:
+      id: private-notes-input
+    direction: DOWN
+- assertVisible: (?i)${DRAFT_BODY}
+- takeScreenshot: rascunho-restaurado
+- tapOn: Salvar anotação
+- assertVisible: (?i).*${DRAFT_BODY}.*
+- longPressOn: (?i).*${DRAFT_BODY}.*
+- tapOn: Editar
+- scrollUntilVisible:
+    element:
+      id: private-notes-input
+    direction: DOWN
+- tapOn:
+    id: private-notes-input
+- eraseText
+- inputText: ${EDITED_BODY}
+- tapOn: Salvar anotação
+- assertVisible: (?i).*${EDITED_BODY}.*
+- takeScreenshot: anotacao-editada
+- longPressOn: (?i).*${EDITED_BODY}.*
+- tapOn: Excluir
+- tapOn: Apagar
+- assertNotVisible: (?i).*${EDITED_BODY}.*
+- takeScreenshot: anotacao-removida

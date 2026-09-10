@@ -317,6 +317,7 @@ test('nota demo mantém estado por conta e apaga apenas após confirmação loca
   const client = createNotesClient({ demo: true });
   const note = localNote('demo-user', 'hades', { id: 'demo-note' });
   const created = await client.create({ userId: 'demo-user', isDemo: true, note });
+  assert.deepEqual(await client.create({ userId: 'demo-user', isDemo: true, note }), created);
   assert.deepEqual(await client.read({ userId: 'demo-user', isDemo: true, gameId: 'hades' }), [note]);
   const updated = { ...created, body: 'editada', updatedAt: '2026-09-10T12:00:00.000Z' };
   await client.update({ userId: 'demo-user', isDemo: true, note: updated, expectedUpdatedAt: note.updatedAt });
@@ -371,6 +372,11 @@ test('RLS mantém notas e snapshots privados durante troca de sessão', { skip: 
       isDemo: false,
       note: { id: noteId, userId: memberFixture.id, gameId, body: 'nota privada EX06', imageDataUrl: 'data:image/png;base64,AA==', createdAt, updatedAt: createdAt },
     });
+    assert.deepEqual(await noteClient.create({ userId: memberFixture.id, isDemo: false, note }), note);
+    await assert.rejects(noteClient.create({ userId: memberFixture.id, isDemo: false, note: { ...note, body: 'concurrent change' } }), NotesConflictError);
+    const confirmed = await noteClient.read({ userId: memberFixture.id, isDemo: false, gameId });
+    assert.equal(confirmed.filter(item => item.id === noteId).length, 1);
+    assert.equal(confirmed.find(item => item.id === noteId)?.body, 'nota privada EX06');
     const otherClient = createNotesClient({ supabase: otherSupabase });
     const otherNotes = await otherClient.read({ userId: otherFixture.id, isDemo: false, gameId });
     assert.equal(otherNotes.some(item => item.id === note.id || item.body === note.body), false);
