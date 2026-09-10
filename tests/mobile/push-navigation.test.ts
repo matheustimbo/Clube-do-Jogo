@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import {
   notificationResponseKey,
   parsePushDestination,
+  PushNavigationCoordinator,
   PushResponseInbox,
   resolvePushDestination,
 } from '../../apps/mobile/src/platform/push-navigation';
@@ -69,4 +70,79 @@ test('logout clears an authenticated account pending intent without clearing pro
   inbox.clearPending();
   assert.equal(inbox.peek(), null);
   assert.equal(inbox.capture(tap), false);
+});
+
+test('initial logged-out auth state preserves a cold-start tap through the following login', () => {
+  const navigation = new PushNavigationCoordinator();
+  assert.equal(navigation.capture(response('cold-login', '/ranking')), true);
+  assert.equal(navigation.updateBoundary({ ready: true, userId: null, epoch: 0, isDemo: false }), false);
+  assert.equal(navigation.peek()?.identifier, 'cold-login');
+  assert.equal(navigation.updateBoundary({ ready: false, userId: 'account-a', epoch: 1, isDemo: false }), false);
+  assert.equal(navigation.peek()?.identifier, 'cold-login');
+  assert.equal(navigation.updateBoundary({ ready: true, userId: 'account-a', epoch: 1, isDemo: false }), true);
+  const resolution = navigation.beginResolution();
+  assert.ok(resolution);
+  assert.equal(navigation.consume(resolution, { ready: true, userId: 'account-a', epoch: 1, isDemo: false })?.identifier, 'cold-login');
+});
+
+test('every auth boundary invalidates an old resolver before ready-state returns', () => {
+  const navigation = new PushNavigationCoordinator();
+  navigation.updateBoundary({ ready: true, userId: 'account-a', epoch: 1, isDemo: false });
+  navigation.capture(response('dynamic-a', '/jogos/game-a'));
+  const accountAResolution = navigation.beginResolution();
+  assert.ok(accountAResolution);
+
+  assert.equal(navigation.updateBoundary({ ready: false, userId: 'account-a', epoch: 2, isDemo: false }), false);
+  assert.equal(navigation.isCurrent(accountAResolution), false);
+  assert.equal(navigation.peek()?.identifier, 'dynamic-a');
+
+  assert.equal(navigation.updateBoundary({ ready: true, userId: 'account-a', epoch: 2, isDemo: false }), true);
+  const refreshedResolution = navigation.beginResolution();
+  assert.ok(refreshedResolution);
+  assert.notEqual(refreshedResolution.generation, accountAResolution.generation);
+});
+
+test('account switch, logout and demo clear the previous account intent', () => {
+  for (const boundary of [
+    { ready: false, userId: 'account-b', epoch: 2, isDemo: false },
+    { ready: true, userId: null, epoch: 2, isDemo: false },
+    { ready: true, userId: 'demo-user', epoch: 2, isDemo: true },
+  ]) {
+    const navigation = new PushNavigationCoordinator();
+    navigation.updateBoundary({ ready: true, userId: 'account-a', epoch: 1, isDemo: false });
+    navigation.capture(response(`pending-${String(boundary.userId)}`, '/perfil'));
+    assert.equal(navigation.updateBoundary(boundary), false);
+    assert.equal(navigation.peek(), null);
+  }
+});
+
+test('a new account tap captured during hydration survives after the old intent is cleared', () => {
+  const navigation = new PushNavigationCoordinator();
+  navigation.updateBoundary({ ready: true, userId: 'account-a', epoch: 1, isDemo: false });
+  navigation.capture(response('old-account', '/perfil'));
+  navigation.updateBoundary({ ready: false, userId: 'account-b', epoch: 2, isDemo: false });
+  assert.equal(navigation.peek(), null);
+  navigation.capture(response('new-account', '/ranking'));
+  assert.equal(navigation.updateBoundary({ ready: true, userId: 'account-b', epoch: 2, isDemo: false }), true);
+  assert.equal(navigation.peek()?.identifier, 'new-account');
+});
+
+test('rendered auth transition blocks a stale commit before its boundary effect runs', async () => {
+  const navigation = new PushNavigationCoordinator();
+  const accountA = { ready: true, userId: 'account-a', epoch: 1, isDemo: false } as const;
+  navigation.updateBoundary(accountA);
+  navigation.capture(response('render-race', '/jogos/game-a'));
+  const resolution = navigation.beginResolution();
+  assert.ok(resolution);
+  let finishLookup!: (exists: boolean) => void;
+  const gameExists = new Promise<boolean>(resolve => { finishLookup = resolve; });
+  const lookup = resolvePushDestination(resolution.response.data.url, {
+    game: () => gameExists,
+    profile: async () => false,
+  });
+  const accountBHydrating = { ready: false, userId: 'account-b', epoch: 2, isDemo: false } as const;
+  finishLookup(true);
+  await lookup;
+  assert.equal(navigation.consume(resolution, accountBHydrating), null);
+  assert.equal(navigation.peek()?.identifier, 'render-race');
 });

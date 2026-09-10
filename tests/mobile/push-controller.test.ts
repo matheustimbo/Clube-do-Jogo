@@ -199,6 +199,23 @@ test('token rotation is serialized and confirms the new Expo token', async () =>
   assert.equal(controller.getSnapshot().registered, true);
 });
 
+test('logout queued behind token rotation unlinks the newly confirmed binding', async () => {
+  const { adapter, api, controller } = createFixture();
+  adapter.permission = 'granted';
+  await controller.start();
+  await controller.setSession({ userId: 'account-a', epoch: 1 });
+  const rotation = new Deferred<{ rotated: boolean; transferred: boolean }>();
+  api.registerImpl = () => rotation.promise;
+  const nextToken = 'ExpoPushToken[token-new-123456]';
+  api.unlinkImpl = async input => ({ unlinked: input.expoPushToken === nextToken });
+  adapter.rotate(nextToken);
+  await flush();
+  const logout = controller.prepareSignOut();
+  rotation.resolve({ rotated: true, transferred: false });
+  assert.deepEqual(await logout, { unlinked: true });
+  assert.equal(api.unlinks[0].expoPushToken, nextToken);
+});
+
 test('logout timeout is reported while local session can be cleared and late DELETE cannot start under B', async () => {
   const { adapter, api, controller } = createFixture();
   adapter.permission = 'granted';

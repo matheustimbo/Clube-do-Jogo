@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { useRouter } from 'expo-router';
 import { createMobileApiTransport, getMobileSupabaseClient, nativeStorage } from '@/platform';
 import { createExpoNotificationsAdapter } from '@/platform/notifications';
@@ -9,7 +9,7 @@ import {
   type PushController,
   type PushNotificationsSnapshot,
 } from '@/platform/push-controller';
-import { PushResponseInbox, resolvePushDestination } from '@/platform/push-navigation';
+import { PushNavigationCoordinator, resolvePushDestination } from '@/platform/push-navigation';
 import { useAppInternal } from './app-provider';
 import { registerPushSignOutHandler } from './push-session';
 
@@ -32,11 +32,14 @@ export function NotificationBridge({ children }: { children: React.ReactNode }):
       storage: nativeStorage,
     });
   }, [adapter]);
-  const inbox = useMemo(() => new PushResponseInbox(), []);
+  const navigation = useMemo(() => new PushNavigationCoordinator(), []);
   const snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
-  const navigationGeneration = useRef(0);
-  const previousUser = useRef<string | null>(null);
   const [responseVersion, responseCaptured] = React.useReducer(value => value + 1, 0);
+  const currentBoundaryRef = useRef({ ready, userId, epoch: sessionEpoch, isDemo });
+
+  useLayoutEffect(() => {
+    currentBoundaryRef.current = { ready, userId, epoch: sessionEpoch, isDemo };
+  }, [isDemo, ready, sessionEpoch, userId]);
 
   useEffect(() => {
     let disposed = false;
@@ -58,11 +61,8 @@ export function NotificationBridge({ children }: { children: React.ReactNode }):
   }, [controller, isDemo, ready, sessionEpoch, userId]);
 
   useEffect(() => {
-    const capture = (response: Parameters<typeof inbox.capture>[0]) => {
-      if (inbox.capture(response)) {
-        navigationGeneration.current += 1;
-        responseCaptured();
-      }
+    const capture = (response: Parameters<typeof navigation.capture>[0]) => {
+      if (navigation.capture(response)) responseCaptured();
     };
     const stopReceived = adapter.subscribeReceived(() => undefined);
     const stopResponses = adapter.subscribeResponses(capture);
@@ -74,33 +74,23 @@ export function NotificationBridge({ children }: { children: React.ReactNode }):
       stopReceived();
       stopResponses();
     };
-  }, [adapter, inbox]);
+  }, [adapter, navigation]);
 
   useEffect(() => {
-    if (!ready) return;
-    if (!userId || isDemo) {
-      inbox.clearPending();
-      previousUser.current = null;
-      return;
-    }
-    if (previousUser.current && previousUser.current !== userId) inbox.clearPending();
-    previousUser.current = userId;
-    const pending = inbox.peek();
-    if (!pending) return;
-    const generation = ++navigationGeneration.current;
-    void resolvePushDestination(pending.data.url, {
+    if (!navigation.updateBoundary(currentBoundaryRef.current)) return;
+    const resolution = navigation.beginResolution();
+    if (!resolution || !userId) return;
+    void resolvePushDestination(resolution.response.data.url, {
       game: async id => Boolean(await dataClient.readGame({ userId, isDemo: false, gameId: id })),
       profile: async id => Boolean(await dataClient.readProfile(id, false)),
     }).then(intent => {
-      if (navigationGeneration.current !== generation || !inbox.peek()) return;
-      inbox.consume();
+      if (!navigation.consume(resolution, currentBoundaryRef.current)) return;
       router.push(intent);
     }).catch(() => {
-      if (navigationGeneration.current !== generation || !inbox.peek()) return;
-      inbox.consume();
+      if (!navigation.consume(resolution, currentBoundaryRef.current)) return;
       router.push('/(app)/(tabs)/jogo-do-mes');
     });
-  }, [dataClient, inbox, isDemo, ready, responseVersion, router, sessionEpoch, userId]);
+  }, [dataClient, isDemo, navigation, ready, responseVersion, router, sessionEpoch, userId]);
 
   const requestPermission = useCallback(
     () => isDemo ? Promise.resolve() : controller.requestPermission(),

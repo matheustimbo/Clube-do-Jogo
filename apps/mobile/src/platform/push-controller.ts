@@ -239,8 +239,7 @@ export function createPushController(options: {
     reconcile,
     async prepareSignOut() {
       const expected = session;
-      const binding = confirmedBinding;
-      if (!expected || !binding) return { unlinked: false, reason: 'stale' };
+      if (!expected) return { unlinked: false, reason: 'stale' };
       const timeoutMs = options.unlinkTimeoutMs ?? 2500;
       const deadline = Date.now() + timeoutMs;
       const abort = new AbortController();
@@ -250,6 +249,8 @@ export function createPushController(options: {
         if (!sameSession(expected, session)) {
           return { unlinked: false, reason: 'stale' as const };
         }
+        const binding = confirmedBinding;
+        if (!binding) return { unlinked: false, reason: 'stale' as const };
         try {
           const result = await timeout(options.api.unlink({
               installationId: binding.installationId,
