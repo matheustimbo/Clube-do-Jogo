@@ -6,6 +6,14 @@ import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import { Check, ChevronDown, ImagePlus, Pencil, Send, Trash2, X } from 'lucide-react';
 import type { Game, LocalNote } from '@/lib/types';
 import { deleteNote, loadNotes, saveNote } from '@/lib/local-notes';
+import {
+  createSupabaseNotesRemote,
+  rememberConfirmedDeletion,
+  rememberConfirmedNote,
+  StaleNoteConflictError,
+  syncNotes,
+  type NotesSyncResult,
+} from '@/lib/notes-sync';
 import { formatDate, formatTime } from '@/lib/utils';
 import { useApp } from './app-provider';
 import { Skeleton } from './ui/skeleton';
@@ -19,8 +27,11 @@ function dateKey(value: string) {
 
 export function NotesChat({ game, snapshotMonth }: { game: Game; snapshotMonth?: string }) {
   const supabase = useMemo(() => createClient(), []);
+  const notesRemote = useMemo(() => createSupabaseNotesRemote(supabase), [supabase]);
   const { user, isDemo, runOptimistic } = useApp();
   const [notes, setNotes] = useState<LocalNote[]>([]);
+  const [syncResult, setSyncResult] = useState<NotesSyncResult>();
+  const [localCacheError, setLocalCacheError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [body, setBody] = useState('');
   const [imageDataUrl, setImageDataUrl] = useState<string>();
@@ -36,6 +47,8 @@ export function NotesChat({ game, snapshotMonth }: { game: Game; snapshotMonth?:
     void Promise.resolve().then(() => {
       if (!alive) return;
       setLoading(true);
+      setSyncResult(undefined);
+      setLocalCacheError(false);
       void (async () => {
         if (snapshotMonth) {
           if (isDemo) return loadNotes(user!.id, game.id);
@@ -49,18 +62,17 @@ export function NotesChat({ game, snapshotMonth }: { game: Game; snapshotMonth?:
           if (error) throw error;
           return (data || []).map(note => ({ id: note.note_id, userId: note.user_id, gameId: note.game_id, body: note.body, imageDataUrl: note.image_data_url || undefined, createdAt: note.created_at, updatedAt: note.updated_at } satisfies LocalNote));
         }
-        const local = await loadNotes(user!.id, game.id);
-        if (isDemo) return local;
-        if (local.length) {
-          await supabase.from('game_notes').upsert(local.map(note => ({ id: note.id, user_id: note.userId, game_id: note.gameId, body: note.body, image_data_url: note.imageDataUrl || null, created_at: note.createdAt, updated_at: note.updatedAt })), { onConflict: 'id' });
-        }
-        const { data, error } = await supabase.from('game_notes').select('*').eq('user_id', user!.id).eq('game_id', game.id).order('created_at');
-        if (error) throw error;
-        return (data || []).map(note => ({ id: note.id, userId: note.user_id, gameId: note.game_id, body: note.body, imageDataUrl: note.image_data_url || undefined, createdAt: note.created_at, updatedAt: note.updated_at } satisfies LocalNote));
-      })().catch(async () => snapshotMonth ? [] : loadNotes(user!.id, game.id)).then(items => { if (alive) setNotes(items); }).finally(() => { if (alive) setLoading(false); });
+        if (isDemo) return loadNotes(user!.id, game.id);
+        const result = await syncNotes({ userId: user!.id, gameId: game.id }, { remote: notesRemote });
+        if (alive) setSyncResult(result);
+        return result.notes;
+      })().catch(async () => {
+        if (alive) setLocalCacheError(true);
+        return snapshotMonth ? [] : loadNotes(user!.id, game.id);
+      }).then(items => { if (alive) setNotes(items); }).finally(() => { if (alive) setLoading(false); });
     });
     return () => { alive = false; };
-  }, [game.id, isDemo, snapshotMonth, supabase, user]);
+  }, [game.id, isDemo, notesRemote, snapshotMonth, supabase, user]);
 
   useEffect(() => {
     if (!loading && notes.length) requestAnimationFrame(() => virtuosoRef.current?.scrollToIndex({ index: notes.length - 1, align: 'end' }));
@@ -75,9 +87,11 @@ export function NotesChat({ game, snapshotMonth }: { game: Game; snapshotMonth?:
     const previous = notes;
     let nextNotes: LocalNote[];
     let noteToSave: LocalNote;
+    let expectedRemoteUpdatedAt: string | undefined;
     if (editingId) {
       const existing = notes.find(note => note.id === editingId);
       if (!existing) return;
+      expectedRemoteUpdatedAt = existing.updatedAt;
       noteToSave = { ...existing, body: body.trim(), updatedAt: now };
       nextNotes = notes.map(item => item.id === editingId ? noteToSave : item);
     } else {
@@ -89,7 +103,18 @@ export function NotesChat({ game, snapshotMonth }: { game: Game; snapshotMonth?:
     setEditingId(null);
     const saved = await runOptimistic(editingId ? 'Salvando anotação…' : 'Criando anotação…', () => setNotes(nextNotes), () => setNotes(previous), () => isDemo
       ? saveNote(noteToSave)
-      : supabase.from('game_notes').upsert({ id: noteToSave.id, user_id: noteToSave.userId, game_id: noteToSave.gameId, body: noteToSave.body, image_data_url: noteToSave.imageDataUrl || null, created_at: noteToSave.createdAt, updated_at: noteToSave.updatedAt }, { onConflict: 'id' }));
+      : (async () => {
+          const confirmed = expectedRemoteUpdatedAt
+            ? await notesRemote.update(noteToSave, expectedRemoteUpdatedAt)
+            : await notesRemote.insert(noteToSave);
+          if (!confirmed) throw new StaleNoteConflictError(noteToSave.id);
+          try {
+            await rememberConfirmedNote(noteToSave, confirmed);
+          } catch {
+            // The remote write is already confirmed; a cache failure must not invite a duplicate retry.
+            setLocalCacheError(true);
+          }
+        })());
     if (!saved) {
       setBody(previousBody);
       setImageDataUrl(previousImage);
@@ -118,7 +143,24 @@ export function NotesChat({ game, snapshotMonth }: { game: Game; snapshotMonth?:
   async function remove(id: string) {
     const previous = notes;
     const next = notes.filter(item => item.id !== id);
-    await runOptimistic('Excluindo anotação…', () => setNotes(next), () => setNotes(previous), () => isDemo ? deleteNote(id) : supabase.from('game_notes').delete().eq('id', id).eq('user_id', user!.id));
+    const deleting = notes.find(item => item.id === id);
+    if (!deleting) return;
+    await runOptimistic('Excluindo anotação…', () => setNotes(next), () => setNotes(previous), async () => {
+      if (isDemo) return deleteNote(id);
+      const { data, error } = await supabase.from('game_notes').delete().eq('id', id).eq('user_id', user!.id).eq('game_id', game.id).eq('updated_at', deleting.updatedAt).select('id');
+      if (error) throw error;
+      if (!data?.length) {
+        const stillRemote = await notesRemote.get({ userId: user!.id, gameId: game.id }, id);
+        if (stillRemote) throw new StaleNoteConflictError(id);
+      }
+      try {
+        await rememberConfirmedDeletion({ userId: user!.id, gameId: game.id }, id);
+      } catch {
+        setLocalCacheError(true);
+        // The remote deletion is confirmed. Removing this stale cache is safer than resurrecting it.
+        await deleteNote(id).catch(() => undefined);
+      }
+    });
     if (editingId === id) { setEditingId(null); setBody(''); }
   }
 
@@ -129,7 +171,20 @@ export function NotesChat({ game, snapshotMonth }: { game: Game; snapshotMonth?:
 
   return (
     <div className="notes-panel overflow-hidden rounded-3xl border border-white/8 bg-[radial-gradient(circle_at_20%_0%,rgba(124,58,237,.08),transparent_45%),#0c0c0f]">
-      <div className="border-b border-white/8 px-4 py-3"><h2 className="text-sm font-extrabold">Minhas anotações</h2></div>
+      <div
+        className="border-b border-white/8 px-4 py-3"
+        data-note-sync-conflicts={syncResult?.summary.conflicts || 0}
+        data-note-sync-errors={(syncResult?.summary.errors || 0) + Number(localCacheError)}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-extrabold">Minhas anotações</h2>
+          {!isDemo && !snapshotMonth && (syncResult?.summary.conflicts || syncResult?.summary.errors || localCacheError) && (
+            <span className="text-[10px] font-bold text-amber-300">
+              {(syncResult?.summary.conflicts || 0) > 0 ? `${syncResult!.summary.conflicts} conflito(s)` : 'Falha ao sincronizar'}
+            </span>
+          )}
+        </div>
+      </div>
       <div className="h-[min(56dvh,560px)] min-h-80">
         {notes.length === 0 ? <div className="grid h-full place-items-center px-8 text-center"><div><Pencil className="mx-auto size-7 text-zinc-700" /><p className="mt-3 text-sm font-bold text-zinc-400">{snapshotMonth ? 'Nenhuma anotação neste ciclo' : 'Guarde ideias para a reunião'}</p><p className="mt-1 text-xs leading-relaxed text-zinc-600">{snapshotMonth ? 'Não havia anotações registradas quando o ciclo foi encerrado.' : 'Registre detalhes, teorias e momentos do jogo conforme avança.'}</p></div></div> : (
           <Virtuoso ref={virtuosoRef} data={notes} followOutput="smooth" itemContent={(index, note) => {
