@@ -14,6 +14,7 @@ import type {
   DiscoverSource,
   Game,
   GameProgress,
+  GameMugshot,
   LibraryGame,
   Profile,
   ProfileWithGames,
@@ -31,6 +32,7 @@ import type {
 import { readApiJson, type ApiTransport } from './api';
 import { DemoStore, type DemoVote } from './demo';
 import { DataError, requireValue, withDataErrors } from './errors';
+import type { GameMediaQuery } from './media';
 import type {
   PlatformSearchQuery,
   ProfilePatch,
@@ -326,6 +328,21 @@ function platformItemsFromPayload(payload: unknown): UserPlatform[] {
       abbreviation: typeof row.abbreviation === 'string' ? row.abbreviation.trim() || null : null,
       logo_url: typeof row.logo_url === 'string' ? row.logo_url.trim() || null : null,
     } satisfies UserPlatform];
+  });
+}
+
+function mugshotsFromPayload(payload: unknown): GameMugshot[] {
+  const rows = Array.isArray(payload)
+    ? payload
+    : payload && typeof payload === 'object' && 'mugshots' in payload && Array.isArray((payload as { mugshots?: unknown }).mugshots)
+      ? (payload as { mugshots: unknown[] }).mugshots
+      : [];
+  return rows.flatMap(value => {
+    if (!value || typeof value !== 'object') return [];
+    const row = value as Partial<GameMugshot>;
+    const id = row.id;
+    if (typeof id !== 'number' || !Number.isInteger(id) || id <= 0 || typeof row.name !== 'string' || !row.name.trim() || typeof row.image_url !== 'string' || !row.image_url.trim()) return [];
+    return [{ id, name: row.name.trim(), image_url: row.image_url.trim() }];
   });
 }
 
@@ -652,6 +669,32 @@ export class DataClient {
       const { data, error } = await this.client('ler jogo').from('games').select('*').eq('id', input.gameId).maybeSingle();
       if (error) throw error;
       return data as Game | null;
+    });
+  }
+
+  async readGameMedia(input: GameMediaQuery): Promise<Game | null> {
+    if (!input.gameId.trim()) throw new DataError('carregar mídia', 'O jogo não foi informado.');
+    if (input.isDemo) return this.demo.readGame(input.gameId);
+    return withDataErrors('carregar mídia', 'Não foi possível carregar a mídia do jogo.', async () => {
+      const payload = await readApiJson<unknown>(
+        this.transport('carregar mídia'),
+        `/api/games/${encodeURIComponent(input.gameId)}/media`,
+        { method: 'POST' },
+      );
+      return payload as Game | null;
+    });
+  }
+
+  async readGameMugshots(input: GameMediaQuery): Promise<GameMugshot[]> {
+    if (!input.gameId.trim()) throw new DataError('carregar personagens', 'O jogo não foi informado.');
+    if (input.isDemo) return this.demo.readGameMugshots(input.gameId);
+    return withDataErrors('carregar personagens', 'Não foi possível carregar os personagens do jogo.', async () => {
+      const payload = await readApiJson<unknown>(
+        this.transport('carregar personagens'),
+        `/api/games/${encodeURIComponent(input.gameId)}/mugshots`,
+        { method: 'GET' },
+      );
+      return mugshotsFromPayload(payload);
     });
   }
 

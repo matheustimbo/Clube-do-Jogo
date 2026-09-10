@@ -109,3 +109,30 @@ test('real platform writes use RLS-compatible insert/delete and tolerate duplica
   await client.removeUserPlatform({ userId, isDemo: false, igdbPlatformId: 6 });
   assert.deepEqual(calls, ['user_platforms', 'insert', 'user_platforms', 'delete', 'eq', 'eq']);
 });
+
+test('real media requests use the existing API routes and preserve their payloads', async () => {
+  const calls: Array<{ path: string; method?: string }> = [];
+  const api = {
+    request: async (path: string, init?: RequestInit) => {
+      calls.push({ path, method: init?.method });
+      if (path.endsWith('/media')) return { ok: true, json: async () => ({ ...demoGames[0], screenshot_urls: ['https://example.test/screenshot.jpg'] }) } as Response;
+      return { ok: true, json: async () => ({ mugshots: [{ id: 44, name: 'Zagreus', image_url: ' https://example.test/zagreus.jpg ' }] }) } as Response;
+    },
+  };
+  const client = createDataClient({ api });
+  const media = await client.readGameMedia({ userId, isDemo: false, gameId: 'game/with-slash' });
+  const mugshots = await client.readGameMugshots({ userId, isDemo: false, gameId: 'game/with-slash' });
+  assert.equal(media?.screenshot_urls?.[0], 'https://example.test/screenshot.jpg');
+  assert.deepEqual(mugshots, [{ id: 44, name: 'Zagreus', image_url: 'https://example.test/zagreus.jpg' }]);
+  assert.deepEqual(calls, [
+    { path: '/api/games/game%2Fwith-slash/media', method: 'POST' },
+    { path: '/api/games/game%2Fwith-slash/mugshots', method: 'GET' },
+  ]);
+});
+
+test('demo media keeps game fields and has no invented mugshots', async () => {
+  const client = createDataClient();
+  const media = await client.readGameMedia({ userId, isDemo: true, gameId: demoGames[0].id });
+  assert.equal(media?.trailer_url, demoGames[0].trailer_url);
+  assert.deepEqual(await client.readGameMugshots({ userId, isDemo: true, gameId: demoGames[0].id }), []);
+});

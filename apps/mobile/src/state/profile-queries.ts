@@ -5,6 +5,8 @@ import {
   type UseQueryResult,
 } from '@tanstack/react-query';
 import type {
+  Game,
+  GameMugshot,
   Profile,
   ProfileWithGames,
   UserPlatform,
@@ -229,3 +231,24 @@ export function useRemoveUserPlatform(): UseMutationResult<void, Error, { igdbPl
   });
 }
 
+export function useGameMedia(gameId: string): UseQueryResult<Game | null, Error> {
+  const context = useAppInternal();
+  const userId = context.userId;
+  return useQuery<Game | null, Error>({
+    queryKey: ['game-media', context.sessionEpoch, userId, context.isDemo, gameId],
+    enabled: context.ready && Boolean(userId) && Boolean(gameId),
+    staleTime: 300_000,
+    queryFn: () => context.dataClient.readGameMedia({ userId: requireUser(userId), isDemo: context.isDemo, gameId }),
+  });
+}
+
+export function useGameMugshots(gameId: string): UseQueryResult<GameMugshot[], Error> {
+  const context = useAppInternal();
+  const userId = context.userId;
+  return useQuery<GameMugshot[], Error>({
+    queryKey: ['game-mugshots', context.sessionEpoch, userId, context.isDemo, gameId],
+    enabled: context.ready && Boolean(userId) && Boolean(gameId),
+    staleTime: 300_000,
+    queryFn: () => context.dataClient.readGameMugshots({ userId: requireUser(userId), isDemo: context.isDemo, gameId }),
+  });
+}

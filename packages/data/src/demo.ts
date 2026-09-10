@@ -11,6 +11,7 @@ import type {
   DiscoverItem,
   DiscoverSource,
   Game,
+  GameMugshot,
   GameProgress,
   LibraryGame,
   Profile,
@@ -177,6 +178,10 @@ export class DemoStore {
   readGame(gameId: string): Game | null {
     const game = demoGames.find(item => item.id === gameId) || demoGames[0];
     return game ? { ...game } : null;
+  }
+
+  readGameMugshots(_gameId: string): GameMugshot[] {
+    return [];
   }
 
   searchPlatforms(query: string, _profileId: string): UserPlatform[] {
