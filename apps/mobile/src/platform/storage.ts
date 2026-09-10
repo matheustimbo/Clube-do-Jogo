@@ -6,8 +6,16 @@ export interface NativeStorage {
   removeItem(key: string): Promise<void>;
 }
 
-export const nativeStorage: NativeStorage = {
+export function createNativeStorage(adapter: NativeStorage): NativeStorage {
+  return {
+    getItem: key => adapter.getItem(key),
+    setItem: (key, value) => adapter.setItem(key, value),
+    removeItem: key => adapter.removeItem(key),
+  };
+}
+
+export const nativeStorage: NativeStorage = createNativeStorage({
   getItem: key => AsyncStorage.getItem(key),
   setItem: (key, value) => AsyncStorage.setItem(key, value),
   removeItem: key => AsyncStorage.removeItem(key),
-};
+});

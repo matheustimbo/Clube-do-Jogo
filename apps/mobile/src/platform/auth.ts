@@ -1,21 +1,27 @@
-import { setupURLPolyfill } from 'react-native-url-polyfill';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
-setupURLPolyfill();
+export type AuthCallbackClient = Pick<SupabaseClient, 'auth'>;
 
-import { getMobileSupabaseClient } from './supabase';
+async function setupNativeUrlPolyfill() {
+  const { setupURLPolyfill } = await import('react-native-url-polyfill');
+  setupURLPolyfill();
+}
+
+class AuthCallbackError extends Error {}
 
 const completedCodes = new Set<string>();
 const pendingCallbacks = new Map<string, Promise<void>>();
 
 function authError(error: unknown) {
-  if (!error || typeof error !== 'object') return new Error('Não foi possível concluir a autenticação.');
+  if (!error || typeof error !== 'object') return new AuthCallbackError('Não foi possível concluir a autenticação.');
   const message = 'message' in error ? String((error as { message: unknown }).message) : '';
-  if (/expired|invalid|code/i.test(message)) return new Error('O link de autenticação expirou. Solicite um novo link.');
-  if (/network|fetch|connect/i.test(message)) return new Error('Não foi possível conectar. Tente novamente.');
-  return new Error('Não foi possível concluir a autenticação.');
+  if (/expired|invalid|code/i.test(message)) return new AuthCallbackError('O link de autenticação expirou. Solicite um novo link.');
+  if (/network|fetch|connect/i.test(message)) return new AuthCallbackError('Não foi possível conectar. Tente novamente.');
+  return new AuthCallbackError('Não foi possível concluir a autenticação.');
 }
 
-export async function completeAuthCallback(url: string): Promise<void> {
+export async function completeAuthCallback(url: string, clientOverride?: AuthCallbackClient): Promise<void> {
+  if (!clientOverride) await setupNativeUrlPolyfill();
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -30,14 +36,14 @@ export async function completeAuthCallback(url: string): Promise<void> {
   const pending = pendingCallbacks.get(code);
   if (pending) return pending;
 
-  const client = getMobileSupabaseClient();
+  const client = clientOverride || (await import('./supabase')).getMobileSupabaseClient();
   if (!client) throw new Error('Configure o Supabase para concluir a autenticação.');
   const exchange = client.auth.exchangeCodeForSession(code).then(({ error }) => {
     if (error) throw authError(error);
     completedCodes.add(code);
     if (completedCodes.size > 100) completedCodes.delete(completedCodes.values().next().value as string);
   }).catch(error => {
-    throw error instanceof Error && error.message.startsWith('Não foi possível')
+    throw error instanceof AuthCallbackError
       ? error
       : authError(error);
   }).finally(() => {

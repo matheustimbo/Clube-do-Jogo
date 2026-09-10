@@ -25,10 +25,10 @@ function resolveApiUrl(path: string, baseValue: string) {
   return url.toString();
 }
 
-export function createMobileApiTransport(client: SupabaseClient | null) {
+export function createMobileApiTransport(client: SupabaseClient | null, apiBaseUrlOverride?: string) {
   return {
     async request(path: string, init?: RequestInit) {
-      const base = getApiBaseUrl();
+      const base = apiBaseUrlOverride ?? getApiBaseUrl();
       if (!base) throw new Error('Configure EXPO_PUBLIC_API_BASE_URL para explorar jogos.');
       if (!client) throw new Error('Configure o Supabase para acessar a API.');
       const { data, error } = await client.auth.getSession();
@@ -36,6 +36,7 @@ export function createMobileApiTransport(client: SupabaseClient | null) {
       if (!data.session?.access_token) throw new Error('Sua sessão expirou. Entre novamente para continuar.');
       const headers = new Headers(init?.headers);
       headers.delete('Authorization');
+      headers.delete('Cookie');
       headers.set('Authorization', `Bearer ${data.session.access_token}`);
       return fetch(resolveApiUrl(path, base), {
         ...init,
