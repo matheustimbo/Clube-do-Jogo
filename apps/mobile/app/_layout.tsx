@@ -1,6 +1,13 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Stack, usePathname, useRouter } from 'expo-router';
+import {
+  DarkTheme,
+  DefaultTheme,
+  Stack,
+  ThemeProvider as NavigationThemeProvider,
+  usePathname,
+  useRouter,
+} from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -58,27 +65,44 @@ function RootNavigator() {
   }, [pathname, ready, router, userId]);
 
   const scenic = theme.scene !== 'none';
+  const navigationTheme = useMemo(() => {
+    const base = theme.isLight ? DefaultTheme : DarkTheme;
+    return {
+      ...base,
+      dark: !theme.isLight,
+      colors: {
+        ...base.colors,
+        primary: theme.colors.violet400,
+        background: theme.colors.background,
+        card: theme.colors.card,
+        text: theme.colors.foreground,
+        border: theme.colors.hairline,
+      },
+    };
+  }, [theme]);
 
   return (
-    <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
-      <ThemeBackdrop />
-      <StatusBar style={theme.isLight ? 'dark' : 'light'} />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: scenic ? 'transparent' : theme.colors.background },
-        }}
-      >
-        <Stack.Screen name="index" />
-        <Stack.Screen name="auth/callback" />
-        <Stack.Protected guard={ready && !userId}>
-          <Stack.Screen name="(auth)" />
-        </Stack.Protected>
-        <Stack.Protected guard={ready && Boolean(userId)}>
-          <Stack.Screen name="(app)" />
-        </Stack.Protected>
-      </Stack>
-    </View>
+    <NavigationThemeProvider value={navigationTheme}>
+      <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
+        <ThemeBackdrop />
+        <StatusBar style={theme.isLight ? 'dark' : 'light'} />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: scenic ? 'transparent' : theme.colors.background },
+          }}
+        >
+          <Stack.Screen name="index" />
+          <Stack.Screen name="auth/callback" />
+          <Stack.Protected guard={ready && !userId}>
+            <Stack.Screen name="(auth)" />
+          </Stack.Protected>
+          <Stack.Protected guard={ready && Boolean(userId)}>
+            <Stack.Screen name="(app)" />
+          </Stack.Protected>
+        </Stack>
+      </View>
+    </NavigationThemeProvider>
   );
 }
 
