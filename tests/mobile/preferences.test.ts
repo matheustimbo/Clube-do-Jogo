@@ -105,6 +105,6 @@ test('preference scopes separate accounts and demo from one another', () => {
   assert.notEqual(member, demo);
   assert.notEqual(mobilePreferencesStorageKey(null, false, 1), mobilePreferencesStorageKey(null, false, 2));
   assert.deepEqual(normalizeMobilePreferences({ themeId: 'locked', reduceMotion: true, ratingScale: 7 }), {
-    themeId: 'original', reduceMotion: true, audioEnabled: true, ratingScale: 10,
+    themeId: 'original', reduceMotion: true, audioEnabled: false, ratingScale: 10,
   });
 });

@@ -172,3 +172,30 @@ test('demo grants derive from the demo cycle and seen state remains account scop
   assert.deepEqual(await client.read({ userId: 'luiza', isDemo: true }), []);
   await assert.rejects(client.acknowledge({ userId: 'luiza', isDemo: true, grantId: 'demo-ori-reward' }), /não encontrada/i);
 });
+
+
+test('reward consumers share a channel and release it only after the last unsubscribe', () => {
+  const backend = fakeSupabase('member', []);
+  const firstEvents: RewardRealtimeEvent[] = [];
+  const secondEvents: RewardRealtimeEvent[] = [];
+  const first = createRewardsClient({ supabase: backend.supabase });
+  const second = createRewardsClient({ supabase: backend.supabase });
+  const stopFirst = first.subscribe({ userId: 'member', isDemo: false, onEvent: event => firstEvents.push(event) });
+  const stopSecond = second.subscribe({ userId: 'member', isDemo: false, onEvent: event => secondEvents.push(event) });
+  assert.equal(backend.channels.length, 1);
+  backend.channels[0].emit({ eventType: 'INSERT', new: { id: 'grant-1', user_id: 'member' }, old: {} });
+  assert.equal(firstEvents.length, 1);
+  assert.equal(secondEvents.length, 1);
+  stopFirst();
+  assert.equal(backend.removedChannels, 0);
+  backend.channels[0].emit({ eventType: 'INSERT', new: { id: 'grant-2', user_id: 'member' }, old: {} });
+  assert.equal(firstEvents.length, 1);
+  assert.equal(secondEvents.length, 2);
+  stopSecond();
+  stopSecond();
+  assert.equal(backend.removedChannels, 1);
+  const stopThird = first.subscribe({ userId: 'member', isDemo: false, onEvent: event => firstEvents.push(event) });
+  assert.equal(backend.channels.length, 2);
+  stopThird();
+  assert.equal(backend.removedChannels, 2);
+});

@@ -51,21 +51,21 @@ export function useMobilePreferences(): MobilePreferencesState {
   const epoch = context.sessionEpoch;
   const canWrite = context.ready && Boolean(context.userId) && context.isSessionCurrent(epoch);
   const setThemeId = React.useCallback((themeId: ThemeId) => {
-    if (!canWrite || !isThemeId(themeId) || !selectableTheme(unlockedIds, themeId)) return;
+    if (!canWrite || !context.isSessionCurrent(epoch) || !isThemeId(themeId) || !selectableTheme(unlockedIds, themeId)) return;
     setStored(current => ({ ...current, themeId }));
-  }, [canWrite, setStored, unlockedIds]);
+  }, [canWrite, context, epoch, setStored, unlockedIds]);
   const setReduceMotion = React.useCallback((reduceMotion: boolean) => {
-    if (!canWrite || typeof reduceMotion !== 'boolean') return;
+    if (!canWrite || !context.isSessionCurrent(epoch) || typeof reduceMotion !== 'boolean') return;
     setStored(current => ({ ...current, reduceMotion }));
-  }, [canWrite, setStored]);
+  }, [canWrite, context, epoch, setStored]);
   const setAudioEnabled = React.useCallback((audioEnabled: boolean) => {
-    if (!canWrite || typeof audioEnabled !== 'boolean') return;
+    if (!canWrite || !context.isSessionCurrent(epoch) || typeof audioEnabled !== 'boolean') return;
     setStored(current => ({ ...current, audioEnabled }));
-  }, [canWrite, setStored]);
+  }, [canWrite, context, epoch, setStored]);
   const setRatingScale = React.useCallback((ratingScale: RatingScale) => {
-    if (!canWrite || (ratingScale !== 5 && ratingScale !== 10)) return;
+    if (!canWrite || !context.isSessionCurrent(epoch) || (ratingScale !== 5 && ratingScale !== 10)) return;
     setStored(current => ({ ...current, ratingScale }));
-  }, [canWrite, setStored]);
+  }, [canWrite, context, epoch, setStored]);
   return {
     themeId: visibleThemeId,
     reduceMotion: stored.reduceMotion,

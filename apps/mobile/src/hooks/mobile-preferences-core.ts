@@ -11,7 +11,7 @@ export interface MobilePreferences {
 export const DEFAULT_MOBILE_PREFERENCES: MobilePreferences = {
   themeId: DEFAULT_THEME,
   reduceMotion: false,
-  audioEnabled: true,
+  audioEnabled: false,
   ratingScale: 10,
 };
 

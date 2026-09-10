@@ -218,31 +218,51 @@ function eventFromPayload(
   };
 }
 
+type RewardSubscription = {
+  channel: RealtimeChannel | null;
+  listeners: Set<RewardsSubscriptionOptions>;
+  seen: Set<string>;
+  status?: string;
+};
+
+const subscriptions = new WeakMap<SupabaseClient, Map<string, RewardSubscription>>();
+let subscriptionId = 0;
+
 function subscribeRemote(supabase: SupabaseClient, input: RewardsSubscriptionOptions): () => void {
-  const seen = new Set<string>();
-  let active = true;
-  let channel: RealtimeChannel | null = null;
-  const dispatch = (payload: RealtimePostgresChangesPayload<Row>) => {
-    if (!active) return;
-    const event = eventFromPayload(payload, input);
-    if (!event || seen.has(event.key)) return;
-    seen.add(event.key);
-    if (seen.size > 500) seen.delete(seen.values().next().value as string);
-    input.onEvent(event);
-  };
-  channel = supabase
-    .channel(`reward-grants:${input.userId}`)
-    .on('postgres_changes', {
-      event: '*', schema: 'public', table: 'user_reward_grants', filter: `user_id=eq.${input.userId}`,
-    }, dispatch)
-    .subscribe(status => {
-      if (active) input.onStatus?.(status);
-    });
+  let accounts = subscriptions.get(supabase);
+  if (!accounts) {
+    accounts = new Map();
+    subscriptions.set(supabase, accounts);
+  }
+  let subscription = accounts.get(input.userId);
+  if (subscription) {
+    subscription.listeners.add(input);
+    if (subscription.status) input.onStatus?.(subscription.status);
+  } else {
+    const created: RewardSubscription = { channel: null, listeners: new Set([input]), seen: new Set() };
+    subscription = created;
+    accounts.set(input.userId, created);
+    created.channel = supabase
+      .channel(`reward-grants:${input.userId}:${++subscriptionId}`)
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'user_reward_grants', filter: `user_id=eq.${input.userId}`,
+      }, payload => {
+        const event = eventFromPayload(payload, input);
+        if (!event || created.seen.has(event.key)) return;
+        created.seen.add(event.key);
+        if (created.seen.size > 500) created.seen.delete(created.seen.values().next().value as string);
+        for (const listener of created.listeners) listener.onEvent(event);
+      })
+      .subscribe(status => {
+        created.status = status;
+        for (const listener of created.listeners) listener.onStatus?.(status);
+      });
+  }
+  const current = subscription;
   return () => {
-    if (!active) return;
-    active = false;
-    if (channel) void supabase.removeChannel(channel);
-    channel = null;
+    if (!current.listeners.delete(input) || current.listeners.size > 0) return;
+    accounts.delete(input.userId);
+    if (current.channel) void supabase.removeChannel(current.channel);
   };
 }
 
