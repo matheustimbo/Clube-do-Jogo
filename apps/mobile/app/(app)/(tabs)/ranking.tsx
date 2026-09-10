@@ -5,14 +5,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { AppHeader } from '@/components/AppHeader';
+import { AddGameToVoteSheet } from '@/components/AddGameToVoteSheet';
 import { PreferenceButtons } from '@/components/PreferenceButtons';
+import { PreferenceParticipantsSheet } from '@/components/PreferenceParticipantsSheet';
 import { VoteReasonSheet, voteReasonLabel } from '@/components/VoteReasonSheet';
 import { EmptyState, ErrorState, LoadingState } from '@/components/StateViews';
-import { formatShortDate } from '@/lib/format';
+import { formatMonth, formatShortDate, shiftMonth } from '@/lib/format';
 import { useApp } from '@/state/app-provider';
 import { useRanking, useVote } from '@/state/queries';
 import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
-import type { RankingItem, VoteChoice, VoteReason } from '@clube-do-jogo/domain';
+import type { Game, RankingItem, VoteChoice, VoteReason } from '@clube-do-jogo/domain';
 
 function withPlacements(items: RankingItem[]) {
   let lastScore: number | null = null;
@@ -28,11 +30,14 @@ export default function RankingScreen() {
   const colors = useThemeColors();
   const styles = useStyles();
   const router = useRouter();
-  const { isHistorical } = useApp();
+  const { isHistorical, selectedMonth } = useApp();
+  const voteMonth = shiftMonth(selectedMonth, 1);
   const rankingQuery = useRanking();
   const vote = useVote();
-  const [reasonTarget, setReasonTarget] = useState<RankingItem | null>(null);
+  const [reasonTarget, setReasonTarget] = useState<{ item?: RankingItem; game?: Game } | null>(null);
   const [reasonToken, setReasonToken] = useState(0);
+  const [addSheetOpen, setAddSheetOpen] = useState(false);
+  const [participantsTarget, setParticipantsTarget] = useState<{ item: RankingItem; choice: VoteChoice } | null>(null);
 
   const ranking = useMemo(() => rankingQuery.data ?? [], [rankingQuery.data]);
   const placedRanking = useMemo(() => withPlacements(ranking), [ranking]);
@@ -45,22 +50,54 @@ export default function RankingScreen() {
         return;
       }
       setReasonToken(token => token + 1);
-      setReasonTarget(item);
+      setReasonTarget({ item });
       return;
     }
     vote.mutate({ gameId: item.game.id, choice: item.myChoice === choice ? null : choice });
+  }
+
+  function chooseSearch(game: Game, choice: VoteChoice) {
+    if (isHistorical) return;
+    const existing = ranking.find(item => item.game.id === game.id);
+    if (existing) {
+      choose(existing, choice);
+      return;
+    }
+    if (choice === 'would_not_play') {
+      setReasonToken(token => token + 1);
+      setReasonTarget({ game });
+      return;
+    }
+    vote.mutate({ gameId: game.id, choice: 'would_play' });
   }
 
   function confirmReason(reason: VoteReason, reasonText: string | null) {
     if (!reasonTarget) return;
     const target = reasonTarget;
     setReasonTarget(null);
-    vote.mutate({ gameId: target.game.id, choice: 'would_not_play', reason, reasonText: reasonText ?? undefined });
+    if (target.item) {
+      vote.mutate({ gameId: target.item.game.id, choice: 'would_not_play', reason, reasonText: reasonText ?? undefined });
+    } else if (target.game) {
+      vote.mutate({ gameId: target.game.id, choice: 'would_not_play', reason, reasonText: reasonText ?? undefined });
+    }
   }
 
   return (
     <Screen onRefresh={() => rankingQuery.refetch()} refreshing={rankingQuery.isRefetching}>
-      <AppHeader title="Ranking" subtitle={isHistorical ? 'Resultado preservado do ciclo encerrado' : 'Vote nos jogos do próximo ciclo'} />
+      <AppHeader
+        title={`Votação para ${formatMonth(voteMonth, { includeYear: isHistorical })}`}
+        subtitle={isHistorical ? 'Resultado preservado do ciclo encerrado' : 'Vote nos jogos do próximo ciclo'}
+        right={!isHistorical ? (
+          <Pressable
+            onPress={() => setAddSheetOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Adicionar jogo à votação"
+            style={styles.addButton}
+          >
+            <Ionicons name="add" size={20} color={colors.violet300} />
+          </Pressable>
+        ) : undefined}
+      />
 
       {vote.isError ? <Text style={styles.formError}>{vote.error?.message}</Text> : null}
 
@@ -97,14 +134,24 @@ export default function RankingScreen() {
               </Pressable>
 
               <View style={styles.countsRow}>
-                <View style={styles.countChip}>
+                <Pressable
+                  onPress={() => setParticipantsTarget({ item, choice: 'would_play' })}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Ver quem votou Jogaria em ${item.game.title}`}
+                  style={styles.countChip}
+                >
                   <Ionicons name="thumbs-up" size={13} color={colors.emerald400} />
                   <Text style={styles.countText}>{item.choiceCounts.would_play}</Text>
-                </View>
-                <View style={styles.countChip}>
+                </Pressable>
+                <Pressable
+                  onPress={() => setParticipantsTarget({ item, choice: 'would_not_play' })}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Ver quem votou Não em ${item.game.title}`}
+                  style={styles.countChip}
+                >
                   <Ionicons name="thumbs-down" size={13} color={colors.red400} />
                   <Text style={styles.countText}>{item.choiceCounts.would_not_play}</Text>
-                </View>
+                </Pressable>
               </View>
 
               {item.myChoice === 'would_not_play' && item.myReason ? (
@@ -120,16 +167,41 @@ export default function RankingScreen() {
       <VoteReasonSheet
         key={reasonToken}
         visible={Boolean(reasonTarget)}
-        initialReason={reasonTarget?.myReason}
-        initialText={reasonTarget?.myReasonText}
+        initialReason={reasonTarget?.item?.myReason}
+        initialText={reasonTarget?.item?.myReasonText}
         onClose={() => setReasonTarget(null)}
         onConfirm={confirmReason}
+      />
+
+      <AddGameToVoteSheet
+        visible={addSheetOpen}
+        onClose={() => setAddSheetOpen(false)}
+        ranking={ranking}
+        onChoose={chooseSearch}
+      />
+
+      <PreferenceParticipantsSheet
+        key={participantsTarget ? `${participantsTarget.item.game.id}:${participantsTarget.choice}` : 'closed'}
+        visible={Boolean(participantsTarget)}
+        onClose={() => setParticipantsTarget(null)}
+        profiles={participantsTarget?.item.choiceProfiles ?? { would_play: [], would_not_play: [] }}
+        initialChoice={participantsTarget?.choice ?? 'would_play'}
       />
     </Screen>
   );
 }
 
 const useStyles = themedStyles(colors => ({
+  addButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    backgroundColor: colors.surfaceSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   formError: { color: colors.red300, fontSize: 11, fontWeight: '600', marginBottom: spacing.md },
   list: { gap: spacing.md },
   card: {
