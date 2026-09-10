@@ -53,10 +53,13 @@ export function useThemeAudioEngine({ active, mode }: { active: boolean; mode: C
     } else {
       controller.deactivate();
     }
-    return () => {
-      controller.deactivate();
-    };
   }, [active, controller, mode]);
+
+  useLayoutEffect(() => {
+    return () => {
+      controller.dispose();
+    };
+  }, [controller]);
 
   const current = active && controller.isModeActive(mode);
   return {

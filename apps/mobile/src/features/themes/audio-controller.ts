@@ -2,10 +2,12 @@ export type CosmicSceneMode = 'hearth' | 'spaceflight';
 export type ThemeAudioSignal = 'enable' | 'press' | 'select' | 'open' | 'close' | 'navigate';
 
 export interface ThemeAudioPlayerStatus {
+  isLoaded: boolean;
   error: string | null;
 }
 
 export interface ThemeAudioPlayer {
+  readonly currentStatus: ThemeAudioPlayerStatus;
   loop: boolean;
   volume: number;
   pause(): void;
@@ -51,6 +53,8 @@ interface PlayerResources {
   ambience: ThemeAudioPlayer | null;
   signals: Partial<Record<ThemeAudioSignal, ThemeAudioPlayer>>;
   subscriptions: Array<{ remove(): void }>;
+  loadedPlayers: Set<ThemeAudioPlayer>;
+  ambienceStarted: boolean;
   released: boolean;
 }
 
@@ -91,6 +95,7 @@ export function createThemeAudioController({
   let desiredMode: CosmicSceneMode | null = null;
   let epoch = 0;
   let resources: PlayerResources | null = null;
+  let pendingModeSignal = false;
   const listeners = new Set<() => void>();
   const signalTokens: Record<ThemeAudioSignal, number> = {
     enable: 0,
@@ -130,6 +135,55 @@ export function createThemeAudioController({
     publish({ ready: false, error: describe(failure) });
   }
 
+  function maybePlayModeSignal(targetResources: PlayerResources): void {
+    const player = targetResources.signals.navigate;
+    if (
+      !pendingModeSignal ||
+      !player ||
+      !targetResources.loadedPlayers.has(player) ||
+      !snapshot.ready ||
+      !isCurrent(targetResources.epoch, targetResources)
+    ) {
+      return;
+    }
+    pendingModeSignal = false;
+    const token = signalTokens.navigate + 1;
+    signalTokens.navigate = token;
+    void restartSignal('navigate', player, targetResources, token);
+  }
+
+  function updatePlayerStatus(
+    targetResources: PlayerResources,
+    player: ThemeAudioPlayer,
+    status: ThemeAudioPlayerStatus,
+  ): void {
+    if (!isCurrent(targetResources.epoch, targetResources)) return;
+    if (status.error) {
+      fail(targetResources.epoch, status.error, targetResources);
+      return;
+    }
+    if (status.isLoaded) targetResources.loadedPlayers.add(player);
+    else targetResources.loadedPlayers.delete(player);
+
+    if (player === targetResources.ambience) {
+      if (status.isLoaded && !targetResources.ambienceStarted) {
+        targetResources.ambienceStarted = true;
+        try {
+          player.play();
+        } catch (failure) {
+          fail(targetResources.epoch, failure, targetResources);
+          return;
+        }
+      }
+      if (!isCurrent(targetResources.epoch, targetResources)) return;
+      publish({
+        ready: targetResources.ambienceStarted && targetResources.loadedPlayers.has(player),
+        error: null,
+      });
+    }
+    maybePlayModeSignal(targetResources);
+  }
+
   async function prepare(targetEpoch: number, mode: CosmicSceneMode): Promise<void> {
     try {
       await platform.configureMode();
@@ -145,6 +199,8 @@ export function createThemeAudioController({
       ambience: null,
       signals: {},
       subscriptions: [],
+      loadedPlayers: new Set(),
+      ambienceStarted: false,
       released: false,
     };
     try {
@@ -163,7 +219,7 @@ export function createThemeAudioController({
 
       for (const player of created.players) {
         const subscription = player.addListener('playbackStatusUpdate', status => {
-          if (status.error) fail(targetEpoch, status.error, created);
+          updatePlayerStatus(created, player, status);
         });
         created.subscriptions.push(subscription);
       }
@@ -173,24 +229,32 @@ export function createThemeAudioController({
         return;
       }
       resources = created;
-      ambience.play();
-      if (!isCurrent(targetEpoch, created)) return;
-      publish({ ready: true, error: null });
+      for (const player of created.players) {
+        if (!isCurrent(targetEpoch, created)) break;
+        updatePlayerStatus(created, player, player.currentStatus);
+      }
     } catch (failure) {
       releaseResources(created);
       fail(targetEpoch, failure, resources === created ? created : undefined);
     }
   }
 
-  function activate(mode: CosmicSceneMode): void {
+  function startSession(mode: CosmicSceneMode): void {
     const targetEpoch = invalidate();
     desiredMode = mode;
     publish({ ready: false, error: null });
     void prepare(targetEpoch, mode);
   }
 
+  function activate(mode: CosmicSceneMode): void {
+    if (desiredMode === mode) return;
+    pendingModeSignal = desiredMode !== null;
+    startSession(mode);
+  }
+
   function deactivate(): void {
     desiredMode = null;
+    pendingModeSignal = false;
     invalidate();
     publish({ ready: false, error: null });
   }
@@ -207,6 +271,7 @@ export function createThemeAudioController({
       await player.seekTo(0);
       if (
         !isCurrent(targetResources.epoch, targetResources) ||
+        !targetResources.loadedPlayers.has(player) ||
         !snapshot.ready ||
         signalTokens[signal] !== token
       ) {
@@ -227,14 +292,23 @@ export function createThemeAudioController({
   function playSignal(signal: ThemeAudioSignal): void {
     const current = resources;
     const player = current?.signals[signal];
-    if (!current || !player || !snapshot.ready || !isCurrent(current.epoch, current)) return;
+    if (
+      !current ||
+      !player ||
+      !current.loadedPlayers.has(player) ||
+      !snapshot.ready ||
+      !isCurrent(current.epoch, current)
+    ) {
+      return;
+    }
     const token = signalTokens[signal] + 1;
     signalTokens[signal] = token;
     void restartSignal(signal, player, current, token);
   }
 
   function retry(): void {
-    if (desiredMode !== null) activate(desiredMode);
+    if (desiredMode === null) return;
+    startSession(desiredMode);
   }
 
   return {

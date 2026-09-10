@@ -66,10 +66,7 @@ export function ThemeSceneCard() {
             return (
               <Pressable
                 key={option.id}
-                onPress={() => {
-                  setMode(option.id);
-                  audio.playSignal('navigate');
-                }}
+                onPress={() => setMode(option.id)}
                 accessibilityRole="radio"
                 accessibilityState={{ selected: active, checked: active }}
                 accessibilityLabel={option.label}

@@ -21,6 +21,7 @@ class Deferred<T> {
 }
 
 class FakePlayer implements ThemeAudioPlayer {
+  currentStatus: ThemeAudioPlayerStatus = { isLoaded: false, error: null };
   loop = false;
   volume = 1;
   pauses = 0;
@@ -65,16 +66,22 @@ class FakePlayer implements ThemeAudioPlayer {
   }
 
   emit(status: ThemeAudioPlayerStatus) {
+    this.currentStatus = status;
     for (const listener of [...this.listeners]) listener(status);
   }
 
   emitRetained(status: ThemeAudioPlayerStatus) {
+    this.currentStatus = status;
     for (const listener of this.retainedListeners) listener(status);
   }
 }
 
 function flush() {
   return new Promise<void>(resolve => setImmediate(resolve));
+}
+
+function loadPlayers(players: FakePlayer[]) {
+  for (const player of players) player.emit({ isLoaded: true, error: null });
 }
 
 function fixture(configureMode: () => Promise<void> = async () => undefined) {
@@ -113,9 +120,10 @@ test('configura o modo antes de criar ou tocar players e cancelamento impede con
 });
 
 test('seek antigo não toca nem publica erro depois de off e nova ativação', async () => {
-  const { controller, bySource } = fixture();
+  const { controller, players, bySource } = fixture();
   controller.activate('hearth');
   await flush();
+  loadPlayers(players);
   const oldSignal = bySource(4)[0];
   assert.ok(oldSignal);
 
@@ -125,12 +133,13 @@ test('seek antigo não toca nem publica erro depois de off e nova ativação', a
   controller.deactivate();
   controller.activate('spaceflight');
   await flush();
+  loadPlayers(players.slice(7));
   const newSignal = bySource(4)[1];
   assert.ok(newSignal);
 
   oldSignal.seekRequests[0].resolve();
   oldSignal.seekRequests[1].reject(new Error('erro antigo'));
-  oldSignal.emitRetained({ error: 'status antigo' });
+  oldSignal.emitRetained({ isLoaded: false, error: 'status antigo' });
   await flush();
   assert.equal(oldSignal.plays, 0);
   assert.equal(controller.getSnapshot().error, null);
@@ -144,9 +153,10 @@ test('seek antigo não toca nem publica erro depois de off e nova ativação', a
 });
 
 test('somente o sinal sobreposto mais recente pode tocar', async () => {
-  const { controller, bySource } = fixture();
+  const { controller, players, bySource } = fixture();
   controller.activate('hearth');
   await flush();
+  loadPlayers(players);
   const signal = bySource(5)[0];
 
   controller.playSignal('select');
@@ -159,18 +169,19 @@ test('somente o sinal sobreposto mais recente pode tocar', async () => {
   assert.equal(signal.plays, 1);
 });
 
-test('falha atual é recuperável e retry cria e toca uma sessão nova', async () => {
-  const { controller, bySource } = fixture();
+test('falha antes do carregamento é recuperável e retry cria e toca uma sessão nova', async () => {
+  const { controller, players, bySource } = fixture();
   controller.activate('hearth');
   await flush();
   const firstAmbience = bySource(1)[0];
-  firstAmbience.emit({ error: 'falha do decoder' });
+  firstAmbience.emit({ isLoaded: false, error: 'falha do decoder' });
 
   assert.deepEqual(controller.getSnapshot(), { ready: false, error: 'falha do decoder' });
   assert.equal(firstAmbience.releases, 1);
 
   controller.retry();
   await flush();
+  loadPlayers(players.slice(7));
   const secondAmbience = bySource(1)[1];
   assert.deepEqual(controller.getSnapshot(), { ready: true, error: null });
   assert.equal(secondAmbience.plays, 1);
@@ -190,6 +201,7 @@ test('retry repete configuração que falhou antes de criar players', async () =
 
   controller.retry();
   await flush();
+  loadPlayers(players);
   assert.equal(attempts, 2);
   assert.deepEqual(controller.getSnapshot(), { ready: true, error: null });
   assert.equal(players.length, 7);
@@ -214,19 +226,22 @@ test('exceção síncrona de play libera a sessão e fica recuperável', async (
 
   controller.activate('hearth');
   await flush();
+  loadPlayers(players);
   assert.deepEqual(controller.getSnapshot(), { ready: false, error: 'play falhou' });
   assert.ok(players.every(player => player.releases === 1));
 
   failPlay = false;
   controller.retry();
   await flush();
+  loadPlayers(players.slice(7));
   assert.deepEqual(controller.getSnapshot(), { ready: true, error: null });
 });
 
 test('falha de seek atual aparece e rejeição obsoleta é descartada', async () => {
-  const { controller, bySource } = fixture();
+  const { controller, players, bySource } = fixture();
   controller.activate('hearth');
   await flush();
+  loadPlayers(players);
   const signal = bySource(3)[0];
 
   controller.playSignal('enable');
@@ -266,7 +281,84 @@ test('criação parcial e dispose liberam todos os players criados', async () =>
 
   controller.retry();
   await flush();
+  loadPlayers(players.slice(3));
   controller.dispose();
   assert.ok(players.every(player => player.releases === 1));
   assert.deepEqual(controller.getSnapshot(), { ready: false, error: null });
+});
+
+test('publica ready somente após a ambiência carregar e exige carregamento do sinal', async () => {
+  const { controller, bySource } = fixture();
+
+  controller.activate('hearth');
+  await flush();
+
+  assert.deepEqual(controller.getSnapshot(), { ready: false, error: null });
+  const ambience = bySource(1)[0];
+  const press = bySource(4)[0];
+  const select = bySource(5)[0];
+  press.emit({ isLoaded: true, error: null });
+  assert.deepEqual(controller.getSnapshot(), { ready: false, error: null });
+  assert.equal(ambience.plays, 0);
+
+  ambience.emit({ isLoaded: true, error: null });
+  assert.deepEqual(controller.getSnapshot(), { ready: true, error: null });
+  assert.equal(ambience.plays, 1);
+
+  controller.playSignal('select');
+  assert.equal(select.seekRequests.length, 0);
+  controller.playSignal('press');
+  assert.equal(press.seekRequests.length, 1);
+});
+
+test('ativar o mesmo modo novamente não recria a sessão', async () => {
+  const { controller, players } = fixture();
+
+  controller.activate('hearth');
+  await flush();
+  controller.activate('hearth');
+  await flush();
+
+  assert.equal(players.length, 7);
+});
+
+test('troca de modo toca navigate uma vez somente após o player novo ficar pronto', async () => {
+  const { controller, players, bySource } = fixture();
+
+  controller.activate('hearth');
+  await flush();
+  loadPlayers(players);
+  controller.activate('spaceflight');
+  await flush();
+
+  const ambience = bySource(2)[0];
+  const navigate = bySource(8)[1];
+  assert.deepEqual(controller.getSnapshot(), { ready: false, error: null });
+  assert.equal(navigate.seekRequests.length, 0);
+
+  navigate.emit({ isLoaded: true, error: null });
+  assert.equal(navigate.seekRequests.length, 0);
+  ambience.emit({ isLoaded: true, error: null });
+  assert.deepEqual(controller.getSnapshot(), { ready: true, error: null });
+  assert.equal(navigate.seekRequests.length, 1);
+
+  navigate.seekRequests[0].resolve();
+  await flush();
+  navigate.emit({ isLoaded: true, error: null });
+  assert.equal(navigate.plays, 1);
+  assert.equal(navigate.seekRequests.length, 1);
+});
+
+test('desativação antes do carregamento libera e bloqueia status tardio', async () => {
+  const { controller, players, bySource } = fixture();
+
+  controller.activate('hearth');
+  await flush();
+  const ambience = bySource(1)[0];
+  controller.deactivate();
+  ambience.emitRetained({ isLoaded: true, error: null });
+
+  assert.deepEqual(controller.getSnapshot(), { ready: false, error: null });
+  assert.equal(ambience.plays, 0);
+  assert.ok(players.every(player => player.releases === 1));
 });
