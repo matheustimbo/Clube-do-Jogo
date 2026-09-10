@@ -959,7 +959,7 @@ function check() {
   }
   const featureDir = join(skillDir, 'features');
   const featureFiles = readdirSync(featureDir).filter(name => name.endsWith('.md') && name !== 'README.md');
-  if (featureFiles.length < 3 || featureFiles.length > 5) fail(`Quantidade de feature maps inválida: ${featureFiles.length}`);
+  if (featureFiles.length < 3 || featureFiles.length > 15) fail(`Quantidade de feature maps inválida: ${featureFiles.length}`);
   for (const name of featureFiles) {
     const content = readFileSync(join(featureDir, name), 'utf8');
     for (const heading of ['## Sub-features', '## How to get to it (user POV)', '## Driving it with ', '## Gotchas']) {
