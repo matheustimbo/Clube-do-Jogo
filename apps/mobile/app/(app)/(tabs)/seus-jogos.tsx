@@ -9,6 +9,7 @@ import { GameListRow } from '@/components/GameListRow';
 import { StatusPill } from '@/components/StatusPill';
 import { Sheet } from '@/components/Sheet';
 import { EmptyState, ErrorState, LoadingState } from '@/components/StateViews';
+import { PlatformPicker } from '@/features/profile/PlatformPicker';
 import { useBacklog, useFavorite, useLibrary, useSetProgress } from '@/state/queries';
 import { usePersistentState } from '@/hooks/use-persistent-state';
 import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
@@ -51,6 +52,8 @@ export default function YourGamesScreen() {
   const [search, setSearch] = useState('');
   const [actionsTarget, setActionsTarget] = useState<LibraryGame | null>(null);
   const [sortSheetOpen, setSortSheetOpen] = useState(false);
+  const [platformsOpen, setPlatformsOpen] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<LibraryGame | null>(null);
 
   const visible = useMemo(() => {
     const library = libraryQuery.data?.library ?? [];
@@ -82,9 +85,15 @@ export default function YourGamesScreen() {
     setProgress.mutate({ gameId: item.game.id, status });
   }
 
-  function removeFromLibrary(item: LibraryGame) {
+  function requestRemoveFromLibrary(item: LibraryGame) {
     setActionsTarget(null);
-    backlog.mutate({ gameId: item.game.id, inBacklog: false });
+    setRemoveTarget(item);
+  }
+
+  function confirmRemoveFromLibrary() {
+    if (!removeTarget) return;
+    backlog.mutate({ gameId: removeTarget.game.id, inBacklog: false });
+    setRemoveTarget(null);
   }
 
   const mutationError = backlog.error || favorite.error || setProgress.error;
@@ -124,7 +133,20 @@ export default function YourGamesScreen() {
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={
           <View>
-            <AppHeader title="Meus jogos" subtitle="Sua biblioteca pessoal" />
+            <AppHeader
+              title="Meus jogos"
+              subtitle="Sua biblioteca pessoal"
+              right={
+                <Pressable
+                  onPress={() => setPlatformsOpen(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Gerenciar consoles"
+                  style={styles.platformsButton}
+                >
+                  <Ionicons name="game-controller-outline" size={18} color={colors.violet300} />
+                </Pressable>
+              }
+            />
 
             <View style={styles.searchField}>
               <Ionicons name="search" size={16} color={colors.zinc600} />
@@ -216,7 +238,7 @@ export default function YourGamesScreen() {
               </Pressable>
             ))}
             <Pressable
-              onPress={() => removeFromLibrary(actionsTarget)}
+              onPress={() => requestRemoveFromLibrary(actionsTarget)}
               accessibilityRole="button"
               accessibilityLabel="Remover de Meus Jogos"
               style={[styles.sheetItem, styles.sheetItemDanger]}
@@ -227,6 +249,32 @@ export default function YourGamesScreen() {
           </View>
         ) : null}
       </Sheet>
+
+      <Sheet visible={Boolean(removeTarget)} title="Remover de Meus Jogos" onClose={() => setRemoveTarget(null)}>
+        <View style={styles.sheetBody}>
+          <Text style={styles.confirmText}>{removeTarget?.game.title}</Text>
+          <View style={styles.confirmActions}>
+            <Pressable
+              onPress={() => setRemoveTarget(null)}
+              accessibilityRole="button"
+              accessibilityLabel="Cancelar"
+              style={styles.confirmButton}
+            >
+              <Text style={styles.confirmButtonLabel}>Cancelar</Text>
+            </Pressable>
+            <Pressable
+              onPress={confirmRemoveFromLibrary}
+              accessibilityRole="button"
+              accessibilityLabel="Remover"
+              style={[styles.confirmButton, styles.confirmButtonDanger]}
+            >
+              <Text style={[styles.confirmButtonLabel, styles.confirmButtonDangerLabel]}>Remover</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Sheet>
+
+      <PlatformPicker visible={platformsOpen} onClose={() => setPlatformsOpen(false)} />
     </Screen>
   );
 }
@@ -262,4 +310,11 @@ const useStyles = themedStyles(colors => ({
   sheetItemLabel: { ...typography.small, color: colors.zinc300 },
   sheetItemDanger: { backgroundColor: 'rgba(239,68,68,0.08)' },
   sheetItemDangerLabel: { color: colors.red300 },
+  platformsButton: { width: 40, height: 40, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.hairline, backgroundColor: colors.surfaceSoft, alignItems: 'center', justifyContent: 'center' },
+  confirmText: { ...typography.small, color: colors.zinc400 },
+  confirmActions: { flexDirection: 'row', gap: spacing.sm },
+  confirmButton: { flex: 1, height: 44, borderRadius: radii.lg, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceSofter },
+  confirmButtonLabel: { ...typography.small, fontWeight: '700', color: colors.foreground },
+  confirmButtonDanger: { backgroundColor: colors.red600 },
+  confirmButtonDangerLabel: { color: '#fff' },
 }));
