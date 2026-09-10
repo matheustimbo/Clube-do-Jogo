@@ -17,7 +17,7 @@ Os comandos Android/iOS geram os projetos nativos pelo Expo. `android`, `ios`, `
 
 O identificador local é `com.clubedojogo.mobile.dev`. Um build EAS de produção exige `EXPO_APPLICATION_ID` explícito. As configurações de EAS não criam um projeto remoto nem publicam o aplicativo.
 
-O Expo usa React 19.2.3, conforme o SDK 57, e a web mantém React 19.2.4. A resolução por autolinking mantém somente a cópia do mobile em cada bundle nativo. `expo-router` também é uma dependência de desenvolvimento da raiz porque a geração de rotas tipadas do CLI precisa resolver esse pacote a partir do CLI instalado na raiz.
+O Expo usa React 19.2.3, conforme o SDK 57, e a web mantém React 19.2.4. A resolução por autolinking mantém somente a cópia do mobile em cada bundle nativo. O Expo Doctor reporta essas duas instalações no disco (20/21 checks), embora a exportação inclua somente uma cópia de React por bundle; o aviso permanece visível. Esse uso segue o [autolinking do Expo](https://docs.expo.dev/modules/autolinking/#working-around-duplicates). `expo-router` também é uma dependência de desenvolvimento da raiz porque a geração de rotas tipadas do CLI precisa resolver esse pacote a partir do CLI instalado na raiz.
 
 ## Destino da prova de conceito
 
@@ -51,4 +51,4 @@ npm run test:domain executa as regras de empate, fórmula legacy, mês seguinte,
 
 ## Estado da implementação
 
-A primeira versão inclui sessão, cinco abas, jogo do mês, ranking, votos com motivo, progresso, detalhes de jogos, biblioteca e leitura de perfis. Avaliações e descoberta paginada estão em implementação. A migração completa ainda depende das próximas etapas de mídia, notas e conversas, administração, temas, recompensas e push nativo.
+A primeira versão inclui sessão, cinco abas, jogo do mês, ranking, votos com motivo, progresso, detalhes de jogos, biblioteca e leitura de perfis. Avaliações simples/detalhadas e descoberta paginada estão integradas; a validação de UI está em andamento. A migração completa ainda depende das próximas etapas de mídia, notas e conversas, administração, temas, recompensas e push nativo.

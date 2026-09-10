@@ -258,6 +258,10 @@ test('Next rejeita Bearer inválido sem herdar cookie de sessão', {
     : 'SKIP: defina LOCAL_NEXT_API_URL e LOCAL_NEXT_API_COOKIE para testar o servidor local',
   concurrency: false,
 }, async () => {
+  const authenticated = await fetch(`${localNextUrl}/api/discover?source=friends&limit=1`, {
+    headers: { Cookie: localNextCookie as string },
+  });
+  assert.equal(authenticated.status, 200, 'A fixture precisa comprovar uma sessão web válida');
   const response = await fetch(`${localNextUrl}/api/discover?source=friends&limit=1`, {
     headers: {
       Authorization: 'Bearer invalid-auth-validation-token',

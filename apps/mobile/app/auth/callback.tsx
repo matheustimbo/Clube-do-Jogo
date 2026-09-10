@@ -14,6 +14,7 @@ export default function AuthCallbackScreen() {
   const params = useLocalSearchParams<Record<string, string | string[]>>();
   const router = useRouter();
   const { ready, userId } = useApp();
+  const returnLabel = ready && userId ? 'Voltar ao clube' : 'Voltar ao login';
   const [status, setStatus] = useState<Status>('exchanging');
   const [message, setMessage] = useState('');
   const processedKey = useRef<string | null>(null);
@@ -62,7 +63,12 @@ export default function AuthCallbackScreen() {
       {status === 'error' ? (
         <>
           <Text style={styles.errorText} accessibilityRole="alert">{message}</Text>
-          <Button label="Voltar ao login" variant="secondary" onPress={() => router.replace('/(auth)/login')} accessibilityLabel="Voltar ao login" />
+          <Button
+            label={returnLabel}
+            variant="secondary"
+            onPress={() => router.replace(ready && userId ? '/(app)/(tabs)/jogo-do-mes' : '/(auth)/login')}
+            accessibilityLabel={returnLabel}
+          />
         </>
       ) : (
         <>

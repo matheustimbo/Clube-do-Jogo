@@ -14,11 +14,18 @@ appId: com.clubedojogo.mobile.dev
     text: Finalizado
     selected: true
 - tapOn:
-    text: Ranking
+    text: 'Ranking(, tab, 2 of 5)?'
     index: 0
 - extendedWaitUntil:
     visible: Ver detalhes de Hollow Knight
     timeout: 15000
+- runFlow:
+    when:
+      visible:
+        text: Jogaria
+        selected: true
+    commands:
+      - tapOn: Jogaria
 - tapOn: Jogaria
 - assertVisible:
     text: Jogaria
@@ -36,6 +43,6 @@ appId: com.clubedojogo.mobile.dev
     enabled: true
 - assertNotVisible: 'Meu motivo: Não consigo rodar'
 - tapOn:
-    text: Jogo do mês
+    text: 'Jogo do mês(, tab, 1 of 5)?'
     index: 0
 - takeScreenshot: progresso-finalizado

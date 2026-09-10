@@ -32,12 +32,12 @@ export async function completeAuthCallback(url: string, clientOverride?: AuthCal
   if (callbackError) throw new Error(`Não foi possível concluir a autenticação. ${callbackError}`);
   const code = parsed.searchParams.get('code');
   if (!code) throw new Error('O link de autenticação não contém um código. Solicite um novo link.');
+  const client = clientOverride || (await import('./supabase')).getMobileSupabaseClient();
+  if (!client) throw new Error('Configure o Supabase para concluir a autenticação.');
   if (completedCodes.has(code)) return;
   const pending = pendingCallbacks.get(code);
   if (pending) return pending;
 
-  const client = clientOverride || (await import('./supabase')).getMobileSupabaseClient();
-  if (!client) throw new Error('Configure o Supabase para concluir a autenticação.');
   const exchange = client.auth.exchangeCodeForSession(code).then(({ error }) => {
     if (error) throw authError(error);
     completedCodes.add(code);
