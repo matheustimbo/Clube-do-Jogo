@@ -13,8 +13,8 @@ export function GameListRow({ game, onPress, action, subtitle }: {
 }) {
   const colors = useThemeColors();
   const styles = useStyles();
-  const content = (
-    <View style={styles.row}>
+  const details = (
+    <>
       <Image source={{ uri: game.image_url }} style={styles.cover} contentFit="cover" accessibilityLabel={`Capa de ${game.title}`} />
       <View style={styles.info}>
         <Text style={styles.title} numberOfLines={2}>{game.title}</Text>
@@ -24,19 +24,32 @@ export function GameListRow({ game, onPress, action, subtitle }: {
         </View>
         {subtitle}
       </View>
-      {action ? <View style={styles.action}>{action}</View> : null}
-    </View>
+    </>
   );
-  if (!onPress) return <View style={styles.card}>{content}</View>;
+  if (!onPress) {
+    return (
+      <View style={styles.card}>
+        <View style={styles.row}>
+          {details}
+          {action ? <View style={styles.action}>{action}</View> : null}
+        </View>
+      </View>
+    );
+  }
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`Ver detalhes de ${game.title}`}
-      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
-    >
-      {content}
-    </Pressable>
+    <View style={styles.card}>
+      <View style={styles.row}>
+        <Pressable
+          onPress={onPress}
+          accessibilityRole="button"
+          accessibilityLabel={`Ver detalhes de ${game.title}`}
+          style={({ pressed }) => [styles.detailsPressable, pressed && styles.pressed]}
+        >
+          {details}
+        </Pressable>
+        {action ? <View style={styles.action}>{action}</View> : null}
+      </View>
+    </View>
   );
 }
 
@@ -50,6 +63,7 @@ const useStyles = themedStyles(colors => ({
   },
   pressed: { opacity: 0.85 },
   row: { flexDirection: 'row', gap: spacing.md, alignItems: 'center' },
+  detailsPressable: { flex: 1, flexDirection: 'row', gap: spacing.md, alignItems: 'center', minWidth: 0 },
   cover: { width: 56, height: 76, borderRadius: radii.sm, backgroundColor: colors.zinc900 },
   info: { flex: 1, gap: 6, minWidth: 0 },
   title: { ...typography.h3, fontSize: 14, color: colors.foreground },
