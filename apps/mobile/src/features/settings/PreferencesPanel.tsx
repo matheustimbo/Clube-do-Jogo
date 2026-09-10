@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Pressable, Switch, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { requestProductUpdateReopen } from '@/features/product-updates';
 import { radii, spacing, themedStyles, typography, useNativeTheme, useThemeColors } from '@/theme';
 
 const scales: (5 | 10)[] = [5, 10];
@@ -103,6 +104,23 @@ export function PreferencesPanel({
           </View>
         </View>
       </View>
+
+      <Pressable
+        onPress={requestProductUpdateReopen}
+        accessibilityRole="button"
+        accessibilityLabel="Ver novamente as novidades da V1.1"
+        style={styles.row}
+        testID="settings-product-update-reopen"
+      >
+        <View style={styles.rowIcon}>
+          <Ionicons name="megaphone-outline" size={16} color={colors.violet300} />
+        </View>
+        <View style={styles.rowText}>
+          <Text style={styles.rowTitle}>Novidades da V1.1</Text>
+          <Text style={styles.rowHint}>Reveja as novidades desta versão.</Text>
+        </View>
+        <Text style={styles.reopenLabel}>Ver novamente</Text>
+      </Pressable>
     </View>
   );
 }
@@ -157,4 +175,5 @@ const useStyles = themedStyles(colors => ({
   scaleButtonActive: { borderColor: colors.violet400, backgroundColor: colors.surface },
   scaleLabel: { ...typography.small, color: colors.zinc400 },
   scaleLabelActive: { color: colors.violet300, fontWeight: '800' },
+  reopenLabel: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4, color: colors.zinc600 },
 }));
