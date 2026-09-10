@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { AppHeader } from '@/components/AppHeader';
 import { Chip } from '@/components/Chip';
@@ -34,6 +34,7 @@ export default function GameOfMonthScreen() {
   const colors = useThemeColors();
   const styles = useStyles();
   const router = useRouter();
+  const { section } = useLocalSearchParams<{ section?: string }>();
   const statusMeta = useStatusMeta();
   const { userId, selectedMonth, activeMonth, months, isHistorical, setSelectedMonth } = useApp();
   const [monthPickerVisible, setMonthPickerVisible] = useState(false);
@@ -45,7 +46,8 @@ export default function GameOfMonthScreen() {
 
   const [ratingOpen, setRatingOpen] = useState(false);
   const [ratingToken, setRatingToken] = useState(0);
-  const [activeTab, setActiveTab] = useState<GameOfMonthTab>('progress');
+  const activeTab: GameOfMonthTab = section === 'timeline' || section === 'notes' ? section : 'progress';
+  const setActiveTab = (tab: GameOfMonthTab) => router.setParams({ section: tab });
 
   const progress = progressQuery.data ?? [];
   const mine = progress.find(item => item.user_id === userId) ?? null;

@@ -12,6 +12,7 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppProvider, useApp } from '@/state/app-provider';
+import { NotificationBridge } from '@/state/notification-bridge';
 import {
   clearNavIntent,
   consumeNavIntent,
@@ -28,11 +29,13 @@ export default function RootLayout() {
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
         <AppProvider>
-          <ThemeProvider>
-            <ThemeSceneProvider>
-              <RootNavigator />
-            </ThemeSceneProvider>
-          </ThemeProvider>
+          <NotificationBridge>
+            <ThemeProvider>
+              <ThemeSceneProvider>
+                <RootNavigator />
+              </ThemeSceneProvider>
+            </ThemeProvider>
+          </NotificationBridge>
         </AppProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
