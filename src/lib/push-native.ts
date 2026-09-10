@@ -333,7 +333,7 @@ export function createSupabaseNativePushStore(admin: SupabaseClient, workerId: s
     },
     async recordTickets(outcomes) {
       for (const outcome of outcomes) {
-        const { error } = await admin.rpc('record_native_push_ticket', {
+        const { data, error } = await admin.rpc('record_native_push_ticket', {
           target_delivery_id: outcome.delivery.deliveryId,
           target_attempt_id: outcome.delivery.attemptId,
           target_worker_id: workerId,
@@ -347,6 +347,7 @@ export function createSupabaseNativePushStore(admin: SupabaseClient, workerId: s
           target_raw: outcome.raw ?? null,
         });
         if (error) throw error;
+        if (data !== true) throw new Error(`Push ticket outcome was not persisted for delivery ${outcome.delivery.deliveryId}.`);
       }
     },
     async claimReceipts(limit) {
@@ -366,7 +367,7 @@ export function createSupabaseNativePushStore(admin: SupabaseClient, workerId: s
     },
     async recordReceipts(outcomes) {
       for (const outcome of outcomes) {
-        const { error } = await admin.rpc('record_native_push_receipt', {
+        const { data, error } = await admin.rpc('record_native_push_receipt', {
           target_delivery_id: outcome.receipt.deliveryId,
           target_attempt_id: outcome.receipt.attemptId,
           target_worker_id: workerId,
@@ -378,6 +379,7 @@ export function createSupabaseNativePushStore(admin: SupabaseClient, workerId: s
           target_raw: outcome.raw ?? null,
         });
         if (error) throw error;
+        if (data !== true) throw new Error(`Push receipt outcome was not persisted for delivery ${outcome.receipt.deliveryId}.`);
       }
     },
   };

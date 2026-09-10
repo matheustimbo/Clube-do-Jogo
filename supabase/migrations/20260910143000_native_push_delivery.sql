@@ -332,8 +332,14 @@ BEGIN
 
   UPDATE public.native_push_deliveries
   SET status = 'unknown', lease_id = NULL, lease_expires_at = NULL, updated_at = NOW()
-  WHERE status IN ('pending', 'retry', 'sending')
-    AND attempt_count >= 5;
+  WHERE attempt_count >= 5
+    AND (
+      status IN ('pending', 'retry')
+      OR (
+        status = 'sending'
+        AND (lease_expires_at IS NULL OR lease_expires_at <= NOW())
+      )
+    );
 
   FOR claimed IN
     WITH candidates AS (
@@ -523,10 +529,11 @@ AS $$
     d.ticket_attempt_id,
     d.receipt_attempt_count,
     i.installation_id,
-    i.expo_push_token,
+    a.expo_push_token,
     d.ticket_id
   FROM claimed d
-  JOIN public.native_push_installations i ON i.id = d.installation_id;
+  JOIN public.native_push_installations i ON i.id = d.installation_id
+  JOIN public.native_push_attempts a ON a.id = d.ticket_attempt_id;
 $$;
 
 CREATE OR REPLACE FUNCTION public.record_native_push_receipt(

@@ -3,6 +3,7 @@ import { afterEach, test } from 'node:test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   createExpoPushTransport,
+  createSupabaseNativePushStore,
   enqueueNativePushNotification,
   parseNativeInstallationInput,
   registerNativePushInstallation,
@@ -295,4 +296,30 @@ test('transporte Expo diferencia rejeição permanente de falha transitória', a
   assert.equal(transientStore.ticketOutcomes[0].status, 'retry');
   assert.equal(transientStore.ticketOutcomes[0].uncertain, true);
   await assert.rejects(permanent.send(messages), /HTTP 400/);
+});
+
+test('store rejeita métricas quando o resultado perdeu a lease antes de persistir', async () => {
+  const calls: string[] = [];
+  const client = supabaseRpc(async name => {
+    calls.push(name);
+    return { data: false, error: null };
+  });
+  const persisted = createSupabaseNativePushStore(client, 'worker-1');
+
+  await assert.rejects(
+    persisted.recordTickets([{
+      delivery: delivery(),
+      status: 'ticketed',
+      ticketId: 'ticket-1',
+    }]),
+    /ticket outcome was not persisted/,
+  );
+  await assert.rejects(
+    persisted.recordReceipts([{
+      receipt: receipt(),
+      status: 'delivered',
+    }]),
+    /receipt outcome was not persisted/,
+  );
+  assert.deepEqual(calls, ['record_native_push_ticket', 'record_native_push_receipt']);
 });
