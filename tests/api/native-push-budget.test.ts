@@ -34,9 +34,20 @@ function delivery(index: number): ClaimedNativeDelivery {
   };
 }
 
+function receipt(index: number): ClaimedNativeReceipt {
+  return {
+    deliveryId: `receipt-delivery-${index}`,
+    attemptId: `receipt-attempt-${index}`,
+    receiptAttemptNumber: 1,
+    installationId: `receipt-installation-${index}`,
+    expoPushToken: `ExpoPushToken[receipt${String(index).padStart(12, '0')}]`,
+    ticketId: `receipt-ticket-${index}`,
+  };
+}
+
 const flush = () => new Promise<void>(resolve => setImmediate(resolve));
 
-test('claim com cem projetos limita a dez sends concorrentes e persiste todos antes de reclamar receipts', async () => {
+test('claim limita cem projetos disponíveis e persiste todos os escolhidos antes de reclamar receipts', async () => {
   const deliveries = Array.from({ length: 100 }, (_, index) => delivery(index));
   const dueReceipt: ClaimedNativeReceipt = {
     deliveryId: 'receipt-delivery',
@@ -50,15 +61,15 @@ test('claim com cem projetos limita a dez sends concorrentes e persiste todos an
   const receipts: NativeReceiptOutcome[] = [];
   const events: string[] = [];
   const store: NativePushStore = {
-    claimDeliveries: async () => deliveries,
+    claimDeliveries: async limit => deliveries.slice(0, limit),
     recordTickets: async outcomes => {
       tickets.push(...outcomes);
       events.push(`tickets:${outcomes.length}`);
     },
-    claimReceipts: async () => {
-      assert.equal(tickets.length, deliveries.length);
+    claimReceipts: async limit => {
+      assert.equal(tickets.length, 25);
       events.push('claim-receipts');
-      return [dueReceipt];
+      return [dueReceipt].slice(0, limit);
     },
     recordReceipts: async outcomes => { receipts.push(...outcomes); },
   };
@@ -89,7 +100,7 @@ test('claim com cem projetos limita a dez sends concorrentes e persiste todos an
   await flush();
   assert.equal(NATIVE_PUSH_SEND_CONCURRENCY, 10);
   assert.equal(active, NATIVE_PUSH_SEND_CONCURRENCY);
-  while (sends < deliveries.length || active > 0) {
+  while (sends < 25 || active > 0) {
     const wave = pending.splice(0);
     for (const item of wave) item.deferred.resolve([{ status: 'ok', id: item.ticketId }]);
     await flush();
@@ -97,14 +108,14 @@ test('claim com cem projetos limita a dez sends concorrentes e persiste todos an
 
   const result = await worker;
   assert.equal(peak, NATIVE_PUSH_SEND_CONCURRENCY);
-  assert.equal(sends, deliveries.length);
-  assert.equal(tickets.length, deliveries.length);
+  assert.equal(sends, 25);
+  assert.equal(tickets.length, 25);
   assert.equal(tickets.every(outcome => outcome.status === 'ticketed'), true);
   assert.equal(receipts[0].status, 'delivered');
   assert.equal(events.at(-1), 'claim-receipts');
   assert.deepEqual(result, {
-    claimed: 100,
-    ticketed: 100,
+    claimed: 25,
+    ticketed: 25,
     delivered: 1,
     retried: 0,
     invalidTokens: 0,
@@ -119,10 +130,10 @@ test('falha de persistência ocorre depois de todos os projetos reclamados serem
   let ticketWrites = 0;
   let receiptClaims = 0;
   const store: NativePushStore = {
-    claimDeliveries: async () => deliveries,
+    claimDeliveries: async limit => deliveries.slice(0, limit),
     recordTickets: async outcomes => {
       ticketWrites += 1;
-      assert.equal(outcomes.length, deliveries.length);
+      assert.equal(outcomes.length, 25);
       throw new Error('lease perdida');
     },
     claimReceipts: async () => { receiptClaims += 1; return []; },
@@ -132,7 +143,7 @@ test('falha de persistência ocorre depois de todos os projetos reclamados serem
     send: async () => [{ status: 'ok', id: `ticket-${sends++}` }],
     getReceipts: async () => ({}),
   }), /lease perdida/);
-  assert.equal(sends, deliveries.length);
+  assert.equal(sends, 25);
   assert.equal(ticketWrites, 1);
   assert.equal(receiptClaims, 0);
 });
@@ -183,18 +194,18 @@ test('worker aplica o limite global de vinte RPCs aos tickets de dez projetos', 
   type RpcResult = { data: boolean; error: null };
   const deliveries = Array.from({ length: 100 }, (_, index) => ({
     ...delivery(index),
-    projectId: `project-${Math.floor(index / 10)}`,
+    projectId: `project-${index % 10}`,
   }));
   let active = 0;
   let peak = 0;
   let calls = 0;
   const pending: Array<Deferred<RpcResult>> = [];
   const client = {
-    rpc(name: string) {
+    rpc(name: string, args: Record<string, unknown>) {
       return {
         abortSignal() {
           if (name === 'claim_native_push_deliveries') return Promise.resolve({
-            data: deliveries.map(item => ({
+            data: deliveries.slice(0, Number(args.target_limit)).map(item => ({
               delivery_id: item.deliveryId,
               attempt_id: item.attemptId,
               attempt_number: item.attemptNumber,
@@ -223,14 +234,71 @@ test('worker aplica o limite global de vinte RPCs aos tickets de dez projetos', 
   });
   await flush();
   assert.equal(active, NATIVE_PUSH_STORE_WRITE_CONCURRENCY);
-  while (calls < deliveries.length || active > 0) {
+  while (calls < 25 || active > 0) {
     const wave = pending.splice(0);
     wave.forEach(item => item.resolve({ data: true, error: null }));
     await flush();
   }
   await worker;
-  assert.equal(calls, deliveries.length);
+  assert.equal(calls, 25);
   assert.equal(peak, NATIVE_PUSH_STORE_WRITE_CONCURRENCY);
+});
+
+test('worker misto mantém o teto calculado em 192 segundos', async () => {
+  const deliveries = Array.from({ length: 100 }, (_, index) => delivery(index));
+  const receipts = Array.from({ length: 1000 }, (_, index) => receipt(index));
+  let deliveryClaimLimit = 0;
+  let receiptClaimLimit = 0;
+  let sendRequests = 0;
+  let ticketWrites = 0;
+  let receiptQuerySize = 0;
+  let receiptWrites = 0;
+  const store: NativePushStore = {
+    claimDeliveries: async limit => {
+      deliveryClaimLimit = limit;
+      return deliveries.slice(0, limit);
+    },
+    recordTickets: async outcomes => { ticketWrites = outcomes.length; },
+    claimReceipts: async limit => {
+      receiptClaimLimit = limit;
+      return receipts.slice(0, limit);
+    },
+    recordReceipts: async outcomes => { receiptWrites = outcomes.length; },
+  };
+  const result = await runNativePushWorker(store, {
+    send: async messages => {
+      sendRequests += 1;
+      return messages.map((_, index) => ({ status: 'ok', id: `ticket-${sendRequests}-${index}` }));
+    },
+    getReceipts: async ids => {
+      receiptQuerySize = ids.length;
+      return Object.fromEntries(ids.map(id => [id, { status: 'ok' }]));
+    },
+  });
+  const deliverySeconds = 8
+    + Math.ceil(sendRequests / NATIVE_PUSH_SEND_CONCURRENCY) * 30
+    + Math.ceil(ticketWrites / NATIVE_PUSH_STORE_WRITE_CONCURRENCY) * 8;
+  const receiptSeconds = 8 + 30
+    + Math.ceil(receiptWrites / NATIVE_PUSH_STORE_WRITE_CONCURRENCY) * 8;
+  assert.equal(deliveryClaimLimit, 25);
+  assert.equal(receiptClaimLimit, 100);
+  assert.equal(sendRequests, 25);
+  assert.equal(ticketWrites, 25);
+  assert.equal(receiptQuerySize, 100);
+  assert.equal(receiptWrites, 100);
+  assert.equal(deliverySeconds, 114);
+  assert.equal(receiptSeconds, 78);
+  assert.equal(deliverySeconds + receiptSeconds, 192);
+  assert.equal(300 - deliverySeconds - receiptSeconds, 108);
+  assert.deepEqual(result, {
+    claimed: 25,
+    ticketed: 25,
+    delivered: 100,
+    retried: 0,
+    invalidTokens: 0,
+    failed: 0,
+    awaitingReceipt: 0,
+  });
 });
 
 test('store limita mil persistências de receipt e aplica deadline a cada RPC', async () => {

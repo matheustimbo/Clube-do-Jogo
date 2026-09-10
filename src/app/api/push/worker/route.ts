@@ -8,6 +8,7 @@ import {
 import { createAdminClient } from '@/lib/supabase/admin';
 
 export const runtime = 'nodejs';
+export const maxDuration = 300;
 
 function authorized(request: Request) {
   const secret = process.env.CRON_SECRET;

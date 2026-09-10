@@ -1,8 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { PushMessage } from './push';
 
-const SEND_LIMIT = 100;
-const RECEIPT_LIMIT = 1000;
+const DELIVERY_CLAIM_LIMIT = 25;
+const RECEIPT_CLAIM_LIMIT = 100;
+const EXPO_SEND_LIMIT = 100;
+const EXPO_RECEIPT_LIMIT = 1000;
 const MAX_ATTEMPTS = 5;
 const SEND_RETRY_SECONDS = [60, 300, 1800, 7200] as const;
 const RECEIPT_RETRY_SECONDS = 15 * 60;
@@ -441,7 +443,7 @@ export async function runNativePushWorker(
     failed: 0,
     awaitingReceipt: 0,
   };
-  const deliveries = await store.claimDeliveries(SEND_LIMIT);
+  const deliveries = await store.claimDeliveries(DELIVERY_CLAIM_LIMIT);
   result.claimed = deliveries.length;
   const projectDeliveries = new Map<string, ClaimedNativeDelivery[]>();
   for (const delivery of deliveries) {
@@ -451,8 +453,8 @@ export async function runNativePushWorker(
   }
   const deliveryBatches: ClaimedNativeDelivery[][] = [];
   for (const projectBatch of projectDeliveries.values()) {
-    for (let offset = 0; offset < projectBatch.length; offset += SEND_LIMIT) {
-      deliveryBatches.push(projectBatch.slice(offset, offset + SEND_LIMIT));
+    for (let offset = 0; offset < projectBatch.length; offset += EXPO_SEND_LIMIT) {
+      deliveryBatches.push(projectBatch.slice(offset, offset + EXPO_SEND_LIMIT));
     }
   }
   const ticketOutcomes: NativeTicketOutcome[] = [];
@@ -488,9 +490,9 @@ export async function runNativePushWorker(
     if (outcome.status === 'failed' || outcome.status === 'unknown') result.failed += 1;
   }
 
-  const receipts = await store.claimReceipts(RECEIPT_LIMIT);
-  for (let offset = 0; offset < receipts.length; offset += RECEIPT_LIMIT) {
-    const batch = receipts.slice(offset, offset + RECEIPT_LIMIT);
+  const receipts = await store.claimReceipts(RECEIPT_CLAIM_LIMIT);
+  for (let offset = 0; offset < receipts.length; offset += EXPO_RECEIPT_LIMIT) {
+    const batch = receipts.slice(offset, offset + EXPO_RECEIPT_LIMIT);
     let outcomes: NativeReceiptOutcome[];
     try {
       const values = await transport.getReceipts(batch.map(receipt => receipt.ticketId));
