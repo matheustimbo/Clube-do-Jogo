@@ -1,8 +1,14 @@
 import {
+  useInfiniteQuery,
   useMutation,
+  type InfiniteData,
   type UseMutationResult,
+  type UseInfiniteQueryResult,
 } from '@tanstack/react-query';
+import type { DiscoveryFilters, DiscoveryPage } from '@clube-do-jogo/data';
+export type { DiscoveryFilters } from '@clube-do-jogo/data';
 import type {
+  DiscoverSource,
   GameProgress,
   ProfileWithGames,
   RatingDetails,
@@ -10,6 +16,8 @@ import type {
 } from '@clube-do-jogo/domain';
 import { shiftMonth } from '@clube-do-jogo/domain';
 import { useAppInternal } from './app-provider';
+
+const DISCOVERY_PAGE_SIZE = 24;
 
 export type RatingVariables = {
   gameId: string;
@@ -37,6 +45,44 @@ function libraryKey(context: ReturnType<typeof useAppInternal>) {
 
 function copyDetails(details: RatingDetails | null | undefined) {
   return details ? { ...details } : null;
+}
+
+type NormalizedDiscoveryFilters = {
+  search: string;
+  genre: number | null;
+  platform: number | null;
+  year: number | null;
+  month: string;
+};
+
+function normalizeFilterNumber(value: number | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : null;
+}
+
+function normalizeDiscoveryFilters(selectedMonth: string, filters?: DiscoveryFilters): NormalizedDiscoveryFilters {
+  return {
+    search: filters?.search?.trim() || '',
+    genre: normalizeFilterNumber(filters?.genre),
+    platform: normalizeFilterNumber(filters?.platform),
+    year: normalizeFilterNumber(filters?.year),
+    month: filters?.month?.trim() || shiftMonth(selectedMonth, 1),
+  };
+}
+
+function discoveryKey(
+  context: ReturnType<typeof useAppInternal>,
+  source: DiscoverSource,
+  filters: NormalizedDiscoveryFilters,
+) {
+  return [
+    'discovery-pages',
+    context.sessionEpoch,
+    context.userId,
+    context.isDemo,
+    context.selectedMonth,
+    source,
+    filters,
+  ] as const;
 }
 
 function optimisticProgress(
@@ -145,4 +191,49 @@ export function useSetRating(): UseMutationResult<void, Error, RatingVariables> 
       void context.queryClient.invalidateQueries({ queryKey: ['library', context.sessionEpoch] });
     },
   });
+}
+
+export function useDiscoveryPages(
+  source: DiscoverSource,
+  filters?: DiscoveryFilters,
+): UseInfiniteQueryResult<InfiniteData<DiscoveryPage, number>, Error> {
+  const context = useAppInternal();
+  const userId = context.userId;
+  const normalized = normalizeDiscoveryFilters(context.selectedMonth, filters);
+  const queryKey = discoveryKey(context, source, normalized);
+  const query = useInfiniteQuery<DiscoveryPage, Error, InfiniteData<DiscoveryPage, number>, typeof queryKey, number>({
+    queryKey,
+    enabled: context.ready && Boolean(userId),
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => context.dataClient.readDiscoveryPage({
+      userId: requireUser(userId),
+      isDemo: context.isDemo,
+      source,
+      filters: {
+        search: normalized.search || undefined,
+        genre: normalized.genre ?? undefined,
+        platform: normalized.platform ?? undefined,
+        year: normalized.year ?? undefined,
+        month: normalized.month,
+      },
+      offset: pageParam,
+      limit: DISCOVERY_PAGE_SIZE,
+    }),
+    getNextPageParam: (lastPage, pages) => lastPage.hasMore ? pages.length * DISCOVERY_PAGE_SIZE : undefined,
+    select: data => {
+      const seen = new Set<string>();
+      return {
+        ...data,
+        pages: data.pages.map(page => ({
+          ...page,
+          items: page.items.filter(item => {
+            if (seen.has(item.game.id)) return false;
+            seen.add(item.game.id);
+            return true;
+          }),
+        })),
+      };
+    },
+  });
+  return query;
 }

@@ -69,6 +69,26 @@ export interface DiscoveryQuery extends DataScope {
   month?: string;
 }
 
+export interface DiscoveryFilters {
+  search?: string;
+  genre?: number;
+  platform?: number;
+  year?: number;
+  month?: string;
+}
+
+export interface DiscoveryPageQuery extends DataScope {
+  source: DiscoverSource;
+  filters?: DiscoveryFilters;
+  offset?: number;
+  limit?: number;
+}
+
+export interface DiscoveryPage {
+  items: DiscoverItem[];
+  hasMore: boolean;
+}
+
 export interface VoteInput extends DataScope {
   month: string;
   historical?: boolean;
@@ -197,6 +217,36 @@ function normalizeRatingDetails(value: RatingDetails | null | undefined): Rating
     normalized[key as RatingCriterion] = validateRatingValue(criterionValue, `A nota de ${key}`);
   }
   return normalized;
+}
+
+function normalizePageOffset(value: number | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+}
+
+function normalizePageLimit(value: number | undefined) {
+  if (value === undefined || !Number.isFinite(value) || value === 0) return 24;
+  return Math.min(40, Math.max(1, Math.floor(value)));
+}
+
+function dedupeDiscoveryItems(items: DiscoverItem[]) {
+  const seen = new Set<string>();
+  return items.filter(item => {
+    if (!item || !item.game || seen.has(item.game.id)) return false;
+    seen.add(item.game.id);
+    return true;
+  });
+}
+
+function discoveryPageFromPayload(payload: unknown): DiscoveryPage {
+  if (Array.isArray(payload)) {
+    return { items: dedupeDiscoveryItems(payload as DiscoverItem[]), hasMore: false };
+  }
+  if (!payload || typeof payload !== 'object') return { items: [], hasMore: false };
+  const record = payload as { items?: unknown; hasMore?: unknown };
+  return {
+    items: Array.isArray(record.items) ? dedupeDiscoveryItems(record.items as DiscoverItem[]) : [],
+    hasMore: record.hasMore === true,
+  };
 }
 
 function points(formula: RankingFormula, game: Game, counts: Record<VoteChoice, number>, completed: number) {
@@ -605,26 +655,39 @@ export class DataClient {
     });
   }
 
-  async readDiscovery(input: DiscoveryQuery): Promise<DiscoverItem[]> {
+  async readDiscoveryPage(input: DiscoveryPageQuery): Promise<DiscoveryPage> {
+    const offset = normalizePageOffset(input.offset);
+    const limit = normalizePageLimit(input.limit);
+    const filters = input.filters || {};
     if (input.isDemo) {
-      const ranking = this.demo.readRanking(input.userId, this.rankingFormula);
-      const sourceItems = input.source === 'ranking'
-        ? ranking.map(item => ({ game: item.game, activityCount: item.votesCount, addedAt: item.addedAt }))
-        : input.source === 'friends'
-          ? ranking.filter(item => item.inBacklog).map(item => ({ game: item.game, activityCount: item.votesCount, addedAt: item.addedAt }))
-          : ranking.map(item => ({ game: item.game, addedAt: item.addedAt }));
-      const normalized = input.search?.trim().toLocaleLowerCase('pt-BR') || '';
-      return sourceItems.filter(item => !normalized || item.game.title.toLocaleLowerCase('pt-BR').includes(normalized));
+      return this.demo.readDiscoveryPage(input.userId, input.source, filters, offset, limit);
     }
     return withDataErrors('explorar jogos', 'Não foi possível carregar a descoberta.', async () => {
-      const params = new URLSearchParams({ source: input.source });
-      if (input.search?.trim()) params.set('q', input.search.trim());
-      if (input.month && input.source === 'ranking') params.set('month', input.month);
-      const payload = await readApiJson<unknown>(this.transport('explorar jogos'), `/api/discover?${params.toString()}`);
-      if (Array.isArray(payload)) return payload as DiscoverItem[];
-      if (payload && typeof payload === 'object' && 'items' in payload) return ((payload as { items?: unknown }).items || []) as DiscoverItem[];
-      return [];
+      const params = new URLSearchParams({
+        source: input.source,
+        offset: String(offset),
+        limit: String(limit),
+      });
+      if (filters.search?.trim()) params.set('q', filters.search.trim());
+      if (filters.genre !== undefined) params.set('genre', String(filters.genre));
+      if (filters.platform !== undefined) params.set('platform', String(filters.platform));
+      if (filters.year !== undefined) params.set('year', String(filters.year));
+      if (filters.month?.trim()) params.set('month', filters.month.trim());
+      const payload = await readApiJson<unknown>(this.transport('explorar jogos'), `/api/discover?${params.toString()}`, { method: 'GET' });
+      return discoveryPageFromPayload(payload);
     });
+  }
+
+  async readDiscovery(input: DiscoveryQuery): Promise<DiscoverItem[]> {
+    const page = await this.readDiscoveryPage({
+      userId: input.userId,
+      isDemo: input.isDemo,
+      source: input.source,
+      filters: { search: input.search, month: input.month },
+      offset: 0,
+      limit: 24,
+    });
+    return page.items;
   }
 
   async setVote(input: VoteInput): Promise<void> {

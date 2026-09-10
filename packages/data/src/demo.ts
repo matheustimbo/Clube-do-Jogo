@@ -8,6 +8,8 @@ import {
 import { compareRankingItems, legacyRankingScore, preferenceRankingScore } from '@clube-do-jogo/domain';
 import type {
   ClubCycle,
+  DiscoverItem,
+  DiscoverSource,
   Game,
   GameProgress,
   LibraryGame,
@@ -20,6 +22,7 @@ import type {
   VoteChoice,
   VoteReason,
 } from '@clube-do-jogo/domain';
+import type { DiscoveryFilters } from './client';
 
 type DemoVote = {
   choice: VoteChoice;
@@ -60,6 +63,16 @@ function cloneProgress(progress: GameProgress): GameProgress {
 function demoUserProfile(userId: string) {
   return demoProfiles.find(profile => profile.id === userId) || demoProfiles[0];
 }
+
+const demoGenreTerms: Record<number, string[]> = {
+  12: ['rpg', 'role-playing'],
+  31: ['aventura', 'adventure'],
+  32: ['indie'],
+  8: ['plataforma', 'platform'],
+  9: ['puzzle'],
+  15: ['estratégia', 'strategy'],
+  5: ['tiro', 'shooter'],
+};
 
 export class DemoStore {
   private readonly voteOverrides = new Map<string, DemoVote | null>();
@@ -178,6 +191,50 @@ export class DemoStore {
       started_at: current?.started_at || null,
       finished_at: current?.finished_at || null,
     });
+  }
+
+  readDiscoveryPage(_userId: string, source: DiscoverSource, filters: DiscoveryFilters, offset: number, limit: number): { items: DiscoverItem[]; hasMore: boolean } {
+    let games = [...demoGames];
+    const normalized = filters.search?.trim().toLocaleLowerCase('pt-BR') || '';
+    if (normalized) {
+      games = games.filter(game => [game.title, ...(game.genres || []), ...(game.platforms || [])]
+        .some(value => value.toLocaleLowerCase('pt-BR').includes(normalized)));
+    }
+    if (filters.genre) {
+      const terms = demoGenreTerms[filters.genre];
+      if (terms) {
+        games = games.filter(game => (game.genres || [])
+          .some(genre => terms.some(term => genre.toLocaleLowerCase('pt-BR').includes(term))));
+      }
+    }
+    if (filters.platform) games = games.filter(game => (game.platform_ids || []).includes(filters.platform as number));
+    if (filters.year) games = games.filter(game => game.release_year === filters.year);
+    if (source === 'popular' || source === 'rated') {
+      games.sort((left, right) => Number(right.average_rating || 0) - Number(left.average_rating || 0));
+    }
+    if (source === 'recent' || source === 'anticipated') {
+      games.sort((left, right) => Number(right.release_year || 0) - Number(left.release_year || 0));
+    }
+    let allItems: DiscoverItem[];
+    if (source === 'friends') {
+      allItems = games.map((game, index) => ({
+        game,
+        activityCount: 1 + index % 4,
+        people: demoProfiles.slice(1, 2 + index % 3).map(profile => profile.name || 'Membro'),
+      }));
+    } else if (source === 'ranking') {
+      allItems = games.map((game, index) => ({
+        game,
+        activityCount: 1 + index % 5,
+        addedAt: new Date(Date.now() - index * 3_600_000).toISOString(),
+      }));
+    } else {
+      allItems = games.map(game => ({ game }));
+    }
+    const safeOffset = Number.isFinite(offset) ? Math.max(0, Math.floor(offset)) : 0;
+    const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.min(40, Math.max(1, Math.floor(limit))) : 24;
+    const items = allItems.slice(safeOffset, safeOffset + safeLimit);
+    return { items, hasMore: safeOffset + items.length < allItems.length };
   }
 
   isBacklog(userId: string, gameId: string) {
