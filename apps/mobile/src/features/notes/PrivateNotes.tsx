@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Keyboard, Pressable, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Dimensions, Keyboard, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,9 +11,13 @@ import { useAppInternal } from '@/state/app-provider';
 import { createNativeNoteId, useCreateNote, useDeleteNote, useNoteDraft, useNotes, useUpdateNote } from '@/state/discussion-queries';
 import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
 import { NotesConflictError } from '@clube-do-jogo/data';
-import { formatShortDate, formatTime, type LocalNote } from '@clube-do-jogo/domain';
+import { formatDate, formatShortDate, formatTime, type LocalNote } from '@clube-do-jogo/domain';
+import { shouldShowDateSeparator } from './date-grouping';
 
 const MAX_IMAGE_BYTES = 4_000_000;
+// Mirrors the web's bounded chat panel (src/components/notes-chat.tsx `h-[min(56dvh,560px)]`),
+// scaled to the device viewport instead of a CSS viewport unit.
+const LIST_MAX_HEIGHT = Math.min(Dimensions.get('window').height * 0.56, 560);
 
 type PrivateNotesProps = { gameId: string; snapshotMonth?: string };
 
@@ -39,8 +43,15 @@ function NotesEditor({ gameId, snapshotMonth }: PrivateNotesProps) {
   const [actionsTarget, setActionsTarget] = useState<LocalNote | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<LocalNote | null>(null);
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
+  const listRef = useRef<ScrollView>(null);
 
   const notes = notesQuery.data ?? [];
+
+  useEffect(() => {
+    if (!notes.length) return;
+    requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: false }));
+  }, [notes.length]);
+
   const draft = draftState.draft;
   const editing = draft.target?.kind === 'edit' ? draft.target : null;
   const pending = createNote.isPending || updateNote.isPending;
@@ -147,35 +158,47 @@ function NotesEditor({ gameId, snapshotMonth }: PrivateNotesProps) {
           description={snapshotMonth ? 'Não havia anotações registradas quando o ciclo foi encerrado.' : 'Registre detalhes, teorias e momentos do jogo conforme avança.'}
         />
       ) : (
-        <View style={styles.list}>
-          {notes.map(note => (
-            <Pressable
-              key={note.id}
-              onLongPress={() => { if (!readOnly) setActionsTarget(note); }}
-              accessibilityRole={readOnly ? undefined : 'button'}
-              accessibilityLabel={readOnly ? undefined : `${note.body || "Anotação com imagem"}. Opções da anotação de ${formatShortDate(note.createdAt)}`}
-              testID={`note-row-${note.id}`}
-              style={styles.bubbleRow}
-            >
-              <View style={styles.bubble}>
-                {note.imageDataUrl ? (
-                  <Pressable
-                    onPress={() => setGalleryIndex(noteImages.indexOf(note.imageDataUrl!))}
-                    accessibilityRole="button"
-                    accessibilityLabel="Abrir imagem da anotação"
-                  >
-                    <Image source={{ uri: note.imageDataUrl }} style={styles.bubbleImage} contentFit="cover" />
-                  </Pressable>
-                ) : null}
-                {note.body ? <Text style={styles.bubbleText}>{note.body}</Text> : null}
-                <View style={styles.bubbleFooter}>
-                  {note.updatedAt !== note.createdAt ? <Text style={styles.bubbleMeta}>editada · </Text> : null}
-                  <Text style={styles.bubbleMeta}>{formatTime(note.createdAt)}</Text>
+        <ScrollView
+          ref={listRef}
+          style={styles.list}
+          contentContainerStyle={styles.listContent}
+          nestedScrollEnabled
+          onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
+        >
+          {notes.map((note, index) => (
+            <View key={note.id}>
+              {shouldShowDateSeparator(notes[index - 1]?.createdAt, note.createdAt) ? (
+                <View style={styles.dateSeparator}>
+                  <Text style={styles.dateSeparatorText}>{formatDate(note.createdAt)}</Text>
                 </View>
-              </View>
-            </Pressable>
+              ) : null}
+              <Pressable
+                onLongPress={() => { if (!readOnly) setActionsTarget(note); }}
+                accessibilityRole={readOnly ? undefined : 'button'}
+                accessibilityLabel={readOnly ? undefined : `${note.body || "Anotação com imagem"}. Opções da anotação de ${formatShortDate(note.createdAt)}`}
+                testID={`note-row-${note.id}`}
+                style={styles.bubbleRow}
+              >
+                <View style={styles.bubble}>
+                  {note.imageDataUrl ? (
+                    <Pressable
+                      onPress={() => setGalleryIndex(noteImages.indexOf(note.imageDataUrl!))}
+                      accessibilityRole="button"
+                      accessibilityLabel="Abrir imagem da anotação"
+                    >
+                      <Image source={{ uri: note.imageDataUrl }} style={styles.bubbleImage} contentFit="cover" />
+                    </Pressable>
+                  ) : null}
+                  {note.body ? <Text style={styles.bubbleText}>{note.body}</Text> : null}
+                  <View style={styles.bubbleFooter}>
+                    {note.updatedAt !== note.createdAt ? <Text style={styles.bubbleMeta}>editada · </Text> : null}
+                    <Text style={styles.bubbleMeta}>{formatTime(note.createdAt)}</Text>
+                  </View>
+                </View>
+              </Pressable>
+            </View>
           ))}
-        </View>
+        </ScrollView>
       )}
 
       {!readOnly ? (
@@ -296,7 +319,20 @@ const useStyles = themedStyles(colors => ({
     padding: spacing.sm,
   },
   syncNoticeText: { flex: 1, ...typography.small, color: colors.zinc500, lineHeight: 16 },
-  list: { gap: spacing.sm },
+  list: { maxHeight: LIST_MAX_HEIGHT },
+  listContent: { gap: spacing.sm },
+  dateSeparator: { alignItems: 'center', marginVertical: spacing.sm },
+  dateSeparatorText: {
+    borderRadius: radii.full,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    backgroundColor: colors.surfaceDeep,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.zinc500,
+  },
   bubbleRow: { alignItems: 'flex-end' },
   bubble: {
     maxWidth: '85%',

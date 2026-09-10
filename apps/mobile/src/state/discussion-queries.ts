@@ -22,8 +22,20 @@ import {
   type NoteDeleteInput,
   type NoteUpdateInput,
 } from '@clube-do-jogo/data';
-import { getMobileSupabaseClient, nativeStorage } from '@/platform';
+import { createMobileApiTransport, getMobileSupabaseClient, nativeStorage } from '@/platform';
 import { useAppInternal } from './app-provider';
+
+// Best-effort push, mirroring src/components/timeline.tsx (`/api/push/comment` with the
+// same { commentId } payload). The comment is already saved by the time this runs, so a
+// push failure must never surface as a failed comment.
+function notifyCommentPush(commentId: string) {
+  const transport = createMobileApiTransport(getMobileSupabaseClient());
+  void transport.request('/api/push/comment', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ commentId }),
+  }).catch(() => {});
+}
 
 export type CommentVariables = {
   gameId: string;
@@ -395,6 +407,7 @@ export function useCreateComment(): UseMutationResult<ClubComment, Error, Commen
     onSuccess: (comment, _input, mutationContext) => {
       if (!context.isSessionCurrent(epoch) || !mutationContext) return;
       context.queryClient.setQueryData<ClubComment[]>(mutationContext.key, current => replaceComment(current, mutationContext.optimisticId, comment));
+      if (!context.isDemo) notifyCommentPush(comment.id);
     },
     onError: (_error, _input, mutationContext) => {
       if (context.isSessionCurrent(epoch) && mutationContext) context.queryClient.setQueryData(mutationContext.key, mutationContext.previous);
