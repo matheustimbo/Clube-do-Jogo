@@ -65,6 +65,14 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run test:dependency-gate
+      - name: Generate native runtime fingerprints
+        working-directory: apps/mobile
+        run: |
+          npx expo-updates fingerprint:generate --platform android > "$RUNNER_TEMP/mobile-fingerprint-android.json"
+          npx expo-updates fingerprint:generate --platform ios > "$RUNNER_TEMP/mobile-fingerprint-ios.json"
+        env:
+          APP_VARIANT: development
+          EXPO_NO_DOTENV: '1'
       - name: Capture Expo Doctor diagnostic
         id: doctor
         shell: bash
@@ -100,6 +108,7 @@ jobs:
             ${{ runner.temp }}/expo-doctor.log
             ${{ runner.temp }}/mobile-doctor-classification.json
             ${{ runner.temp }}/mobile-react-origins.json
+            ${{ runner.temp }}/mobile-fingerprint-*.json
             ${{ runner.temp }}/mobile-export/android/**/*.map
             ${{ runner.temp }}/mobile-export/ios/**/*.map
           if-no-files-found: error
