@@ -4,5 +4,6 @@ import { usePersistentState } from './use-persistent-state';
 const RATING_SCALE_KEY = 'clube-do-jogo:mobile:rating-scale';
 
 export function useRatingScale(): [RatingScale, (scale: RatingScale) => void] {
-  return usePersistentState<RatingScale>(RATING_SCALE_KEY, 10);
+  const [scale, setScale] = usePersistentState<RatingScale>(RATING_SCALE_KEY, 10);
+  return [scale, setScale];
 }

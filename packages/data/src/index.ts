@@ -1,5 +1,6 @@
 export * from './api';
 export * from './comments';
+export * from './admin';
 export * from './client';
 export * from './demo';
 export * from './errors';

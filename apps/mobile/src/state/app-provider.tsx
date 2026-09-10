@@ -43,7 +43,7 @@ interface AppContextValue extends SessionState {
   signUp(name: string, email: string, password: string): Promise<void>;
   signOut(): Promise<void>;
   enterDemo(): Promise<void>;
-  refresh(): Promise<void>;
+  refresh(options?: { selectedMonth?: string }): Promise<void>;
 }
 
 const AppContext = React.createContext<AppContextValue | null>(null);
@@ -297,16 +297,25 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
     });
   }, [dataClient, queryClient]);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (options?: { selectedMonth?: string }) => {
     if (stateRef.current.isDemo) {
       const generation = generationRef.current;
-      const cycleState = await dataClient.readCycles(true);
+      const [cycleState, account] = await Promise.all([
+        dataClient.readCycles(true),
+        dataClient.readSessionProfile('demo-user', true),
+      ]);
       if (generation !== generationRef.current || stateRef.current.userId !== 'demo-user' || !stateRef.current.isDemo) return;
+      const requestedMonth = options?.selectedMonth || stateRef.current.selectedMonth;
+      const selectedMonth = cycleState.months.includes(requestedMonth)
+        ? requestedMonth : cycleState.activeMonth || cycleState.months[0] || monthKey();
       setState(current => ({
         ...current,
         ready: true,
-        activeMonth: cycleState.activeMonth || current.activeMonth,
-        months: cycleState.months.length ? cycleState.months : current.months,
+        profile: account.profile,
+        isAdmin: account.isAdmin,
+        selectedMonth,
+        activeMonth: cycleState.activeMonth || selectedMonth,
+        months: cycleState.months.length ? cycleState.months : [selectedMonth],
       }));
       return;
     }
@@ -327,9 +336,9 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
       dataClient.readCycles(false),
     ]);
     if (generation !== generationRef.current || stateRef.current.userId !== refreshedUserId || stateRef.current.isDemo) return;
-    const selectedMonth = stateRef.current.months.includes(stateRef.current.selectedMonth)
-      && cycleState.months.includes(stateRef.current.selectedMonth)
-      ? stateRef.current.selectedMonth
+    const requestedMonth = options?.selectedMonth || stateRef.current.selectedMonth;
+    const selectedMonth = cycleState.months.includes(requestedMonth)
+      ? requestedMonth
       : cycleState.activeMonth || cycleState.months[0] || monthKey();
     setState(current => ({
       ...current,

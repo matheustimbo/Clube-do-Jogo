@@ -1,5 +1,7 @@
 appId: com.clubedojogo.mobile.dev
 ---
+- stopApp
+- launchApp
 - extendedWaitUntil:
     visible: Jogo do Mês(, tab, 1 of 5)?
     timeout: 30000
@@ -13,14 +15,26 @@ appId: com.clubedojogo.mobile.dev
     element:
       id: timeline-composer-input
     direction: DOWN
+    centerElement: true
 - tapOn:
     id: timeline-composer-input
+    point: "95%,90%"
 - eraseText: 100
 - inputText: ${COMMENT_BODY}
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - swipe:
+          start: "50%,45%"
+          end: "50%,20%"
+          duration: 600
 - scrollUntilVisible:
     element:
       text: Comentar
     direction: DOWN
+    centerElement: true
+- takeScreenshot: comentario-pronto-para-enviar
 - tapOn: Comentar
 - scrollUntilVisible:
     element:
