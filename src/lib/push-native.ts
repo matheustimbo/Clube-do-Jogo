@@ -8,6 +8,10 @@ const SEND_RETRY_SECONDS = [60, 300, 1800, 7200] as const;
 const RECEIPT_RETRY_SECONDS = 15 * 60;
 const EXPO_SEND_URL = 'https://exp.host/--/api/v2/push/send';
 const EXPO_RECEIPTS_URL = 'https://exp.host/--/api/v2/push/getReceipts';
+const EXPO_REQUEST_TIMEOUT_MS = 30_000;
+const STORE_REQUEST_TIMEOUT_MS = 8_000;
+export const NATIVE_PUSH_SEND_CONCURRENCY = 10;
+export const NATIVE_PUSH_STORE_WRITE_CONCURRENCY = 20;
 
 class ExpoPushRequestError extends Error {
   constructor(message: string, readonly retryable: boolean) {
@@ -282,7 +286,7 @@ export async function enqueueNativePushNotification(
 
 export function createExpoPushTransport(
   fetcher: typeof fetch = fetch,
-  { timeoutMs = 30_000 }: { timeoutMs?: number } = {},
+  { timeoutMs = EXPO_REQUEST_TIMEOUT_MS }: { timeoutMs?: number } = {},
 ): ExpoPushTransport {
   const headers = () => {
     const value: Record<string, string> = { Accept: 'application/json', 'Content-Type': 'application/json' };
@@ -321,13 +325,20 @@ export function createExpoPushTransport(
   };
 }
 
+async function awaitStoreRequest<T>(request: PromiseLike<T>): Promise<T> {
+  const abortable = request as PromiseLike<T> & {
+    abortSignal?: (signal: AbortSignal) => PromiseLike<T>;
+  };
+  return await (abortable.abortSignal?.(AbortSignal.timeout(STORE_REQUEST_TIMEOUT_MS)) ?? request);
+}
+
 export function createSupabaseNativePushStore(admin: SupabaseClient, workerId: string): NativePushStore {
   return {
     async claimDeliveries(limit) {
-      const { data, error } = await admin.rpc('claim_native_push_deliveries', {
+      const { data, error } = await awaitStoreRequest(admin.rpc('claim_native_push_deliveries', {
         target_worker_id: workerId,
         target_limit: limit,
-      });
+      }));
       if (error) throw error;
       return (data ?? []).map((row: Record<string, unknown>) => ({
         deliveryId: row.delivery_id,
@@ -340,8 +351,8 @@ export function createSupabaseNativePushStore(admin: SupabaseClient, workerId: s
       })) as ClaimedNativeDelivery[];
     },
     async recordTickets(outcomes) {
-      for (const outcome of outcomes) {
-        const { data, error } = await admin.rpc('record_native_push_ticket', {
+      await runWithConcurrency(outcomes, NATIVE_PUSH_STORE_WRITE_CONCURRENCY, async outcome => {
+        const { data, error } = await awaitStoreRequest(admin.rpc('record_native_push_ticket', {
           target_delivery_id: outcome.delivery.deliveryId,
           target_attempt_id: outcome.delivery.attemptId,
           target_worker_id: workerId,
@@ -353,16 +364,16 @@ export function createSupabaseNativePushStore(admin: SupabaseClient, workerId: s
           target_retry_at: outcome.retryAt ?? null,
           target_uncertain: outcome.uncertain ?? false,
           target_raw: outcome.raw ?? null,
-        });
+        }));
         if (error) throw error;
         if (data !== true) throw new Error(`Push ticket outcome was not persisted for delivery ${outcome.delivery.deliveryId}.`);
-      }
+      });
     },
     async claimReceipts(limit) {
-      const { data, error } = await admin.rpc('claim_native_push_receipts', {
+      const { data, error } = await awaitStoreRequest(admin.rpc('claim_native_push_receipts', {
         target_worker_id: workerId,
         target_limit: limit,
-      });
+      }));
       if (error) throw error;
       return (data ?? []).map((row: Record<string, unknown>) => ({
         deliveryId: row.delivery_id,
@@ -374,8 +385,8 @@ export function createSupabaseNativePushStore(admin: SupabaseClient, workerId: s
       })) as ClaimedNativeReceipt[];
     },
     async recordReceipts(outcomes) {
-      for (const outcome of outcomes) {
-        const { data, error } = await admin.rpc('record_native_push_receipt', {
+      await runWithConcurrency(outcomes, NATIVE_PUSH_STORE_WRITE_CONCURRENCY, async outcome => {
+        const { data, error } = await awaitStoreRequest(admin.rpc('record_native_push_receipt', {
           target_delivery_id: outcome.receipt.deliveryId,
           target_attempt_id: outcome.receipt.attemptId,
           target_worker_id: workerId,
@@ -385,12 +396,35 @@ export function createSupabaseNativePushStore(admin: SupabaseClient, workerId: s
           target_error_message: outcome.errorMessage ?? null,
           target_retry_at: outcome.retryAt ?? null,
           target_raw: outcome.raw ?? null,
-        });
+        }));
         if (error) throw error;
         if (data !== true) throw new Error(`Push receipt outcome was not persisted for delivery ${outcome.receipt.deliveryId}.`);
-      }
+      });
     },
   };
+}
+
+async function runWithConcurrency<T>(items: T[], concurrency: number, operation: (item: T) => Promise<void>) {
+  let nextIndex = 0;
+  let failed = false;
+  let firstError: unknown;
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (!failed) {
+      const index = nextIndex;
+      nextIndex += 1;
+      if (index >= items.length) return;
+      try {
+        await operation(items[index]);
+      } catch (error) {
+        if (!failed) {
+          failed = true;
+          firstError = error;
+        }
+      }
+    }
+  });
+  await Promise.all(workers);
+  if (failed) throw firstError;
 }
 
 export async function runNativePushWorker(
@@ -415,39 +449,42 @@ export async function runNativePushWorker(
     if (projectBatch) projectBatch.push(delivery);
     else projectDeliveries.set(delivery.projectId, [delivery]);
   }
+  const deliveryBatches: ClaimedNativeDelivery[][] = [];
   for (const projectBatch of projectDeliveries.values()) {
     for (let offset = 0; offset < projectBatch.length; offset += SEND_LIMIT) {
-      const batch = projectBatch.slice(offset, offset + SEND_LIMIT);
-      let outcomes: NativeTicketOutcome[];
-      try {
-        const tickets = await transport.send(batch.map(delivery => ({
-          to: delivery.expoPushToken,
-          title: delivery.message.title,
-          body: delivery.message.body,
-          sound: 'default',
-          channelId: 'default',
-          data: { url: delivery.message.url, tag: delivery.message.tag },
-        })));
-        outcomes = batch.map((delivery, index) => ticketOutcome(delivery, tickets[index], now));
-      } catch (error) {
-        outcomes = error instanceof ExpoPushRequestError && !error.retryable
-          ? batch.map(delivery => ({
-              delivery,
-              status: 'failed',
-              errorCode: 'ExpoRequestRejected',
-              errorMessage: error.message,
-            }))
-          : uncertainOutcomes(batch, error, now);
-      }
-      await store.recordTickets(outcomes);
-      for (const outcome of outcomes) {
-        if (outcome.status === 'ticketed') result.ticketed += 1;
-        if (outcome.status === 'retry') result.retried += 1;
-        if (outcome.status === 'invalid_token') result.invalidTokens += 1;
-        if (outcome.status === 'failed' || outcome.status === 'unknown') result.failed += 1;
-      }
+      deliveryBatches.push(projectBatch.slice(offset, offset + SEND_LIMIT));
     }
   }
+  await runWithConcurrency(deliveryBatches, NATIVE_PUSH_SEND_CONCURRENCY, async batch => {
+    let outcomes: NativeTicketOutcome[];
+    try {
+      const tickets = await transport.send(batch.map(delivery => ({
+        to: delivery.expoPushToken,
+        title: delivery.message.title,
+        body: delivery.message.body,
+        sound: 'default',
+        channelId: 'default',
+        data: { url: delivery.message.url, tag: delivery.message.tag },
+      })));
+      outcomes = batch.map((delivery, index) => ticketOutcome(delivery, tickets[index], now));
+    } catch (error) {
+      outcomes = error instanceof ExpoPushRequestError && !error.retryable
+        ? batch.map(delivery => ({
+            delivery,
+            status: 'failed',
+            errorCode: 'ExpoRequestRejected',
+            errorMessage: error.message,
+          }))
+        : uncertainOutcomes(batch, error, now);
+    }
+    await store.recordTickets(outcomes);
+    for (const outcome of outcomes) {
+      if (outcome.status === 'ticketed') result.ticketed += 1;
+      if (outcome.status === 'retry') result.retried += 1;
+      if (outcome.status === 'invalid_token') result.invalidTokens += 1;
+      if (outcome.status === 'failed' || outcome.status === 'unknown') result.failed += 1;
+    }
+  });
 
   const receipts = await store.claimReceipts(RECEIPT_LIMIT);
   for (let offset = 0; offset < receipts.length; offset += RECEIPT_LIMIT) {

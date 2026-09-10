@@ -57,7 +57,11 @@ The native payload contains the existing `title`, `body`, `url`, and `tag`. The 
 
 Each worker call claims no more than 100 due deliveries, matching the Expo send batch limit. A database lease prevents concurrent workers from claiming the same ready row. Before each retry, the claim verifies that the installation is active and still belongs to the original recipient. A transferred installation cancels the old delivery.
 
-Each Expo HTTP request has a 30-second abort deadline. An aborted send is recorded as uncertain and follows the bounded retry policy; an aborted receipt request remains awaiting a receipt. The deadline leaves time to persist the outcome before the ten-minute database lease expires.
+Each Expo HTTP request has a 30-second abort deadline. Worker database requests have an eight-second deadline, and outcome writes use at most 20 concurrent requests. An aborted send is recorded as uncertain and follows the bounded retry policy; an aborted receipt request remains awaiting a receipt. Delivery batches keep project identities separate and run with at most ten concurrent requests. Since one claim contains at most 100 deliveries, the worst case of 100 distinct projects uses one eight-second claim and at most ten waves of one Expo request plus one outcome write: at most 388 seconds. This reserves more than three minutes of the ten-minute delivery lease. All claimed delivery batches are sent or classified from an attempted request; the worker does not label an unsent item as externally uncertain.
+
+Receipt rows are claimed only after every delivery outcome has been persisted, so their ten-minute leases start independently of the send phase. A receipt claim contains at most 1000 rows, which fit in one 30-second Expo receipt request. At 20 concurrent writes, persistence takes at most 50 eight-second waves; including the claim, the combined 438-second bound leaves more than two minutes before receipt leases expire.
+
+If persistence for one project fails, the worker stops taking new batches, waits for every already-started batch to settle, skips the receipt claim, and returns an error. It does not leave in-process sends running after the request or invent an external result for batches that never started; their database leases remain the recovery boundary.
 
 An Expo ticket with an ID moves a row to `ticketed`. Receipt lookup begins after 15 minutes, following Expo's recommendation, and sends no more than 1000 ticket IDs per request. Missing receipts are checked at most five times because Expo clears receipts after 24 hours.
 
