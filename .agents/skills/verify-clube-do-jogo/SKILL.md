@@ -118,7 +118,7 @@ adb -s "$EXPO_ANDROID_SERIAL" reverse tcp:3101 tcp:3101
 adb -s "$EXPO_ANDROID_SERIAL" reverse --list
 adb -s "$EXPO_ANDROID_SERIAL" forward --list
 git rev-parse HEAD
-npx expo config --type public --json --config apps/mobile/app.config.ts
+npx expo config apps/mobile --type public --json
 find apps/mobile/dist -type f -print0 | xargs -0 shasum -a 256
 ```
 
