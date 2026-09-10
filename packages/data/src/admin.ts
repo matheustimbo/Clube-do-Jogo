@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { demoProfiles } from '@clube-do-jogo/domain/demo';
 import { monthKey, shiftMonth } from '@clube-do-jogo/domain';
-import type { AdminUser, AppRole, ClubCycle } from '@clube-do-jogo/domain';
+import type { AdminUser, AppRole, ClubCycle, Game } from '@clube-do-jogo/domain';
 import { DemoStore } from './demo';
 import { DataError, withDataErrors } from './errors';
 
@@ -22,6 +22,11 @@ export interface AdminRoleChangeResult {
   targetUserId: string;
   role: AppRole;
   outcome: AdminMutationOutcome;
+}
+
+export interface AdminGameOptionsQuery extends AdminScope {
+  search?: string;
+  limit?: number;
 }
 
 export interface ClubGameCycleBaseline {
@@ -128,6 +133,8 @@ type DemoAdminState = {
 const pendingByOwner = new WeakMap<object, Map<string, Promise<unknown>>>();
 const demoStates = new WeakMap<DemoStore, Map<string, DemoAdminState>>();
 let demoEventSequence = 0;
+const DEFAULT_GAME_OPTIONS_LIMIT = 25;
+const MAX_GAME_OPTIONS_LIMIT = 40;
 
 function cloneCycle(cycle: ClubCycle): ClubCycle {
   return { ...cycle, game: cycle.game ? { ...cycle.game } : cycle.game };
@@ -139,6 +146,33 @@ function cloneCycles(cycles: ClubCycle[]): ClubCycle[] {
 
 function cloneAdminUser(user: AdminUser): AdminUser {
   return { ...user, avatar_crop: user.avatar_crop ? { ...user.avatar_crop } : user.avatar_crop };
+}
+
+function gameOptionsLimit(value: number | undefined): number {
+  if (!Number.isFinite(value) || !value || value < 1) return DEFAULT_GAME_OPTIONS_LIMIT;
+  return Math.min(MAX_GAME_OPTIONS_LIMIT, Math.floor(value));
+}
+
+function gameOptionsSearch(value: string | undefined): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function escapeIlike(value: string): string {
+  return value.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_');
+}
+
+function compareGameOptions(left: Game, right: Game): number {
+  return left.title.localeCompare(right.title, 'pt-BR') || left.id.localeCompare(right.id);
+}
+
+function cloneGame(game: Game): Game {
+  return {
+    ...game,
+    screenshot_urls: game.screenshot_urls ? [...game.screenshot_urls] : game.screenshot_urls,
+    genres: game.genres ? [...game.genres] : game.genres,
+    platforms: game.platforms ? [...game.platforms] : game.platforms,
+    platform_ids: game.platform_ids ? [...game.platform_ids] : game.platform_ids,
+  };
 }
 
 function responseError(response: { error: unknown }): void {
@@ -414,6 +448,35 @@ export class AdminDataClient {
         if (typeof row.id !== 'string') return [];
         return [{ ...row, id: row.id, name: row.name ?? null, avatar_url: row.avatar_url ?? null, role: roleMap.get(row.id) || 'member' } as AdminUser];
       });
+    });
+  }
+
+  async readGameOptions(input: AdminGameOptionsQuery): Promise<Game[]> {
+    const operation = 'buscar jogos administrativos';
+    const search = gameOptionsSearch(input.search);
+    const limit = gameOptionsLimit(input.limit);
+    if (input.isDemo) {
+      const state = this.demoState();
+      this.requireDemoAdmin(state, input.userId, operation);
+      const page = this.demo.readDiscoveryPage(input.userId, 'friends', {}, 0, MAX_GAME_OPTIONS_LIMIT);
+      return page.items
+        .map(item => item.game)
+        .filter(game => !search || game.title.toLocaleLowerCase('pt-BR').includes(search.toLocaleLowerCase('pt-BR')))
+        .sort(compareGameOptions)
+        .slice(0, limit)
+        .map(cloneGame);
+    }
+    return withDataErrors(operation, 'Não foi possível buscar jogos no catálogo.', async () => {
+      const client = await this.authenticatedClient(operation, input.userId);
+      await this.requireAdmin(client, operation);
+      let query = client.from('games').select('*');
+      if (search) query = query.ilike('title', `%${escapeIlike(search)}%`);
+      const response = await query
+        .order('title', { ascending: true })
+        .order('id', { ascending: true })
+        .limit(limit);
+      responseError(response);
+      return (Array.isArray(response.data) ? response.data : []) as Game[];
     });
   }
 

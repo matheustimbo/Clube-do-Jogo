@@ -10,6 +10,7 @@ import {
 
 type QueryResult = { data: unknown; error: Error | null };
 type RpcCall = { name: string; args: Record<string, unknown> | undefined };
+type GameQueryOptions = { ilike: Record<string, string>; limit: number | undefined; order: string[] };
 type EventRow = {
   id: string;
   cycle_month: string;
@@ -23,6 +24,9 @@ type EventRow = {
 
 class FakeQuery implements PromiseLike<QueryResult> {
   private readonly filters = new Map<string, unknown>();
+  private readonly ilikeFilters = new Map<string, string>();
+  private readonly ordering: string[] = [];
+  private requestedLimit: number | undefined;
 
   constructor(
     private readonly backend: FakeAdminBackend,
@@ -38,7 +42,19 @@ class FakeQuery implements PromiseLike<QueryResult> {
     return this;
   }
 
-  order() {
+  order(...args: [string?, unknown?]) {
+    const [column] = args;
+    if (column) this.ordering.push(column);
+    return this;
+  }
+
+  ilike(column: string, pattern: string) {
+    this.ilikeFilters.set(column, pattern);
+    return this;
+  }
+
+  limit(value: number) {
+    this.requestedLimit = value;
     return this;
   }
 
@@ -50,8 +66,25 @@ class FakeQuery implements PromiseLike<QueryResult> {
     onfulfilled?: ((value: QueryResult) => TResult1 | PromiseLike<TResult1>) | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
   ): PromiseLike<TResult1 | TResult2> {
-    return Promise.resolve(this.backend.query(this.table, this.filters, false)).then(onfulfilled, onrejected);
+    return Promise.resolve(this.backend.query(this.table, this.filters, false, {
+      ilike: Object.fromEntries(this.ilikeFilters),
+      limit: this.requestedLimit,
+      order: this.ordering,
+    })).then(onfulfilled, onrejected);
   }
+}
+
+function unescapeIlike(value: string): string {
+  let result = '';
+  for (let index = 0; index < value.length; index += 1) {
+    if (value[index] === '\\' && index + 1 < value.length && '\\%_'.includes(value[index + 1])) {
+      result += value[index + 1];
+      index += 1;
+    } else {
+      result += value[index];
+    }
+  }
+  return result;
 }
 
 class FakeAdminBackend {
@@ -70,6 +103,19 @@ class FakeAdminBackend {
   events: EventRow[] = [];
   undoPreview: ClubGameUndoPreview | null = null;
   calls: RpcCall[] = [];
+  gameQueries: GameQueryOptions[] = [];
+  games = [
+    { id: 'hades', title: 'Hades', duration_hours: 22, image_url: 'hades.jpg', description: 'Hades' },
+    { id: 'literal-percent', title: '100% Fun', duration_hours: 4, image_url: 'percent.jpg', description: 'Percent' },
+    { id: 'literal-under', title: 'A_B', duration_hours: 4, image_url: 'under.jpg', description: 'Underscore' },
+    ...Array.from({ length: 45 }, (_, index) => ({
+      id: `catalog-${String(index).padStart(2, '0')}`,
+      title: `Catalog ${String(index).padStart(2, '0')}`,
+      duration_hours: 1,
+      image_url: `catalog-${index}.jpg`,
+      description: `Catalog ${index}`,
+    })),
+  ];
   rpcOverride?: (name: string, args: Record<string, unknown> | undefined) => Promise<QueryResult>;
 
   readonly client: SupabaseClient;
@@ -84,7 +130,7 @@ class FakeAdminBackend {
     } as unknown as SupabaseClient;
   }
 
-  query(table: string, filters: Map<string, unknown>, single: boolean): QueryResult {
+  query(table: string, filters: Map<string, unknown>, single: boolean, options: GameQueryOptions = { ilike: {}, limit: undefined, order: [] }): QueryResult {
     if (table === 'profiles') return { data: this.profiles, error: null };
     if (table === 'user_roles') {
       const target = filters.get('user_id');
@@ -93,6 +139,17 @@ class FakeAdminBackend {
     }
     if (table === 'club_months') return { data: this.active, error: null };
     if (table === 'club_cycle_events') return { data: this.events, error: null };
+    if (table === 'games') {
+      this.gameQueries.push(options);
+      let games = [...this.games];
+      const pattern = options.ilike.title;
+      if (pattern) {
+        const search = unescapeIlike(pattern.slice(1, -1)).toLocaleLowerCase('pt-BR');
+        games = games.filter(game => game.title.toLocaleLowerCase('pt-BR').includes(search));
+      }
+      games.sort((left, right) => left.title.localeCompare(right.title) || left.id.localeCompare(right.id));
+      return { data: options.limit === undefined ? games : games.slice(0, options.limit), error: null };
+    }
     throw new Error(`consulta inesperada em ${table}`);
   }
 
@@ -137,6 +194,42 @@ function event(overrides: Partial<EventRow> = {}): EventRow {
     ...overrides,
   };
 }
+
+test('catálogo administrativo busca jogos persistidos, ordena, limita e trata curingas literalmente', async () => {
+  const backend = new FakeAdminBackend();
+  const client = createAdminDataClient({ supabase: backend.client });
+
+  assert.deepEqual((await client.readGameOptions({ userId: 'admin-a', isDemo: false, search: 'hades' })).map(game => game.id), ['hades']);
+  assert.deepEqual(backend.gameQueries.at(-1), { ilike: { title: '%hades%' }, limit: 25, order: ['title', 'id'] });
+
+  assert.deepEqual((await client.readGameOptions({ userId: 'admin-a', isDemo: false, search: '100%' })).map(game => game.id), ['literal-percent']);
+  assert.equal(backend.gameQueries.at(-1)?.ilike.title, '%100\\%%');
+  assert.deepEqual((await client.readGameOptions({ userId: 'admin-a', isDemo: false, search: 'A_B' })).map(game => game.id), ['literal-under']);
+  assert.equal(backend.gameQueries.at(-1)?.ilike.title, '%A\\_B%');
+
+  const all = await client.readGameOptions({ userId: 'admin-a', isDemo: false });
+  assert.equal(all.length, 25);
+  assert.equal((await client.readGameOptions({ userId: 'admin-a', isDemo: false, search: 'catalog', limit: 100 })).length, 40);
+  assert.equal(backend.gameQueries.at(-1)?.limit, 40);
+  assert.deepEqual(await client.readGameOptions({ userId: 'admin-a', isDemo: false, search: 'does-not-exist' }), []);
+});
+
+test('catálogo administrativo preserva o guard de administrador antes da consulta', async () => {
+  const backend = new FakeAdminBackend();
+  backend.admin = false;
+  const client = createAdminDataClient({ supabase: backend.client });
+
+  await assert.rejects(client.readGameOptions({ userId: 'admin-a', isDemo: false, search: 'hades' }), /Somente administradores/);
+  assert.equal(backend.gameQueries.length, 0);
+});
+
+test('catálogo administrativo em demo usa o DemoStore e respeita o guard local', async () => {
+  const client = createAdminDataClient({ demo: new DemoStore() });
+
+  assert.deepEqual((await client.readGameOptions({ userId: 'demo-user', isDemo: true, search: 'hades' })).map(game => game.id), ['hades']);
+  assert.deepEqual((await client.readGameOptions({ userId: 'demo-user', isDemo: true, search: 'does-not-exist' })), []);
+  await assert.rejects(client.readGameOptions({ userId: 'bia', isDemo: true, search: 'hades' }), /Somente administradores/);
+});
 
 test('lista administrativa exige papel real e combina perfis com papéis', async () => {
   const backend = new FakeAdminBackend();

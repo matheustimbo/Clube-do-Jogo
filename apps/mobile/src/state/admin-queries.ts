@@ -14,7 +14,7 @@ import {
   type ClubGameUndoPreview,
   type ClubGameUndoResult,
 } from '@clube-do-jogo/data';
-import type { AdminUser, AppRole } from '@clube-do-jogo/domain';
+import type { AdminUser, AppRole, Game } from '@clube-do-jogo/domain';
 import { getMobileSupabaseClient } from '@/platform';
 import { useAppInternal } from './app-provider';
 
@@ -102,6 +102,24 @@ export function useAdminUsers(): UseQueryResult<AdminUser[], Error> {
     queryKey: ['admin-users', context.sessionEpoch, userId, context.isDemo],
     enabled: context.ready && Boolean(userId) && context.isAdmin,
     queryFn: () => client.readAdminUsers({ userId: requireUser(userId), isDemo: context.isDemo }),
+  });
+}
+
+export function useAdminGameOptions(search: string): UseQueryResult<Game[], Error> {
+  const { client, context } = useAdminDataClient();
+  const userId = context.userId;
+  const epoch = context.sessionEpoch;
+  const normalizedSearch = search.trim();
+  const key = ['admin-game-options', epoch, userId, context.isDemo, normalizedSearch] as const;
+  return useQuery<Game[], Error>({
+    queryKey: key,
+    enabled: context.ready && Boolean(userId) && context.isAdmin,
+    queryFn: async () => {
+      requireCurrentSession(context, epoch);
+      const games = await client.readGameOptions({ ...scope(context), search: normalizedSearch, limit: 25 });
+      requireCurrentSession(context, epoch);
+      return games;
+    },
   });
 }
 
