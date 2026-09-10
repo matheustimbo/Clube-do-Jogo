@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Avatar } from './Avatar';
@@ -54,7 +54,7 @@ export function PreferenceParticipantsSheet({ visible, onClose, profiles, initia
           })}
         </View>
 
-        <View style={styles.list}>
+        <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
           {people.length === 0 ? (
             <Text style={styles.emptyText}>Ninguém escolheu esta opção.</Text>
           ) : (
@@ -82,7 +82,7 @@ export function PreferenceParticipantsSheet({ visible, onClose, profiles, initia
               </Pressable>
             ))
           )}
-        </View>
+        </ScrollView>
       </View>
     </Sheet>
   );
@@ -103,7 +103,8 @@ const useStyles = themedStyles(colors => ({
   tabSelected: { backgroundColor: colors.surfaceSoft },
   tabLabel: { fontSize: 11, fontWeight: '700', color: colors.zinc500 },
   tabLabelSelected: { color: colors.violet300 },
-  list: { gap: spacing.sm, maxHeight: 420 },
+  list: { maxHeight: 420 },
+  listContent: { gap: spacing.sm },
   emptyText: { ...typography.small, color: colors.zinc500, textAlign: 'center', paddingVertical: spacing.xxl },
   personRow: {
     flexDirection: 'row',

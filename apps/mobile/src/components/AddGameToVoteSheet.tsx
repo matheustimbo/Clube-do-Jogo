@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Text, TextInput, View } from 'react-native';
+import { ScrollView, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { GameListRow } from './GameListRow';
 import { PreferenceButtons } from './PreferenceButtons';
@@ -46,7 +46,7 @@ export function AddGameToVoteSheet({ visible, onClose, ranking, onChoose }: {
           />
         </View>
 
-        <View style={styles.results}>
+        <ScrollView style={styles.results} contentContainerStyle={styles.resultsContent} keyboardShouldPersistTaps="handled">
           {!hasQuery ? (
             <Text style={styles.emptyText}>Busque pelo nome do jogo.</Text>
           ) : discoverQuery.isLoading ? (
@@ -69,7 +69,7 @@ export function AddGameToVoteSheet({ visible, onClose, ranking, onChoose }: {
               );
             })
           )}
-        </View>
+        </ScrollView>
       </View>
     </Sheet>
   );
@@ -89,7 +89,8 @@ const useStyles = themedStyles(colors => ({
     paddingHorizontal: spacing.md,
   },
   searchInput: { flex: 1, color: colors.foreground, fontSize: 14 },
-  results: { gap: spacing.sm },
+  results: { maxHeight: 420 },
+  resultsContent: { gap: spacing.sm },
   resultCard: { gap: spacing.sm },
   emptyText: { ...typography.small, color: colors.zinc500, textAlign: 'center', paddingVertical: spacing.xxl },
 }));
