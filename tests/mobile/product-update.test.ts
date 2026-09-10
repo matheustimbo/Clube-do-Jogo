@@ -34,3 +34,20 @@ test('closing the reopened sheet hides it again until the next reopen request', 
   const reopenedAgain = { ...closedAfterReopen, reopenSignal: 2 };
   assert.equal(shouldShowProductUpdate(reopenedAgain), true);
 });
+
+test('auto-shows when autoOpenEnabled is omitted, matching the pre-flag default', () => {
+  assert.equal(shouldShowProductUpdate({ loading: false, seen: false, reopenSignal: 0, closedSignal: -1 }), true);
+});
+
+test('auto-show is suppressed when autoOpenEnabled is false', () => {
+  const pending = { loading: false, seen: false, reopenSignal: 0, closedSignal: -1, autoOpenEnabled: false };
+  assert.equal(shouldShowProductUpdate(pending), false);
+});
+
+test('an explicit reopen request still works while autoOpenEnabled is false', () => {
+  const disabledAndSeen = { loading: false, seen: true, reopenSignal: 0, closedSignal: 0, autoOpenEnabled: false };
+  assert.equal(shouldShowProductUpdate(disabledAndSeen), false);
+
+  const reopenedWhileDisabled = { ...disabledAndSeen, reopenSignal: 1 };
+  assert.equal(shouldShowProductUpdate(reopenedWhileDisabled), true);
+});
