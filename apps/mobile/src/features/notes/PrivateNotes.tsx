@@ -8,9 +8,8 @@ import { Sheet } from '@/components/Sheet';
 import { EmptyState, ErrorState, LoadingState } from '@/components/StateViews';
 import { ImageGalleryModal } from '@/features/media/ImageGalleryModal';
 import { useAppInternal } from '@/state/app-provider';
-import { createNativeNoteId, useCreateNote, useDeleteNote, useNoteDraft, useNotes, useUpdateNote } from '@/state/discussion-queries';
+import { createNativeNoteId, mergePendingIntoList, useDeleteNote, useNoteDraft, useNotes, useNotesPendingQueue } from '@/state/discussion-queries';
 import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
-import { NotesConflictError } from '@clube-do-jogo/data';
 import { formatDate, formatShortDate, formatTime, type LocalNote } from '@clube-do-jogo/domain';
 import { shouldShowDateSeparator } from './date-grouping';
 
@@ -29,14 +28,13 @@ export function PrivateNotes(props: PrivateNotesProps) {
 function NotesEditor({ gameId, snapshotMonth }: PrivateNotesProps) {
   const colors = useThemeColors();
   const styles = useStyles();
-  const { isDemo, isHistorical } = useAppInternal();
+  const { isDemo, isHistorical, userId } = useAppInternal();
   const readOnly = Boolean(snapshotMonth) || isHistorical;
 
   const notesQuery = useNotes(gameId, { snapshotMonth });
-  const createNote = useCreateNote();
-  const updateNote = useUpdateNote();
   const deleteNote = useDeleteNote();
   const draftState = useNoteDraft(gameId);
+  const pendingQueue = useNotesPendingQueue(gameId);
 
   const [imageError, setImageError] = useState('');
   const [picking, setPicking] = useState(false);
@@ -45,7 +43,8 @@ function NotesEditor({ gameId, snapshotMonth }: PrivateNotesProps) {
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
   const listRef = useRef<ScrollView>(null);
 
-  const notes = notesQuery.data ?? [];
+  const notes = mergePendingIntoList(notesQuery.data ?? [], pendingQueue.queue);
+  const pendingIds = pendingQueue.queue;
 
   useEffect(() => {
     if (!notes.length) return;
@@ -54,41 +53,35 @@ function NotesEditor({ gameId, snapshotMonth }: PrivateNotesProps) {
 
   const draft = draftState.draft;
   const editing = draft.target?.kind === 'edit' ? draft.target : null;
-  const pending = createNote.isPending || updateNote.isPending;
-  const conflict = updateNote.error instanceof NotesConflictError ? updateNote.error
-    : createNote.error instanceof NotesConflictError ? createNote.error : null;
+  const busy = draftState.loading || pendingQueue.loading;
+  const conflictEntries = Array.from(pendingQueue.conflicts.entries());
 
   function beginEdit(note: LocalNote) {
     setActionsTarget(null);
-    createNote.reset();
-    updateNote.reset();
     draftState.setDraft({ target: { kind: 'edit', id: note.id, createdAt: note.createdAt, expectedUpdatedAt: note.updatedAt }, body: note.body, imageDataUrl: note.imageDataUrl, updatedAt: new Date().toISOString() });
   }
 
   function cancelEdit() {
-    createNote.reset();
-    updateNote.reset();
     draftState.clearDraft();
   }
 
   function submit() {
     const text = draft.body.trim();
     if (!text && !draft.imageDataUrl) return;
-    if (pending || draftState.loading) return;
+    if (busy || !userId) return;
     if (editing) {
-      updateNote.mutate({
-        gameId,
-        note: { id: editing.id, body: text, imageDataUrl: draft.imageDataUrl, createdAt: editing.createdAt, updatedAt: new Date().toISOString() },
-        expectedUpdatedAt: editing.expectedUpdatedAt,
-      }, { onSuccess: () => { Keyboard.dismiss(); draftState.clearDraft(); } });
+      pendingQueue.submitUpdate(
+        { id: editing.id, userId, gameId, body: text, imageDataUrl: draft.imageDataUrl, createdAt: editing.createdAt, updatedAt: new Date().toISOString() },
+        editing.expectedUpdatedAt,
+      );
+      Keyboard.dismiss();
+      draftState.clearDraft();
       return;
     }
     const target = draft.target || { kind: 'new' as const, id: createNativeNoteId(), createdAt: new Date().toISOString() };
-    draftState.setDraft(current => ({ ...current, target }));
-    createNote.mutate({
-      gameId,
-      note: { id: target.id, body: text, imageDataUrl: draft.imageDataUrl, createdAt: target.createdAt, updatedAt: target.createdAt },
-    }, { onSuccess: () => { Keyboard.dismiss(); draftState.clearDraft(); } });
+    pendingQueue.submitCreate({ id: target.id, userId, gameId, body: text, imageDataUrl: draft.imageDataUrl, createdAt: target.createdAt, updatedAt: target.createdAt });
+    Keyboard.dismiss();
+    draftState.clearDraft();
   }
 
   function removeImage() {
@@ -146,7 +139,7 @@ function NotesEditor({ gameId, snapshotMonth }: PrivateNotesProps) {
         <View style={styles.syncNotice}>
           <Ionicons name="information-circle-outline" size={14} color={colors.zinc400} />
           <Text style={styles.syncNoticeText}>
-            Anotações antigas pendentes de sincronização só são enviadas ao abrir o navegador onde foram criadas.
+            Anotações escritas sem conexão ficam guardadas neste aparelho e são enviadas automaticamente assim que a conexão voltar ou o app for reaberto.
           </Text>
         </View>
       ) : null}
@@ -173,13 +166,13 @@ function NotesEditor({ gameId, snapshotMonth }: PrivateNotesProps) {
                 </View>
               ) : null}
               <Pressable
-                onLongPress={() => { if (!readOnly) setActionsTarget(note); }}
+                onLongPress={() => { if (!readOnly && !pendingIds.has(note.id)) setActionsTarget(note); }}
                 accessibilityRole={readOnly ? undefined : 'button'}
                 accessibilityLabel={readOnly ? undefined : `${note.body || "Anotação com imagem"}. Opções da anotação de ${formatShortDate(note.createdAt)}`}
                 testID={`note-row-${note.id}`}
                 style={styles.bubbleRow}
               >
-                <View style={styles.bubble}>
+                <View style={[styles.bubble, pendingIds.has(note.id) && styles.bubblePending]}>
                   {note.imageDataUrl ? (
                     <Pressable
                       onPress={() => setGalleryIndex(noteImages.indexOf(note.imageDataUrl!))}
@@ -191,7 +184,8 @@ function NotesEditor({ gameId, snapshotMonth }: PrivateNotesProps) {
                   ) : null}
                   {note.body ? <Text style={styles.bubbleText}>{note.body}</Text> : null}
                   <View style={styles.bubbleFooter}>
-                    {note.updatedAt !== note.createdAt ? <Text style={styles.bubbleMeta}>editada · </Text> : null}
+                    {pendingIds.has(note.id) ? <Text style={styles.bubbleMeta}>enviando… · </Text>
+                      : note.updatedAt !== note.createdAt ? <Text style={styles.bubbleMeta}>editada · </Text> : null}
                     <Text style={styles.bubbleMeta}>{formatTime(note.createdAt)}</Text>
                   </View>
                 </View>
@@ -213,6 +207,7 @@ function NotesEditor({ gameId, snapshotMonth }: PrivateNotesProps) {
           ) : null}
           {imageError ? <Text style={styles.formError}>{imageError}</Text> : null}
           {draftState.error ? <Text style={styles.formError}>{draftState.error.message}</Text> : null}
+          {pendingQueue.corruptionError ? <Text style={styles.formError}>{pendingQueue.corruptionError.message}</Text> : null}
           {draft.imageDataUrl ? (
             <View style={styles.previewRow}>
               <Image source={{ uri: draft.imageDataUrl }} style={styles.previewImage} contentFit="cover" />
@@ -224,7 +219,7 @@ function NotesEditor({ gameId, snapshotMonth }: PrivateNotesProps) {
           <View style={styles.composerRow}>
             <Pressable
               onPress={() => void pickImage()}
-              disabled={picking || pending || draftState.loading}
+              disabled={picking || busy}
               accessibilityRole="button"
               accessibilityLabel="Anexar imagem"
               style={styles.imageButton}
@@ -232,7 +227,7 @@ function NotesEditor({ gameId, snapshotMonth }: PrivateNotesProps) {
               <Ionicons name="image-outline" size={18} color={colors.zinc400} />
             </Pressable>
             <TextInput
-              editable={!pending && !draftState.loading}
+              editable={!busy}
               value={draft.body}
               onChangeText={text => draftState.setDraft(current => ({ ...current, body: text, updatedAt: new Date().toISOString() }))}
               placeholder="Anote uma ideia…"
@@ -244,7 +239,7 @@ function NotesEditor({ gameId, snapshotMonth }: PrivateNotesProps) {
             />
             <Pressable
               onPress={submit}
-              disabled={(!draft.body.trim() && !draft.imageDataUrl) || pending || draftState.loading}
+              disabled={(!draft.body.trim() && !draft.imageDataUrl) || busy}
               accessibilityRole="button"
               accessibilityLabel="Salvar anotação"
               style={[styles.sendButton, (!draft.body.trim() && !draft.imageDataUrl) && styles.sendButtonDisabled]}
@@ -252,19 +247,20 @@ function NotesEditor({ gameId, snapshotMonth }: PrivateNotesProps) {
               <Ionicons name="send" size={16} color={colors.white} />
             </Pressable>
           </View>
-          {createNote.isError ? <Text style={styles.formError}>{createNote.error?.message}</Text> : null}
-          {updateNote.isError ? <Text style={styles.formError}>{updateNote.error?.message}</Text> : null}
-          {conflict ? <View style={styles.actionsBody}>
-            {conflict.remote ? <>
-              <Text style={styles.bubbleText}>Versão do servidor: {conflict.remote.body}</Text>
-              <Button label="Editar versão do servidor" variant="secondary" onPress={() => beginEdit(conflict.remote!)} />
-            </> : null}
-            <Button label="Manter como nova anotação" variant="secondary" onPress={() => {
-              draftState.setDraft(current => ({ ...current, target: undefined }));
-              createNote.reset();
-              updateNote.reset();
-            }} />
-          </View> : null}
+          {conflictEntries.map(([noteId, conflict]) => (
+            <View key={noteId} style={styles.actionsBody}>
+              <Text style={styles.formError}>
+                {conflict.kind === 'changed' ? 'Esta anotação mudou no servidor.' : 'Esta anotação foi removida no servidor.'}
+              </Text>
+              {conflict.kind === 'changed' ? (
+                <>
+                  <Text style={styles.bubbleText}>Versão do servidor: {conflict.remote.body}</Text>
+                  <Button label="Editar versão do servidor" variant="secondary" onPress={() => { pendingQueue.resolveUseRemote(noteId); beginEdit(conflict.remote); }} />
+                </>
+              ) : null}
+              <Button label="Manter como nova anotação" variant="secondary" onPress={() => pendingQueue.resolveKeepAsNew(noteId)} />
+            </View>
+          ))}
         </View>
       ) : null}
 
@@ -344,6 +340,7 @@ const useStyles = themedStyles(colors => ({
     backgroundColor: 'rgba(124,58,237,0.18)',
     overflow: 'hidden',
   },
+  bubblePending: { opacity: 0.6 },
   bubbleImage: { width: '100%', aspectRatio: 16 / 9 },
   bubbleText: { ...typography.body, color: colors.foreground, paddingHorizontal: spacing.md, paddingTop: spacing.sm },
   bubbleFooter: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: spacing.md, paddingVertical: spacing.xs },
