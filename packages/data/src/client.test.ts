@@ -97,6 +97,17 @@ test('real vote writes delete before insert and shifts the visible month by one'
   });
 });
 
+test('demo mutations keep the selected ranking formula', async () => {
+  const client = createDataClient({ rankingFormula: 'legacy' });
+  const item = (await client.readRanking({ userId, isDemo: true, month }))
+    .find(entry => !entry.votedByMe);
+  assert.ok(item);
+  await client.setVote({ userId, isDemo: true, month, gameId: item.game.id, choice: 'would_play' });
+  const updated = (await client.readRanking({ userId, isDemo: true, month }))
+    .find(entry => entry.game.id === item.game.id);
+  assert.equal(updated?.totalPoints, updated?.legacyTotalPoints);
+});
+
 test('demo progress, backlog and favorites remain coherent after mutations', async () => {
   const client = createDataClient();
   const gameId = demoGames[10].id;

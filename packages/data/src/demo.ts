@@ -109,7 +109,9 @@ export class DemoStore {
       };
       const voters = [...profiles.would_play, ...profiles.would_not_play];
       const myChoice = override?.choice || null;
-      const totalPoints = preferenceRankingScore(choiceCounts);
+      const totalPoints = formula === 'legacy'
+        ? legacyRankingScore(item.game, voters.length, item.completedCount)
+        : preferenceRankingScore(choiceCounts);
       return {
         ...item,
         choiceCounts,
