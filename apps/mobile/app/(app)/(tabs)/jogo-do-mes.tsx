@@ -11,12 +11,14 @@ import { MonthPicker } from '@/components/MonthPicker';
 import { StatusPill, useStatusMeta } from '@/components/StatusPill';
 import { RatingSheet } from '@/components/RatingSheet';
 import { RatingValue } from '@/components/RatingValue';
+import { ProgressConfirmSheet } from '@/components/ProgressConfirmSheet';
 import { EmptyState, ErrorState, LoadingState } from '@/components/StateViews';
 import { Timeline } from '@/features/timeline/Timeline';
 import { PrivateNotes } from '@/features/notes/PrivateNotes';
 import { useApp } from '@/state/app-provider';
 import { useGameOfMonth, useProgress, useSetProgress } from '@/state/queries';
 import { useSetRating } from '@/state/library-queries';
+import { formatShortDate } from '@/lib/format';
 import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
 import type { ProgressStatus, RatingDetails, RatingMode } from '@clube-do-jogo/domain';
 
@@ -46,7 +48,8 @@ export default function GameOfMonthScreen() {
 
   const [ratingOpen, setRatingOpen] = useState(false);
   const [ratingToken, setRatingToken] = useState(0);
-  const activeTab: GameOfMonthTab = section === 'timeline' || section === 'notes' ? section : 'progress';
+  const [pendingStatus, setPendingStatus] = useState<ProgressStatus | null>(null);
+  const activeTab: GameOfMonthTab = section === 'progress' || section === 'notes' ? section : 'timeline';
   const setActiveTab = (tab: GameOfMonthTab) => router.setParams({ section: tab });
 
   const progress = progressQuery.data ?? [];
@@ -57,9 +60,15 @@ export default function GameOfMonthScreen() {
     ? ratedProgress.reduce((total, item) => total + Number(item.rating), 0) / ratedProgress.length
     : null;
 
-  function updateStatus(status: ProgressStatus) {
+  function requestStatus(status: ProgressStatus) {
     if (!game || isHistorical || mine?.status === status) return;
-    setProgress.mutate({ gameId: game.id, status });
+    setPendingStatus(status);
+  }
+
+  function confirmStatus() {
+    if (!game || !pendingStatus) return;
+    setProgress.mutate({ gameId: game.id, status: pendingStatus });
+    setPendingStatus(null);
   }
 
   function openRating() {
@@ -151,7 +160,7 @@ export default function GameOfMonthScreen() {
                   <Pressable
                     key={status}
                     disabled={isHistorical || active || setProgress.isPending}
-                    onPress={() => updateStatus(status)}
+                    onPress={() => requestStatus(status)}
                     accessibilityRole="button"
                     accessibilityLabel={meta.label}
                     accessibilityState={{ selected: active, disabled: isHistorical || active }}
@@ -199,7 +208,25 @@ export default function GameOfMonthScreen() {
               <View style={{ gap: spacing.sm }}>
                 {progress.map(item => (
                   <View key={item.user_id} style={styles.memberRow}>
-                    <Text style={styles.memberName} numberOfLines={1}>{item.profile?.name || 'Membro'}</Text>
+                    <View style={styles.memberInfo}>
+                      <Text style={styles.memberName} numberOfLines={1}>{item.profile?.name || 'Membro'}</Text>
+                      {item.started_at || item.finished_at ? (
+                        <View style={styles.memberDates}>
+                          {item.started_at ? (
+                            <View style={styles.memberDateChip}>
+                              <Ionicons name="time-outline" size={12} color={colors.sky400} />
+                              <Text style={styles.memberDateText}>{formatShortDate(item.started_at)}</Text>
+                            </View>
+                          ) : null}
+                          {item.finished_at ? (
+                            <View style={styles.memberDateChip}>
+                              <Ionicons name="checkmark-done-outline" size={12} color={colors.emerald400} />
+                              <Text style={styles.memberDateText}>{formatShortDate(item.finished_at)}</Text>
+                            </View>
+                          ) : null}
+                        </View>
+                      ) : null}
+                    </View>
                     <View style={styles.memberMeta}>
                       {item.rating !== null ? <RatingValue value={item.rating} size={11} /> : null}
                       <StatusPill status={item.status} />
@@ -244,6 +271,14 @@ export default function GameOfMonthScreen() {
           onRemove={removeRating}
         />
       ) : null}
+
+      <ProgressConfirmSheet
+        visible={pendingStatus !== null}
+        currentStatus={mine?.status ?? 'not_started'}
+        targetStatus={pendingStatus ?? 'not_started'}
+        onClose={() => setPendingStatus(null)}
+        onConfirm={confirmStatus}
+      />
     </Screen>
   );
 }
@@ -325,7 +360,11 @@ const useStyles = themedStyles(colors => ({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   },
-  memberName: { ...typography.small, color: colors.zinc300, flex: 1, marginRight: spacing.sm },
+  memberInfo: { flex: 1, marginRight: spacing.sm, gap: 4 },
+  memberName: { ...typography.small, color: colors.zinc300 },
+  memberDates: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  memberDateChip: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  memberDateText: { fontSize: 10, fontWeight: '700', color: colors.zinc500 },
   memberMeta: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   emptyMembers: { ...typography.small, color: colors.zinc600 },
 }));
