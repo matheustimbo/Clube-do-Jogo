@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 import { useApp } from '@/state/app-provider';
 import { RewardsGate } from '@/features/rewards';
+import { ProductUpdateGate } from '@/features/product-updates';
 import { useNativeTheme } from '@/theme';
 import { APP_STACK_ANCHOR } from '@/lib/nav-intent';
 
@@ -29,6 +30,7 @@ export default function AppGroupLayout() {
         <Stack.Screen name="configuracoes" options={{ title: 'Configurações' }} />
       </Stack>
       <RewardsGate key={userId ?? 'anonymous'} />
+      <ProductUpdateGate key={`product-update-${userId ?? 'anonymous'}`} />
     </>
   );
 }
