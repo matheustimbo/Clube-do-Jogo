@@ -19,6 +19,7 @@ import type {
   ProgressStatus,
   RankingFormula,
   RankingItem,
+  RatingCriterion,
   RatingDetails,
   RatingMode,
   UserPlatform,
@@ -31,6 +32,7 @@ import { DemoStore, type DemoVote } from './demo';
 import { DataError, requireValue, withDataErrors } from './errors';
 
 const voteChoices: VoteChoice[] = ['would_play', 'would_not_play'];
+const ratingCriteria: RatingCriterion[] = ['graphics', 'gameplay', 'story', 'music', 'fun'];
 
 export interface DataScope {
   userId: string;
@@ -80,6 +82,14 @@ export interface ProgressInput extends DataScope {
   gameId: string;
   status: ProgressStatus;
   historical?: boolean;
+}
+
+export interface RatingInput extends DataScope {
+  gameId: string;
+  historical?: boolean;
+  rating: number | null;
+  ratingMode: RatingMode;
+  ratingDetails?: RatingDetails | null;
 }
 
 export interface BacklogInput extends DataScope {
@@ -164,6 +174,29 @@ function asProfiles(value: unknown): Profile[] {
 
 function isVoteChoice(value: unknown): value is VoteChoice {
   return value === 'would_play' || value === 'would_not_play';
+}
+
+function validateRatingValue(value: unknown, label: string): number | null {
+  if (value === null) return null;
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 10) {
+    throw new DataError('salvar avaliação', `${label} deve estar entre 0 e 10.`);
+  }
+  return value;
+}
+
+function normalizeRatingDetails(value: RatingDetails | null | undefined): RatingDetails | null {
+  if (value == null) return null;
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    throw new DataError('salvar avaliação', 'Os critérios da avaliação são inválidos.');
+  }
+  const normalized: RatingDetails = {};
+  for (const [key, criterionValue] of Object.entries(value as Record<string, unknown>)) {
+    if (!ratingCriteria.includes(key as RatingCriterion)) {
+      throw new DataError('salvar avaliação', `O critério de avaliação “${key}” não é válido.`);
+    }
+    normalized[key as RatingCriterion] = validateRatingValue(criterionValue, `A nota de ${key}`);
+  }
+  return normalized;
 }
 
 function points(formula: RankingFormula, game: Game, counts: Record<VoteChoice, number>, completed: number) {
@@ -653,6 +686,40 @@ export class DataClient {
         game_id: input.gameId,
         ...next,
         updated_at: now,
+      }, { onConflict: 'user_id,game_id' });
+      if (error) throw error;
+    });
+  }
+
+  async setRating(input: RatingInput): Promise<void> {
+    if (input.historical) throw new DataError('salvar avaliação', 'O histórico é somente leitura.');
+    if (input.ratingMode !== 'simple' && input.ratingMode !== 'detailed') {
+      throw new DataError('salvar avaliação', 'O modo da avaliação é inválido.');
+    }
+    const rating = validateRatingValue(input.rating, 'A nota');
+    const ratingDetails = normalizeRatingDetails(input.ratingDetails);
+    if (input.isDemo) {
+      this.demo.setRating(input.userId, input.gameId, rating, input.ratingMode, ratingDetails);
+      return;
+    }
+    await withDataErrors('salvar avaliação', 'Não foi possível salvar sua avaliação.', async () => {
+      const client = await this.authenticatedClient('salvar avaliação', input.userId);
+      const { data: existing, error: existingError } = await client.from('game_progress')
+        .select('status, started_at, finished_at')
+        .eq('user_id', input.userId)
+        .eq('game_id', input.gameId)
+        .maybeSingle();
+      if (existingError) throw existingError;
+      const { error } = await client.from('game_progress').upsert({
+        user_id: input.userId,
+        game_id: input.gameId,
+        status: (existing as { status?: ProgressStatus } | null)?.status || 'not_started',
+        rating,
+        rating_mode: input.ratingMode,
+        rating_details: ratingDetails,
+        started_at: (existing as { started_at?: string | null } | null)?.started_at || null,
+        finished_at: (existing as { finished_at?: string | null } | null)?.finished_at || null,
+        updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id,game_id' });
       if (error) throw error;
     });
