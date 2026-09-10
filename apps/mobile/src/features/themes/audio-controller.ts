@@ -36,6 +36,8 @@ export interface ThemeAudioController {
   dispose(): void;
   retry(): void;
   playSignal(signal: ThemeAudioSignal): void;
+  setAmbienceEnabled(enabled: boolean): void;
+  setAmbienceVolume(volume: number): void;
   isModeActive(mode: CosmicSceneMode): boolean;
   subscribe(listener: () => void): () => void;
   getSnapshot(): ThemeAudioControllerSnapshot;
@@ -59,7 +61,7 @@ interface PlayerResources {
 }
 
 const SIGNALS: ThemeAudioSignal[] = ['enable', 'press', 'select', 'open', 'close', 'navigate'];
-const AMBIENCE_VOLUME = 0.45;
+const DEFAULT_AMBIENCE_VOLUME = 0.8;
 const SIGNAL_VOLUME = 0.7;
 
 function describe(error: unknown): string {
@@ -96,6 +98,8 @@ export function createThemeAudioController({
   let epoch = 0;
   let resources: PlayerResources | null = null;
   let pendingModeSignal = false;
+  let ambienceEnabled = true;
+  let ambienceVolume = DEFAULT_AMBIENCE_VOLUME;
   const listeners = new Set<() => void>();
   const signalTokens: Record<ThemeAudioSignal, number> = {
     enable: 0,
@@ -166,7 +170,7 @@ export function createThemeAudioController({
     else targetResources.loadedPlayers.delete(player);
 
     if (player === targetResources.ambience) {
-      if (status.isLoaded && !targetResources.ambienceStarted) {
+      if (status.isLoaded && !targetResources.ambienceStarted && ambienceEnabled) {
         targetResources.ambienceStarted = true;
         try {
           player.play();
@@ -177,7 +181,7 @@ export function createThemeAudioController({
       }
       if (!isCurrent(targetResources.epoch, targetResources)) return;
       publish({
-        ready: targetResources.ambienceStarted && targetResources.loadedPlayers.has(player),
+        ready: targetResources.loadedPlayers.has(player),
         error: null,
       });
     }
@@ -208,7 +212,7 @@ export function createThemeAudioController({
       created.players.push(ambience);
       created.ambience = ambience;
       ambience.loop = true;
-      ambience.volume = AMBIENCE_VOLUME;
+      ambience.volume = ambienceVolume;
 
       for (const signal of SIGNALS) {
         const player = platform.createPlayer(signalSources[signal]);
@@ -311,12 +315,41 @@ export function createThemeAudioController({
     startSession(desiredMode);
   }
 
+  function setAmbienceEnabled(enabled: boolean): void {
+    ambienceEnabled = enabled;
+    const current = resources;
+    if (!current || !current.ambience) return;
+    const player = current.ambience;
+    if (enabled) {
+      if (current.loadedPlayers.has(player) && !current.ambienceStarted) {
+        current.ambienceStarted = true;
+        try {
+          player.play();
+        } catch (failure) {
+          fail(current.epoch, failure, current);
+        }
+      }
+    } else if (current.ambienceStarted) {
+      current.ambienceStarted = false;
+      try {
+        player.pause();
+      } catch {}
+    }
+  }
+
+  function setAmbienceVolume(volume: number): void {
+    ambienceVolume = volume;
+    if (resources?.ambience) resources.ambience.volume = volume;
+  }
+
   return {
     activate,
     deactivate,
     dispose: deactivate,
     retry,
     playSignal,
+    setAmbienceEnabled,
+    setAmbienceVolume,
     isModeActive: mode => desiredMode === mode,
     subscribe(listener) {
       listeners.add(listener);

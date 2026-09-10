@@ -30,7 +30,7 @@ export function PreferencesPanel({
     ? 'O sistema já pede menos movimento, então as animações seguem pausadas.'
     : 'Pausa as animações de fundo e as cenas dos temas.';
   const audioHint = theme.usesAudio
-    ? 'Toca a trilha e os sinais do tema atual. O som para quando o app vai para segundo plano.'
+    ? 'Sinais em todos os controles interativos. O som para quando o app vai para segundo plano.'
     : 'O tema atual não usa som. A preferência fica guardada para os temas com trilha.';
 
   return (
@@ -56,8 +56,8 @@ export function PreferencesPanel({
       />
 
       <Row
-        icon="musical-notes-outline"
-        title="Som dos temas"
+        icon="radio-outline"
+        title="Sons do comunicador"
         hint={audioHint}
         control={
           <Switch

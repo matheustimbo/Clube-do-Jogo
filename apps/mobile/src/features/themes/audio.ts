@@ -30,7 +30,19 @@ const platform: ThemeAudioPlatform = {
   createPlayer: source => createAudioPlayer(source),
 };
 
-export function useThemeAudioEngine({ active, mode }: { active: boolean; mode: CosmicSceneMode }): ThemeAudioState {
+export function useThemeAudioEngine({
+  active,
+  mode,
+  ambienceEnabled,
+  ambienceVolume,
+  signalsEnabled,
+}: {
+  active: boolean;
+  mode: CosmicSceneMode;
+  ambienceEnabled: boolean;
+  ambienceVolume: number;
+  signalsEnabled: boolean;
+}): ThemeAudioState {
   const [controller] = useState(() =>
     createThemeAudioController({
       platform,
@@ -46,6 +58,11 @@ export function useThemeAudioEngine({ active, mode }: { active: boolean; mode: C
     controller.getSnapshot,
     controller.getSnapshot,
   );
+
+  useLayoutEffect(() => {
+    controller.setAmbienceEnabled(ambienceEnabled);
+    controller.setAmbienceVolume(ambienceVolume);
+  }, [controller, ambienceEnabled, ambienceVolume]);
 
   useLayoutEffect(() => {
     if (active) {
@@ -68,7 +85,7 @@ export function useThemeAudioEngine({ active, mode }: { active: boolean; mode: C
     error: current ? snapshot.error : null,
     retry: controller.retry,
     playSignal: (signal: ThemeSignal) => {
-      controller.playSignal(signal);
+      if (signalsEnabled) controller.playSignal(signal);
     },
   };
 }
