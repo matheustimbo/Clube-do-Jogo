@@ -18,7 +18,7 @@ import { PrivateNotes } from '@/features/notes/PrivateNotes';
 import { useApp } from '@/state/app-provider';
 import { useGameOfMonth, useProgress, useSetProgress } from '@/state/queries';
 import { useSetRating } from '@/state/library-queries';
-import { formatShortDate } from '@/lib/format';
+import { formatMonth, formatShortDate } from '@/lib/format';
 import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
 import type { ProgressStatus, RatingDetails, RatingMode } from '@clube-do-jogo/domain';
 
@@ -102,7 +102,7 @@ export default function GameOfMonthScreen() {
         <EmptyState
           icon="calendar-outline"
           title="Jogo ainda não definido"
-          description="Um administrador ainda não escolheu o jogo deste ciclo."
+          description={`Um administrador ainda não definiu o jogo de ${formatMonth(selectedMonth)}.`}
         />
       ) : (
         <View style={styles.content}>
@@ -112,6 +112,10 @@ export default function GameOfMonthScreen() {
             accessibilityLabel={`Ver detalhes de ${game.title}`}
             style={styles.hero}
           >
+            <View style={styles.monthChip}>
+              <Ionicons name="ribbon" size={13} color={colors.amber300} />
+              <Text style={styles.monthChipText}>Jogo de {formatMonth(selectedMonth, { includeYear: false })}</Text>
+            </View>
             <Image source={{ uri: game.image_url }} style={styles.cover} contentFit="cover" accessibilityLabel={`Capa de ${game.title}`} />
             <Text style={styles.title}>{game.title}</Text>
             <View style={styles.metaRow}>
@@ -126,7 +130,8 @@ export default function GameOfMonthScreen() {
                 </View>
               ) : null}
             </View>
-            <Text style={styles.description} numberOfLines={4}>{game.description}</Text>
+            <Text style={styles.description} numberOfLines={2}>{game.description}</Text>
+            {game.description.length > 150 ? <Text style={styles.moreLink}>Ver mais</Text> : null}
             <View style={styles.detailLink}>
               <Text style={styles.detailLinkText}>Ver detalhes</Text>
               <Ionicons name="chevron-forward" size={14} color={colors.violet300} />
@@ -294,6 +299,19 @@ const useStyles = themedStyles(colors => ({
     padding: spacing.lg,
     alignItems: 'center',
   },
+  monthChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    borderColor: 'rgba(252,211,77,0.35)',
+    backgroundColor: colors.amber950,
+    marginBottom: spacing.md,
+  },
+  monthChipText: { fontSize: 10, fontWeight: '800', color: colors.amber300, textTransform: 'uppercase', letterSpacing: 0.5 },
   cover: { width: 150, aspectRatio: 3 / 4, borderRadius: radii.xl, backgroundColor: colors.zinc900, marginBottom: spacing.md },
   title: { ...typography.h1, color: colors.foreground, textAlign: 'center' },
   metaRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm },
@@ -308,6 +326,7 @@ const useStyles = themedStyles(colors => ({
   },
   metaText: { fontSize: 11, fontWeight: '700', color: colors.zinc400 },
   description: { ...typography.small, color: colors.zinc400, textAlign: 'center', marginTop: spacing.md, lineHeight: 18 },
+  moreLink: { fontSize: 11, fontWeight: '800', color: colors.violet300, marginTop: 4 },
   detailLink: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: spacing.md },
   detailLinkText: { color: colors.violet300, fontWeight: '800', fontSize: 12 },
   card: { borderRadius: radii.xxl, borderWidth: 1, borderColor: colors.hairline, backgroundColor: colors.surfaceSofter, padding: spacing.lg, gap: spacing.md },
