@@ -72,6 +72,12 @@ export interface Game {
   platform_ids?: number[] | null;
 }
 
+export interface GameMugshot {
+  id: number;
+  name: string;
+  image_url: string;
+}
+
 export interface UserPlatform {
   id?: string;
   user_id?: string;

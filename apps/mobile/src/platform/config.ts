@@ -7,6 +7,7 @@ const expoSupabasePublishableKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_
 const expoSupabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 const expoApiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
 const expoApiUrl = process.env.EXPO_PUBLIC_API_URL;
+const expoSiteUrl = process.env.EXPO_PUBLIC_SITE_URL;
 const expoRankingFormula = process.env.EXPO_PUBLIC_RANKING_FORMULA;
 
 export interface SupabaseConfig {
@@ -41,4 +42,16 @@ export function getApiBaseUrl() {
 
 export function getRankingFormula() {
   return environmentValue(expoRankingFormula) === 'legacy' ? 'legacy' as const : 'preference' as const;
+}
+
+export function getMobileSiteUrl(): string | null {
+  const value = environmentValue(expoSiteUrl);
+  if (!value) return null;
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== 'https:' || parsed.username || parsed.password) return null;
+    return parsed.origin;
+  } catch {
+    return null;
+  }
 }

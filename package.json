@@ -13,13 +13,14 @@
     "lint": "eslint",
     "typecheck": "tsc -p tsconfig.web.json --noEmit",
     "test:domain": "tsx --test packages/domain/src/*.test.ts",
-    "test:data": "tsx --test packages/data/src/*.test.ts",
+    "test:data": "tsx --test packages/data/src/*.test.ts tests/data/*.test.ts",
     "test:api": "tsx --test tests/api/*.test.ts",
     "mobile:start": "npm run start --workspace @clube-do-jogo/mobile",
     "mobile:doctor": "npm run doctor --workspace @clube-do-jogo/mobile",
     "mobile:export": "npm run export --workspace @clube-do-jogo/mobile",
     "typecheck:mobile": "npm run typecheck --workspace @clube-do-jogo/mobile",
     "test:web": "playwright test",
+    "test:mobile": "tsx --test tests/mobile/*.test.ts",
     "perf:ranking": "node scripts/perf-ranking.mjs"
   },
   "dependencies": {

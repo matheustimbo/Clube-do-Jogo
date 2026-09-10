@@ -4,3 +4,4 @@ export * from './progress';
 export * from './dates';
 export * from './ratings';
 export * from './demo';
+export * from './avatar';
