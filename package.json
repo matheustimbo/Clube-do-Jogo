@@ -21,6 +21,7 @@
     "typecheck:mobile": "npm run typecheck --workspace @clube-do-jogo/mobile",
     "test:web": "playwright test",
     "test:mobile": "tsx --test tests/mobile/*.test.ts",
+    "mobile:reuse": "node scripts/mobile-reuse.mjs",
     "perf:ranking": "node scripts/perf-ranking.mjs"
   },
   "dependencies": {
