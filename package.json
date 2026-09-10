@@ -17,6 +17,8 @@
     "perf:ranking": "node scripts/perf-ranking.mjs"
   },
   "dependencies": {
+    "@clube-do-jogo/data": "0.1.0",
+    "@clube-do-jogo/domain": "0.1.0",
     "@fontsource/geist": "^5.3.0",
     "@fontsource/geist-mono": "^5.3.0",
     "@fontsource/nunito": "^5.3.0",
@@ -47,6 +49,7 @@
     "@types/web-push": "^3.6.4",
     "eslint": "^9",
     "eslint-config-next": "^16.2.12",
+    "expo-router": "~57.0.17",
     "supabase": "^2.111.0",
     "tailwindcss": "^4",
     "tsx": "^4.23.13",

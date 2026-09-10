@@ -274,7 +274,7 @@ export function useBacklog(): UseMutationResult<void, Error, BacklogVariables> {
     },
     onMutate: async input => {
       if (!context.isSessionCurrent(epoch)) throw new Error('Sua sessão mudou. Tente novamente.');
-      const userId = requireUser(context.userId);
+      requireUser(context.userId);
       await context.queryClient.cancelQueries({ queryKey: key });
       const previous = context.queryClient.getQueryData<ProfileWithGames>(key);
       if (previous) {

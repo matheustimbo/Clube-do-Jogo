@@ -35,7 +35,7 @@ export default function YourGamesScreen() {
   const [search, setSearch] = useState('');
   const [actionsTarget, setActionsTarget] = useState<LibraryGame | null>(null);
 
-  const library = libraryQuery.data?.library ?? [];
+  const library = useMemo(() => libraryQuery.data?.library ?? [], [libraryQuery.data?.library]);
   const visible = useMemo(() => {
     const normalized = search.trim().toLocaleLowerCase('pt-BR');
     return library.filter(item => {

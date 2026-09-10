@@ -15,7 +15,7 @@ export default function ProfileScreen() {
   const { profile, isHistorical, signOut } = useApp();
   const libraryQuery = useLibrary();
 
-  const library = libraryQuery.data?.library ?? [];
+  const library = useMemo(() => libraryQuery.data?.library ?? [], [libraryQuery.data?.library]);
   const stats = useMemo(() => {
     const finished = library.filter(item => item.progress?.status === 'finished').length;
     const started = library.filter(item => item.progress?.status === 'started').length;

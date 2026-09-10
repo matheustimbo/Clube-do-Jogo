@@ -129,8 +129,6 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
     const stopRefresh = bindSupabaseAppState(supabase);
     let mounted = true;
     const hydrate = async (session: Session | null, event: AuthChangeEvent) => {
-      // A token refresh only changes the credential used by future requests.
-      // Keep the rendered state and query cache while Supabase refreshes it.
       if (event === 'TOKEN_REFRESHED' && session && stateRef.current.userId === session.user.id) return;
       const generation = ++generationRef.current;
       void queryClient.cancelQueries();

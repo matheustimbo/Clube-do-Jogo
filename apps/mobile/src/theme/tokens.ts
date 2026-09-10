@@ -1,4 +1,3 @@
-// Paleta "original" (escura/roxa) extraída de src/app/globals.css, tema padrão do Clube do Jogo.
 export const colors = {
   background: '#08080a',
   foreground: '#f4f4f5',

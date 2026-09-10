@@ -31,7 +31,7 @@ export default function RankingScreen() {
   const vote = useVote();
   const [reasonTarget, setReasonTarget] = useState<RankingItem | null>(null);
 
-  const ranking = rankingQuery.data ?? [];
+  const ranking = useMemo(() => rankingQuery.data ?? [], [rankingQuery.data]);
   const placedRanking = useMemo(() => withPlacements(ranking), [ranking]);
 
   function choose(item: RankingItem, choice: VoteChoice) {
