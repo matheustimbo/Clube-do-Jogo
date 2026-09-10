@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AppStateStatus } from 'react-native';
 import { onlineManager, focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import * as Network from 'expo-network';
-import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
+import type { Session } from '@supabase/supabase-js';
 import { createDataClient, type DataClient } from '@clube-do-jogo/data';
 import type { Profile } from '@clube-do-jogo/domain';
 import { monthKey } from '@clube-do-jogo/domain';
@@ -14,7 +14,9 @@ import {
   getMobileSupabaseClient,
   getRankingFormula,
   nativeStorage,
+  signOutCurrentDevice,
 } from '@/platform';
+import { createInitialSessionGate, shouldHydrateAuthSession } from './auth-lifecycle';
 
 const SELECTED_MONTH_KEY = '@clube-do-jogo/selected-month';
 
@@ -128,8 +130,8 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
     }
     const stopRefresh = bindSupabaseAppState(supabase);
     let mounted = true;
-    const hydrate = async (session: Session | null, event: AuthChangeEvent) => {
-      if (event === 'TOKEN_REFRESHED' && session && stateRef.current.userId === session.user.id) return;
+    const hydrate = async (session: Session | null) => {
+      if (!shouldHydrateAuthSession(session?.user.id || null, stateRef.current)) return;
       const generation = ++generationRef.current;
       void queryClient.cancelQueries();
       queryClient.clear();
@@ -180,23 +182,27 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
       }
     };
     let pendingHydration: ReturnType<typeof setTimeout> | null = null;
-    const scheduleHydrate = (session: Session | null, event: AuthChangeEvent) => {
+    const initialSessionGate = createInitialSessionGate();
+    const scheduleHydrate = (session: Session | null) => {
       if (pendingHydration !== null) clearTimeout(pendingHydration);
       pendingHydration = setTimeout(() => {
         pendingHydration = null;
-        void hydrate(session, event);
+        void hydrate(session);
       }, 0);
     };
-    const listener = supabase.auth.onAuthStateChange((event, session) => {
-      scheduleHydrate(session, event);
+    const listener = supabase.auth.onAuthStateChange((_event, session) => {
+      initialSessionGate.observeAuthEvent();
+      scheduleHydrate(session);
     });
     void supabase.auth.getSession().then(({ data, error }) => {
+      if (!initialSessionGate.shouldApplyInitialRead()) return;
       if (error) {
         if (mounted) setState(current => ({ ...current, ready: true, error: authMessage(error, 'Não foi possível restaurar sua sessão.') }));
         return;
       }
-      scheduleHydrate(data.session, 'INITIAL_SESSION');
+      scheduleHydrate(data.session);
     }).catch(error => {
+      if (!initialSessionGate.shouldApplyInitialRead()) return;
       if (mounted) setState(current => ({ ...current, ready: true, error: authMessage(error, 'Não foi possível restaurar sua sessão.') }));
     });
     return () => {
@@ -260,8 +266,7 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
       return;
     }
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      await signOutCurrentDevice(supabase);
       resetSessionBoundary();
     } catch (error) {
       resetSessionBoundary();

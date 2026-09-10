@@ -1,39 +1,53 @@
 import { useEffect, useRef } from 'react';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, usePathname, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppProvider, useApp } from '@/state/app-provider';
-import { clearNavIntent, consumeNavIntent } from '@/lib/nav-intent';
+import {
+  clearNavIntent,
+  consumeNavIntent,
+  decideRootNavigation,
+  DEFAULT_APP_ROUTE,
+  peekNavIntent,
+} from '@/lib/nav-intent';
 import { colors } from '@/theme';
-
-const DEFAULT_HOME = '/(app)/(tabs)/jogo-do-mes' as const;
 
 export default function RootLayout() {
   return (
-    <SafeAreaProvider>
-      <AppProvider>
-        <RootNavigator />
-      </AppProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <AppProvider>
+          <RootNavigator />
+        </AppProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
 function RootNavigator() {
   const { ready, userId } = useApp();
   const router = useRouter();
-  const previousUserId = useRef(userId);
+  const pathname = usePathname();
+  const settledUserId = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
-    if (!ready || !userId) return;
-    const target = consumeNavIntent();
-    router.replace(target ?? DEFAULT_HOME);
-  }, [ready, userId, router]);
-
-  useEffect(() => {
-    const previousId = previousUserId.current;
-    previousUserId.current = userId;
-    if (ready && previousId && !userId) clearNavIntent();
-  }, [ready, userId]);
+    const action = decideRootNavigation({
+      ready,
+      userId,
+      settledUserId: settledUserId.current,
+      pathname,
+      pendingIntent: peekNavIntent(),
+    });
+    if (ready) settledUserId.current = userId;
+    if (action.type === 'clear-intent') clearNavIntent();
+    else if (action.type === 'open-intent') {
+      consumeNavIntent();
+      router.replace(action.intent);
+    } else if (action.type === 'open-home') {
+      router.replace(DEFAULT_APP_ROUTE);
+    }
+  }, [pathname, ready, router, userId]);
 
   return (
     <>

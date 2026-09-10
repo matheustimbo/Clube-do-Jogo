@@ -38,7 +38,15 @@ const modulesPromise = (async () => {
 })();
 
 function callbackClient(exchangeCodeForSession: (code: string) => Promise<{ error: Error | null }>): AuthCallbackClient {
-  return { auth: { exchangeCodeForSession } } as unknown as AuthCallbackClient;
+  return {
+    auth: {
+      exchangeCodeForSession: async code => {
+        const result = await exchangeCodeForSession(code);
+        const user = result.error ? null : { id: 'callback-user' };
+        return { data: { session: user ? { user } : null, user, redirectType: null }, error: result.error };
+      },
+    },
+  } as unknown as AuthCallbackClient;
 }
 
 function callbackSessionClient(userId: string): AuthCallbackClient {
@@ -82,9 +90,12 @@ test('callback PKCE troca uma vez e compartilha a promessa concorrente', async (
   const second = authModule.completeAuthCallback(url, client);
   assert.equal(calls, 1);
   release({ error: null });
-  await Promise.all([first, second]);
+  assert.deepEqual(await Promise.all([first, second]), [
+    { userId: 'callback-user' },
+    { userId: 'callback-user' },
+  ]);
 
-  await authModule.completeAuthCallback(url, client);
+  assert.deepEqual(await authModule.completeAuthCallback(url, client), { userId: 'callback-user' });
   assert.equal(calls, 1);
 });
 
@@ -125,6 +136,23 @@ test('callback rejeita links inválidos, com erro ou sem código', async () => {
   await assert.rejects(
     authModule.completeAuthCallback('clubedojogo://auth/callback?state=missing-code', client),
     /não contém um código/,
+  );
+});
+
+test('callback rejeita troca sem sessão confirmada', async () => {
+  const { authModule } = await modulesPromise;
+  const client = {
+    auth: {
+      exchangeCodeForSession: async () => ({
+        data: { session: null, user: null, redirectType: null },
+        error: null,
+      }),
+    },
+  } as unknown as AuthCallbackClient;
+
+  await assert.rejects(
+    authModule.completeAuthCallback('clubedojogo://auth/callback?code=missing-session', client),
+    /não foi possível confirmar sua sessão/,
   );
 });
 

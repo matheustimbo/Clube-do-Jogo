@@ -1,6 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-export type AuthCallbackClient = Pick<SupabaseClient, 'auth'>;
+export type AuthCallbackClient = { auth: Pick<SupabaseClient['auth'], 'exchangeCodeForSession'> };
+export type AuthSignOutClient = { auth: Pick<SupabaseClient['auth'], 'signOut'> };
+
+export interface AuthCallbackResult {
+  userId: string;
+}
 
 async function setupNativeUrlPolyfill() {
   const { setupURLPolyfill } = await import('react-native-url-polyfill');
@@ -9,8 +14,8 @@ async function setupNativeUrlPolyfill() {
 
 class AuthCallbackError extends Error {}
 
-const completedCodes = new Set<string>();
-const pendingCallbacks = new Map<string, Promise<void>>();
+const completedCallbacks = new Map<string, AuthCallbackResult>();
+const pendingCallbacks = new Map<string, Promise<AuthCallbackResult>>();
 
 function authError(error: unknown) {
   if (!error || typeof error !== 'object') return new AuthCallbackError('Não foi possível concluir a autenticação.');
@@ -20,7 +25,7 @@ function authError(error: unknown) {
   return new AuthCallbackError('Não foi possível concluir a autenticação.');
 }
 
-export async function completeAuthCallback(url: string, clientOverride?: AuthCallbackClient): Promise<void> {
+export async function completeAuthCallback(url: string, clientOverride?: AuthCallbackClient): Promise<AuthCallbackResult> {
   if (!clientOverride) await setupNativeUrlPolyfill();
   let parsed: URL;
   try {
@@ -34,14 +39,19 @@ export async function completeAuthCallback(url: string, clientOverride?: AuthCal
   if (!code) throw new Error('O link de autenticação não contém um código. Solicite um novo link.');
   const client = clientOverride || (await import('./supabase')).getMobileSupabaseClient();
   if (!client) throw new Error('Configure o Supabase para concluir a autenticação.');
-  if (completedCodes.has(code)) return;
+  const completed = completedCallbacks.get(code);
+  if (completed) return completed;
   const pending = pendingCallbacks.get(code);
   if (pending) return pending;
 
-  const exchange = client.auth.exchangeCodeForSession(code).then(({ error }) => {
+  const exchange = client.auth.exchangeCodeForSession(code).then(({ data, error }) => {
     if (error) throw authError(error);
-    completedCodes.add(code);
-    if (completedCodes.size > 100) completedCodes.delete(completedCodes.values().next().value as string);
+    const userId = data.session?.user.id;
+    if (!userId) throw new AuthCallbackError('Login concluído, mas não foi possível confirmar sua sessão. Tente novamente.');
+    const result = { userId };
+    completedCallbacks.set(code, result);
+    if (completedCallbacks.size > 100) completedCallbacks.delete(completedCallbacks.keys().next().value as string);
+    return result;
   }).catch(error => {
     throw error instanceof AuthCallbackError
       ? error
@@ -53,7 +63,12 @@ export async function completeAuthCallback(url: string, clientOverride?: AuthCal
   return exchange;
 }
 
+export async function signOutCurrentDevice(client: AuthSignOutClient): Promise<void> {
+  const { error } = await client.auth.signOut({ scope: 'local' });
+  if (error) throw error;
+}
+
 export function resetAuthCallbacksForTests() {
-  completedCodes.clear();
+  completedCallbacks.clear();
   pendingCallbacks.clear();
 }

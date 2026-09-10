@@ -2,6 +2,22 @@ export type NavIntent =
   | { pathname: '/(app)/jogos/[id]'; params: { id: string } }
   | { pathname: '/(app)/perfil/[id]'; params: { id: string } };
 
+export const DEFAULT_APP_ROUTE = '/(app)/(tabs)/jogo-do-mes' as const;
+
+export type RootNavigationAction =
+  | { type: 'none' }
+  | { type: 'clear-intent' }
+  | { type: 'open-home' }
+  | { type: 'open-intent'; intent: NavIntent };
+
+export interface RootNavigationState {
+  ready: boolean;
+  userId: string | null;
+  settledUserId: string | null | undefined;
+  pathname: string;
+  pendingIntent: NavIntent | null;
+}
+
 const TRUSTED_DEEP_LINK_SCHEME = 'clubedojogo:';
 
 const ROUTE_MATCHERS: Array<{ pattern: RegExp; toIntent: (id: string) => NavIntent }> = [
@@ -42,6 +58,26 @@ export function consumeNavIntent(): NavIntent | null {
   const value = pendingIntent;
   pendingIntent = null;
   return value;
+}
+
+export function peekNavIntent(): NavIntent | null {
+  return pendingIntent;
+}
+
+export function decideRootNavigation(state: RootNavigationState): RootNavigationAction {
+  if (!state.ready) return { type: 'none' };
+  if (!state.userId) {
+    return typeof state.settledUserId === 'string' ? { type: 'clear-intent' } : { type: 'none' };
+  }
+  if (state.pathname === '/auth/callback') return { type: 'none' };
+  if (state.settledUserId !== state.userId) {
+    return state.pendingIntent
+      ? { type: 'open-intent', intent: state.pendingIntent }
+      : { type: 'open-home' };
+  }
+  return state.pendingIntent
+    ? { type: 'clear-intent' }
+    : { type: 'none' };
 }
 
 export function clearNavIntent(): void {

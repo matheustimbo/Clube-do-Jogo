@@ -3,22 +3,26 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Button } from '@/components/Button';
 import { completeAuthCallback } from '@/platform/auth';
+import { consumeNavIntent, DEFAULT_APP_ROUTE } from '@/lib/nav-intent';
 import { useApp } from '@/state/app-provider';
 import { colors, spacing, typography } from '@/theme';
 
 const SESSION_WAIT_TIMEOUT_MS = 10_000;
 
-type Status = 'exchanging' | 'waiting-session' | 'error';
+type CallbackState =
+  | { status: 'exchanging'; requestId: number }
+  | { status: 'waiting-session'; requestId: number; expectedUserId: string }
+  | { status: 'error'; requestId: number; message: string };
 
 export default function AuthCallbackScreen() {
   const params = useLocalSearchParams<Record<string, string | string[]>>();
   const router = useRouter();
   const { ready, userId } = useApp();
   const returnLabel = ready && userId ? 'Voltar ao clube' : 'Voltar ao login';
-  const [status, setStatus] = useState<Status>('exchanging');
-  const [message, setMessage] = useState('');
+  const [callbackState, setCallbackState] = useState<CallbackState>({ status: 'exchanging', requestId: 0 });
   const processedKey = useRef<string | null>(null);
   const requestId = useRef(0);
+  const navigatedRequestId = useRef(0);
 
   const queryString = useMemo(() => {
     const query = new URLSearchParams();
@@ -34,35 +38,47 @@ export default function AuthCallbackScreen() {
     if (processedKey.current === queryKey) return;
     processedKey.current = queryKey;
     const thisRequest = ++requestId.current;
-    setStatus('exchanging');
-    setMessage('');
+    setCallbackState({ status: 'exchanging', requestId: thisRequest });
     const url = `clubedojogo://auth/callback${queryString ? `?${queryString}` : ''}`;
     completeAuthCallback(url)
-      .then(() => {
+      .then(result => {
         if (requestId.current !== thisRequest) return;
-        setStatus('waiting-session');
+        setCallbackState({ status: 'waiting-session', requestId: thisRequest, expectedUserId: result.userId });
       })
       .catch(error => {
         if (requestId.current !== thisRequest) return;
-        setStatus('error');
-        setMessage(error instanceof Error ? error.message : 'Não foi possível concluir o login.');
+        setCallbackState({
+          status: 'error',
+          requestId: thisRequest,
+          message: error instanceof Error ? error.message : 'Não foi possível concluir o login.',
+        });
       });
   }, [queryKey, queryString]);
 
   useEffect(() => {
-    if (status !== 'waiting-session' || (ready && userId)) return;
+    if (callbackState.status !== 'waiting-session') return;
+    if (callbackState.requestId !== requestId.current) return;
+    if (ready && userId === callbackState.expectedUserId) {
+      if (navigatedRequestId.current === requestId.current) return;
+      navigatedRequestId.current = requestId.current;
+      router.replace(consumeNavIntent() ?? DEFAULT_APP_ROUTE);
+      return;
+    }
     const timer = setTimeout(() => {
-      setStatus('error');
-      setMessage('Login concluído, mas não foi possível confirmar sua sessão. Tente novamente.');
+      setCallbackState({
+        status: 'error',
+        requestId: callbackState.requestId,
+        message: 'Login concluído, mas não foi possível confirmar sua sessão. Tente novamente.',
+      });
     }, SESSION_WAIT_TIMEOUT_MS);
     return () => clearTimeout(timer);
-  }, [status, ready, userId]);
+  }, [callbackState, ready, router, userId]);
 
   return (
     <View style={styles.container}>
-      {status === 'error' ? (
+      {callbackState.status === 'error' ? (
         <>
-          <Text style={styles.errorText} accessibilityRole="alert">{message}</Text>
+          <Text style={styles.errorText} accessibilityRole="alert">{callbackState.message}</Text>
           <Button
             label={returnLabel}
             variant="secondary"
@@ -73,7 +89,7 @@ export default function AuthCallbackScreen() {
       ) : (
         <>
           <ActivityIndicator color={colors.violet400} size="large" />
-          <Text style={styles.label}>{status === 'waiting-session' ? 'Confirmando sessão…' : 'Concluindo login…'}</Text>
+          <Text style={styles.label}>{callbackState.status === 'exchanging' ? 'Concluindo login…' : 'Confirmando sessão…'}</Text>
         </>
       )}
     </View>
