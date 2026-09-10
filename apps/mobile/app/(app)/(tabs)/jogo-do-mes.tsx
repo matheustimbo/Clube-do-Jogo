@@ -5,12 +5,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { AppHeader } from '@/components/AppHeader';
+import { Chip } from '@/components/Chip';
 import { MonthTrigger } from '@/components/MonthTrigger';
 import { MonthPicker } from '@/components/MonthPicker';
 import { StatusPill, statusMeta } from '@/components/StatusPill';
 import { RatingSheet } from '@/components/RatingSheet';
 import { RatingValue } from '@/components/RatingValue';
 import { EmptyState, ErrorState, LoadingState } from '@/components/StateViews';
+import { Timeline } from '@/features/timeline/Timeline';
+import { PrivateNotes } from '@/features/notes/PrivateNotes';
 import { useApp } from '@/state/app-provider';
 import { useGameOfMonth, useProgress, useSetProgress } from '@/state/queries';
 import { useSetRating } from '@/state/library-queries';
@@ -18,6 +21,14 @@ import { colors, radii, spacing, typography } from '@/theme';
 import type { ProgressStatus, RatingDetails, RatingMode } from '@clube-do-jogo/domain';
 
 const statusOrder: ProgressStatus[] = ['not_started', 'started', 'finished'];
+
+type GameOfMonthTab = 'progress' | 'timeline' | 'notes';
+
+const tabs: { key: GameOfMonthTab; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { key: 'progress', label: 'Progresso', icon: 'trophy-outline' },
+  { key: 'timeline', label: 'Timeline', icon: 'chatbubbles-outline' },
+  { key: 'notes', label: 'Notas', icon: 'create-outline' },
+];
 
 export default function GameOfMonthScreen() {
   const router = useRouter();
@@ -31,6 +42,7 @@ export default function GameOfMonthScreen() {
 
   const [ratingOpen, setRatingOpen] = useState(false);
   const [ratingToken, setRatingToken] = useState(0);
+  const [activeTab, setActiveTab] = useState<GameOfMonthTab>('progress');
 
   const progress = progressQuery.data ?? [];
   const mine = progress.find(item => item.user_id === userId) ?? null;
@@ -107,6 +119,20 @@ export default function GameOfMonthScreen() {
             </View>
           </Pressable>
 
+          <View style={styles.tabRow}>
+            {tabs.map(tab => (
+              <Chip
+                key={tab.key}
+                label={tab.label}
+                icon={tab.icon}
+                selected={activeTab === tab.key}
+                onPress={() => setActiveTab(tab.key)}
+              />
+            ))}
+          </View>
+
+          {activeTab === 'progress' ? (
+          <>
           <View style={styles.card}>
             <View style={styles.cardHeaderRow}>
               <Text style={styles.cardTitle}>Meu progresso</Text>
@@ -180,6 +206,12 @@ export default function GameOfMonthScreen() {
               <Text style={styles.emptyMembers}>Ninguém registrou progresso ainda.</Text>
             )}
           </View>
+          </>
+          ) : activeTab === 'timeline' ? (
+            <Timeline gameId={game.id} clubMonth={selectedMonth} />
+          ) : (
+            <PrivateNotes gameId={game.id} />
+          )}
         </View>
       )}
 
@@ -213,6 +245,7 @@ export default function GameOfMonthScreen() {
 
 const styles = StyleSheet.create({
   content: { gap: spacing.lg },
+  tabRow: { flexDirection: 'row', gap: spacing.sm },
   hero: {
     borderRadius: radii.xxxl,
     borderWidth: 1,

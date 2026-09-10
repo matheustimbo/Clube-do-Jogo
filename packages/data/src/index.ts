@@ -1,8 +1,10 @@
 export * from './api';
+export * from './comments';
 export * from './client';
 export * from './demo';
 export * from './errors';
 export * from './media';
+export * from './notes';
 export * from './profiles';
 
 import type { SupabaseClient } from '@supabase/supabase-js';

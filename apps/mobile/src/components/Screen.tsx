@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, View, type ScrollViewProps } from 'react-native';
+import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, StyleSheet, View, type ScrollViewProps } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing } from '@/theme';
 
@@ -20,18 +20,22 @@ export function Screen({ children, scroll = true, contentContainerStyle, onRefre
   }
   return (
     <SafeAreaView style={styles.safeArea} edges={edges ?? ['top']}>
-      <ScrollView
-        contentContainerStyle={[styles.content, contentContainerStyle as object]}
-        refreshControl={onRefresh ? <RefreshControl refreshing={Boolean(refreshing)} onRefresh={onRefresh} tintColor={colors.violet400} /> : undefined}
-        keyboardShouldPersistTaps="handled"
-      >
-        {children}
-      </ScrollView>
+      <KeyboardAvoidingView style={styles.keyboardArea} behavior="height" enabled={Platform.OS === 'android'}>
+        <ScrollView
+          contentContainerStyle={[styles.content, contentContainerStyle as object]}
+          refreshControl={onRefresh ? <RefreshControl refreshing={Boolean(refreshing)} onRefresh={onRefresh} tintColor={colors.violet400} /> : undefined}
+          automaticallyAdjustKeyboardInsets
+          keyboardShouldPersistTaps="handled"
+        >
+          {children}
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  keyboardArea: { flex: 1 },
   safeArea: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, paddingBottom: spacing.xxxl * 2, flexGrow: 1 },
 });

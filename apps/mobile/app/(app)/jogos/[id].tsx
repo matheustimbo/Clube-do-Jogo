@@ -1,3 +1,4 @@
+import { PrivateNotes } from '@/features/notes/PrivateNotes';
 import { useMemo, useState } from 'react';
 import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
@@ -342,6 +343,11 @@ export default function GameDetailScreen() {
       </View>
 
       {mutationError ? <Text style={styles.formError}>{mutationError.message}</Text> : null}
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Minhas anotações</Text>
+        <PrivateNotes gameId={gameId} />
+      </View>
 
       <VoteReasonSheet
         key={`vote-reason-${reasonToken}`}
