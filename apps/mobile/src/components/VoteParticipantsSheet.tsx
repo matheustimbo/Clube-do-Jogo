@@ -13,7 +13,7 @@ const choices: Array<{ value: VoteChoice; label: string; icon: keyof typeof Ioni
   { value: 'would_play', label: 'Jogaria', icon: 'thumbs-up' },
 ];
 
-export function PreferenceParticipantsSheet({ visible, onClose, profiles, initialChoice }: {
+export function VoteParticipantsSheet({ visible, onClose, profiles, initialChoice }: {
   visible: boolean;
   onClose: () => void;
   profiles: Record<VoteChoice, VoteParticipant[]>;
