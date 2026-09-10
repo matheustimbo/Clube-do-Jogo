@@ -3,6 +3,7 @@ import {
   compareRankingItems,
   legacyPlaytimePoints,
   legacyRankingScore,
+  normalizeAvatarCrop,
   preferenceRankingScore,
   shiftMonth,
   transitionProgress,
@@ -30,6 +31,14 @@ import type {
 import { readApiJson, type ApiTransport } from './api';
 import { DemoStore, type DemoVote } from './demo';
 import { DataError, requireValue, withDataErrors } from './errors';
+import type {
+  PlatformSearchQuery,
+  ProfilePatch,
+  ProfileUpdateInput,
+  UserPlatformInput,
+  UserPlatformMutation,
+  UserPlatformRemoval,
+} from './profiles';
 
 const voteChoices: VoteChoice[] = ['would_play', 'would_not_play'];
 const ratingCriteria: RatingCriterion[] = ['graphics', 'gameplay', 'story', 'music', 'fun'];
@@ -247,6 +256,77 @@ function discoveryPageFromPayload(payload: unknown): DiscoveryPage {
     items: Array.isArray(record.items) ? dedupeDiscoveryItems(record.items as DiscoverItem[]) : [],
     hasMore: record.hasMore === true,
   };
+}
+
+function normalizeProfileText(value: unknown, label: string): string | null {
+  if (value === null) return null;
+  if (typeof value !== 'string') throw new DataError('atualizar perfil', `${label} é inválido.`);
+  const normalized = value.trim();
+  return normalized || null;
+}
+
+function normalizeProfilePatch(patch: ProfilePatch): ProfilePatch {
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
+    throw new DataError('atualizar perfil', 'As alterações do perfil são inválidas.');
+  }
+  const knownFields = new Set(['name', 'bio', 'avatar_url', 'avatar_crop']);
+  for (const key of Object.keys(patch)) {
+    if (!knownFields.has(key)) throw new DataError('atualizar perfil', `O campo “${key}” não pode ser alterado.`);
+  }
+  const normalized: ProfilePatch = {};
+  if (patch.name !== undefined) normalized.name = normalizeProfileText(patch.name, 'O nome');
+  if (patch.bio !== undefined) normalized.bio = normalizeProfileText(patch.bio, 'A descrição');
+  if (patch.avatar_url !== undefined) normalized.avatar_url = normalizeProfileText(patch.avatar_url, 'A URL do avatar');
+  if (patch.avatar_crop !== undefined) {
+    if (patch.avatar_crop !== null && (typeof patch.avatar_crop !== 'object' || Array.isArray(patch.avatar_crop))) {
+      throw new DataError('atualizar perfil', 'O enquadramento do avatar é inválido.');
+    }
+    normalized.avatar_crop = patch.avatar_crop ? normalizeAvatarCrop(patch.avatar_crop) : null;
+  }
+  return normalized;
+}
+
+function normalizePlatformInput(platform: UserPlatformInput): UserPlatformInput {
+  if (!platform || typeof platform !== 'object' || Array.isArray(platform)) {
+    throw new DataError('salvar console', 'Os dados do console são inválidos.');
+  }
+  if (!Number.isInteger(platform.igdb_platform_id) || platform.igdb_platform_id <= 0) {
+    throw new DataError('salvar console', 'O identificador do console é inválido.');
+  }
+  if (typeof platform.name !== 'string' || !platform.name.trim()) {
+    throw new DataError('salvar console', 'O nome do console é obrigatório.');
+  }
+  const optionalText = (value: string | null | undefined) => {
+    if (value == null) return null;
+    if (typeof value !== 'string') throw new DataError('salvar console', 'Os dados do console são inválidos.');
+    return value.trim() || null;
+  };
+  return {
+    igdb_platform_id: platform.igdb_platform_id,
+    name: platform.name.trim(),
+    abbreviation: optionalText(platform.abbreviation),
+    logo_url: optionalText(platform.logo_url),
+  };
+}
+
+function platformItemsFromPayload(payload: unknown): UserPlatform[] {
+  const rows = Array.isArray(payload)
+    ? payload
+    : payload && typeof payload === 'object' && 'items' in payload && Array.isArray((payload as { items?: unknown }).items)
+      ? (payload as { items: unknown[] }).items
+      : [];
+  return rows.flatMap(value => {
+    if (!value || typeof value !== 'object') return [];
+    const row = value as Partial<UserPlatformInput>;
+    const platformId = row.igdb_platform_id;
+    if (typeof platformId !== 'number' || !Number.isInteger(platformId) || platformId <= 0 || typeof row.name !== 'string' || !row.name.trim()) return [];
+    return [{
+      igdb_platform_id: platformId,
+      name: row.name.trim(),
+      abbreviation: typeof row.abbreviation === 'string' ? row.abbreviation.trim() || null : null,
+      logo_url: typeof row.logo_url === 'string' ? row.logo_url.trim() || null : null,
+    } satisfies UserPlatform];
+  });
 }
 
 function points(formula: RankingFormula, game: Game, counts: Record<VoteChoice, number>, completed: number) {
@@ -480,6 +560,21 @@ export class DataClient {
     return (await this.readSessionProfile(profileId, isDemo)).profile;
   }
 
+  async updateProfile(input: ProfileUpdateInput): Promise<Profile> {
+    const patch = normalizeProfilePatch(input.patch);
+    if (input.isDemo) return this.demo.updateProfile(input.userId, patch);
+    return withDataErrors('atualizar perfil', 'Não foi possível atualizar seu perfil.', async () => {
+      const client = await this.authenticatedClient('atualizar perfil', input.userId);
+      const { data, error } = await client.from('profiles')
+        .update({ ...patch, updated_at: new Date().toISOString() })
+        .eq('id', input.userId)
+        .select('*')
+        .single();
+      if (error) throw error;
+      return data as Profile;
+    });
+  }
+
   async readRanking(input: RankingQuery): Promise<RankingItem[]> {
     if (input.isDemo) return this.demo.readRanking(input.userId, this.rankingFormula);
     return withDataErrors('ler ranking', 'Não foi possível carregar o ranking.', async () => {
@@ -573,10 +668,7 @@ export class DataClient {
   }
 
   async readUserPlatforms(userId: string, isDemo: boolean): Promise<UserPlatform[]> {
-    if (isDemo) return [
-      { igdb_platform_id: 130, name: 'Nintendo Switch', abbreviation: 'Switch' },
-      { igdb_platform_id: 6, name: 'PC (Microsoft Windows)', abbreviation: 'PC' },
-    ];
+    if (isDemo) return this.demo.readUserPlatforms(userId);
     return withDataErrors('ler consoles', 'Não foi possível carregar seus consoles.', async () => {
       const { data, error } = await this.client('ler consoles').from('user_platforms')
         .select('id, user_id, igdb_platform_id, name, abbreviation, logo_url')
@@ -584,6 +676,58 @@ export class DataClient {
         .order('name');
       if (error) throw error;
       return (data || []) as UserPlatform[];
+    });
+  }
+
+  async searchPlatforms(input: PlatformSearchQuery): Promise<UserPlatform[]> {
+    const query = input.query.trim();
+    if (!query) throw new DataError('buscar consoles', 'Informe um console para buscar.');
+    if (input.isDemo) return this.demo.searchPlatforms(query, input.userId);
+    return withDataErrors('buscar consoles', 'Não foi possível buscar consoles.', async () => {
+      const params = new URLSearchParams({ q: query });
+      const payload = await readApiJson<unknown>(
+        this.transport('buscar consoles'),
+        `/api/platforms/search?${params.toString()}`,
+        { method: 'GET' },
+      );
+      return platformItemsFromPayload(payload);
+    });
+  }
+
+  async setUserPlatform(input: UserPlatformMutation): Promise<void> {
+    const platform = normalizePlatformInput(input.platform);
+    if (input.isDemo) {
+      this.demo.setUserPlatform(input.userId, platform);
+      return;
+    }
+    await withDataErrors('salvar console', 'Não foi possível adicionar o console.', async () => {
+      const client = await this.authenticatedClient('salvar console', input.userId);
+      const { error } = await client.from('user_platforms').insert({
+        user_id: input.userId,
+        igdb_platform_id: platform.igdb_platform_id,
+        name: platform.name,
+        abbreviation: platform.abbreviation,
+        logo_url: platform.logo_url,
+      });
+      if (error && error.code !== '23505') throw error;
+    });
+  }
+
+  async removeUserPlatform(input: UserPlatformRemoval): Promise<void> {
+    if (!Number.isInteger(input.igdbPlatformId) || input.igdbPlatformId <= 0) {
+      throw new DataError('remover console', 'O identificador do console é inválido.');
+    }
+    if (input.isDemo) {
+      this.demo.removeUserPlatform(input.userId, input.igdbPlatformId);
+      return;
+    }
+    await withDataErrors('remover console', 'Não foi possível remover o console.', async () => {
+      const client = await this.authenticatedClient('remover console', input.userId);
+      const { error } = await client.from('user_platforms')
+        .delete()
+        .eq('user_id', input.userId)
+        .eq('igdb_platform_id', input.igdbPlatformId);
+      if (error) throw error;
     });
   }
 

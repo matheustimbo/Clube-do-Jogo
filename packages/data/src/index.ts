@@ -2,6 +2,7 @@ export * from './api';
 export * from './client';
 export * from './demo';
 export * from './errors';
+export * from './profiles';
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { DataClient } from './client';

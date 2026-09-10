@@ -19,10 +19,12 @@ import type {
   RankingFormula,
   RatingDetails,
   RatingMode,
+  UserPlatform,
   VoteChoice,
   VoteReason,
 } from '@clube-do-jogo/domain';
 import type { DiscoveryFilters } from './client';
+import type { ProfilePatch, UserPlatformInput } from './profiles';
 
 type DemoVote = {
   choice: VoteChoice;
@@ -35,7 +37,7 @@ function key(userId: string, gameId: string) {
 }
 
 function cloneProfile(profile: Profile): Profile {
-  return { ...profile };
+  return { ...profile, avatar_crop: profile.avatar_crop ? { ...profile.avatar_crop } : profile.avatar_crop };
 }
 
 function cloneRankingItem(item: RankingItem): RankingItem {
@@ -74,21 +76,45 @@ const demoGenreTerms: Record<number, string[]> = {
   5: ['tiro', 'shooter'],
 };
 
+const demoPlatforms: UserPlatform[] = [
+  { igdb_platform_id: 130, name: 'Nintendo Switch', abbreviation: 'Switch', logo_url: null },
+  { igdb_platform_id: 6, name: 'PC (Microsoft Windows)', abbreviation: 'PC', logo_url: null },
+  { igdb_platform_id: 167, name: 'PlayStation 5', abbreviation: 'PS5', logo_url: null },
+  { igdb_platform_id: 169, name: 'Xbox Series X|S', abbreviation: 'Xbox', logo_url: null },
+];
+
 export class DemoStore {
   private readonly voteOverrides = new Map<string, DemoVote | null>();
   private readonly progressOverrides = new Map<string, GameProgress>();
   private readonly backlogOverrides = new Map<string, boolean>();
   private readonly favoriteOverrides = new Map<string, boolean>();
+  private readonly profileOverrides = new Map<string, Profile>();
+  private readonly platformOverrides = new Map<string, UserPlatform[]>();
 
   reset() {
     this.voteOverrides.clear();
     this.progressOverrides.clear();
     this.backlogOverrides.clear();
     this.favoriteOverrides.clear();
+    this.profileOverrides.clear();
+    this.platformOverrides.clear();
   }
 
   readProfile(profileId: string): Profile {
-    return cloneProfile(demoUserProfile(profileId));
+    return cloneProfile(this.profileOverrides.get(profileId) || demoUserProfile(profileId));
+  }
+
+  updateProfile(profileId: string, patch: ProfilePatch): Profile {
+    const current = this.readProfile(profileId);
+    const next = {
+      ...current,
+      ...patch,
+      avatar_crop: patch.avatar_crop === undefined
+        ? current.avatar_crop
+        : patch.avatar_crop ? { ...patch.avatar_crop } : patch.avatar_crop,
+    };
+    this.profileOverrides.set(profileId, next);
+    return cloneProfile(next);
   }
 
   readCycles(): ClubCycle[] {
@@ -151,6 +177,31 @@ export class DemoStore {
   readGame(gameId: string): Game | null {
     const game = demoGames.find(item => item.id === gameId) || demoGames[0];
     return game ? { ...game } : null;
+  }
+
+  searchPlatforms(query: string, _profileId: string): UserPlatform[] {
+    const normalized = query.trim().toLocaleLowerCase('pt-BR');
+    return demoPlatforms.map(platform => ({ ...platform }))
+      .filter(platform => platform.name.toLocaleLowerCase('pt-BR').includes(normalized));
+  }
+
+  readUserPlatforms(profileId: string): UserPlatform[] {
+    const platforms = this.platformOverrides.get(profileId) || demoPlatforms.slice(0, 2).map(platform => ({ ...platform, user_id: profileId }));
+    return platforms.map(platform => ({ ...platform }));
+  }
+
+  setUserPlatform(userId: string, platform: UserPlatformInput) {
+    const current = this.readUserPlatforms(userId);
+    const next = [
+      ...current.filter(item => item.igdb_platform_id !== platform.igdb_platform_id),
+      { ...platform, user_id: userId },
+    ].sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'));
+    this.platformOverrides.set(userId, next);
+  }
+
+  removeUserPlatform(userId: string, igdbPlatformId: number) {
+    this.platformOverrides.set(userId, this.readUserPlatforms(userId)
+      .filter(platform => platform.igdb_platform_id !== igdbPlatformId));
   }
 
   readProgress(userId: string, gameId: string): GameProgress[] {
@@ -301,10 +352,7 @@ export class DemoStore {
       library,
       votedGameIds: ranking.filter(item => item.votedByMe).map(item => item.game.id),
       rankingGameIds: ranking.map(item => item.game.id),
-      platforms: [
-        { igdb_platform_id: 130, name: 'Nintendo Switch', abbreviation: 'Switch' },
-        { igdb_platform_id: 6, name: 'PC (Microsoft Windows)', abbreviation: 'PC' },
-      ],
+      platforms: this.readUserPlatforms(profileId),
     };
   }
 }
