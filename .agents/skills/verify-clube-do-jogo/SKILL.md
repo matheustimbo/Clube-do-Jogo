@@ -5,7 +5,7 @@ description: Execute verificações reproduzíveis do Clube do Jogo em Next demo
 
 # Verify Clube do Jogo
 
-Use esta skill a partir da raiz do checkout. Ela usa a pasta fonte `.agents/skills/verify-clube-do-jogo`; Claude Code encontra a mesma fonte pelo symlink `.claude/skills/verify-clube-do-jogo`. Os helpers de processos usam /proc e rodam em Linux/WSL. Os comandos iOS são executados remotamente no Mac indicado. O padrão web usa somente uma das portas dedicadas `3102` e `3103`, modo demo e nenhuma credencial Supabase. Nunca aponte o modo local autenticado para produção.
+Use esta skill a partir da raiz do checkout. Ela usa a pasta fonte `.agents/skills/verify-clube-do-jogo`; Claude Code encontra a mesma fonte pelo symlink `.claude/skills/verify-clube-do-jogo`. Os helpers de processos usam /proc e o comando ss e rodam em Linux/WSL. Uma porta ocupada sem PID inspecionável faz a verificação falhar. Os comandos iOS são executados remotamente no Mac indicado. O padrão web usa somente uma das portas dedicadas `3102` e `3103`, modo demo e nenhuma credencial Supabase. Nunca aponte o modo local autenticado para produção.
 
 ## Run contract
 

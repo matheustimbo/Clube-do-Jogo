@@ -234,7 +234,12 @@ function processInfo(pid) {
     const identity = bootId && /^\d+$/.test(startTicks || '') ? `${bootId}:${startTicks}` : null;
     return { alive: state !== 'Z', state, cwd, command, pgid: validPgid, identity };
   } catch {
-    return { alive: true, state: null, cwd: null, command: null, pgid: null, identity: null };
+    let state = null;
+    try {
+      const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+      state = stat.slice(stat.lastIndexOf(')') + 2).trim().split(/\s+/)[0];
+    } catch { /* The process may exit between the table snapshot and inspection. */ }
+    return { alive: state === 'Z' ? false : processAlive(pid), state, cwd: null, command: null, pgid: null, identity: null };
   }
 }
 
@@ -308,15 +313,12 @@ async function terminateUnpublishedChild(child) {
 }
 
 function portPids(port) {
-  const lsof = spawnSync('lsof', ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN', '-t'], { encoding: 'utf8' });
-  if (!lsof.error && (lsof.status === 0 || lsof.status === 1)) {
-    return lsof.stdout.split(/\s+/).filter(Boolean).map(Number).filter(Number.isInteger);
-  }
-  const ss = spawnSync('ss', ['-ltnp', `sport = :${port}`], { encoding: 'utf8' });
-  if (!ss.error && (ss.status === 0 || ss.status === 1)) {
-    return [...ss.stdout.matchAll(/pid=(\d+)/g)].map(match => Number(match[1]));
-  }
-  return null;
+  const result = spawnSync('ss', ['-Hltnp', `sport = :${port}`], { encoding: 'utf8' });
+  if (result.error || result.status !== 0) return null;
+  const rows = result.stdout.split('\n').filter(line => line.trim());
+  const owners = rows.map(line => [...line.matchAll(/pid=(\d+)/g)].map(match => Number(match[1])));
+  if (owners.some(pids => pids.length === 0)) return null;
+  return [...new Set(owners.flat())];
 }
 
 async function getHttp(url) {
@@ -680,6 +682,7 @@ function inspectRun(manifest) {
   if (groupPids) {
     for (const pid of groupPids) {
       const info = processInfo(pid);
+      if (!info.alive) continue;
       const owned = pid === manifest.pid
         ? info.alive && info.cwd === manifest.worktree && info.pgid === manifest.pgid && info.identity === manifest.processIdentity
         : info.alive && info.cwd === manifest.worktree && info.pgid === manifest.pgid;

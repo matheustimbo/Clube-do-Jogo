@@ -200,6 +200,7 @@ test('launch passes only the demo environment allowlist to its child', async () 
     f.initGit();
     const bin = join(f.root, 'bin');
     mkdirSync(bin, { recursive: true });
+    writeFileSync(join(bin, 'lsof'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
     writeFileSync(join(bin, 'npm'), `#!/usr/bin/env node
 const fs = require('node:fs');
 const http = require('node:http');
@@ -220,7 +221,7 @@ setInterval(() => {}, 1000);
     assert.equal(captured.supabaseUrl, '');
     assert.equal(captured.supabaseKey, '');
     assert.equal(captured.nodeOptions, undefined);
-    const doctor = f.run('doctor', '--run-id', runId);
+    const doctor = f.runEnv(env, 'doctor', '--run-id', runId);
     assert.equal(doctor.status, 0, doctor.stderr);
     const cleanup = f.run('cleanup', '--run-id', runId);
     assert.equal(cleanup.status, 0, cleanup.stderr);
@@ -333,4 +334,17 @@ setTimeout(() => process.exit(0), 500);
     killIfAlive(leader?.pid);
     f.cleanup();
   }
+});
+
+
+test('launch refuses a listening port whose owner cannot be inspected', () => {
+  const f = fixture();
+  try {
+    const bin = join(f.root, 'bin');
+    mkdirSync(bin);
+    writeFileSync(join(bin, 'ss'), '#!/bin/sh\nprintf "LISTEN 0 511 127.0.0.1:3103 0.0.0.0:*\\n"\n', { mode: 0o755 });
+    const result = f.runEnv({ ...process.env, PATH: `${bin}:${process.env.PATH}` }, 'launch', '--port', '3103');
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Não foi possível inspecionar a porta/);
+  } finally { f.cleanup(); }
 });
