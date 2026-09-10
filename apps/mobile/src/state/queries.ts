@@ -25,7 +25,20 @@ import type {
   VoteParticipant,
   VoteReason,
 } from '@clube-do-jogo/domain';
+import { createMobileApiTransport, getMobileSupabaseClient } from '@/platform';
 import { useAppInternal } from './app-provider';
+
+// Best-effort push, mirroring src/app/ranking/page.tsx's `notifyRankingLeader`
+// (same `/api/push/ranking-leader` route and payload shape). The vote is already
+// saved by the time this runs, so a push failure must never surface as a failed vote.
+function notifyRankingLeaderPush(voteMonth: string, previousLeaderId: string | null, leaderId: string | null) {
+  const transport = createMobileApiTransport(getMobileSupabaseClient());
+  void transport.request('/api/push/ranking-leader', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ voteMonth, previousLeaderId, leaderId }),
+  }).catch(() => {});
+}
 
 type VoteVariables = {
   gameId: string;
@@ -198,7 +211,7 @@ export function useVote(): UseMutationResult<void, Error, VoteVariables> {
   const context = useAppInternal();
   const epoch = context.sessionEpoch;
   const key = rankingKey(context);
-  return useMutation<void, Error, VoteVariables, { previous?: RankingItem[]; queryKey: ReturnType<typeof rankingKey> }>({
+  return useMutation<void, Error, VoteVariables, { previous?: RankingItem[]; queryKey: ReturnType<typeof rankingKey>; previousLeaderId: string | null; nextLeaderId: string | null }>({
     mutationFn: input => {
       if (!context.isSessionCurrent(epoch)) throw new Error('Sua sessão mudou. Tente novamente.');
       const userId = requireUser(context.userId);
@@ -218,8 +231,20 @@ export function useVote(): UseMutationResult<void, Error, VoteVariables> {
       await context.queryClient.cancelQueries({ queryKey: key });
       if (!context.isSessionCurrent(epoch)) throw new Error('Sua sessão mudou. Tente novamente.');
       const previous = context.queryClient.getQueryData<RankingItem[]>(key);
-      context.queryClient.setQueryData(key, optimisticRanking(previous, input, context.profile, context.dataClient.rankingFormula));
-      return { previous, queryKey: key };
+      const next = optimisticRanking(previous, input, context.profile, context.dataClient.rankingFormula);
+      context.queryClient.setQueryData(key, next);
+      return {
+        previous,
+        queryKey: key,
+        previousLeaderId: previous?.[0]?.game.id || null,
+        nextLeaderId: next?.[0]?.game.id || null,
+      };
+    },
+    onSuccess: (_data, _input, mutationContext) => {
+      if (!context.isSessionCurrent(epoch) || !mutationContext || context.isDemo) return;
+      const { previousLeaderId, nextLeaderId } = mutationContext;
+      if (previousLeaderId === nextLeaderId) return;
+      notifyRankingLeaderPush(shiftMonth(context.selectedMonth, 1), previousLeaderId, nextLeaderId);
     },
     onError: (_error, _input, rollback) => {
       if (context.isSessionCurrent(epoch) && rollback?.previous) context.queryClient.setQueryData(rollback.queryKey, rollback.previous);
