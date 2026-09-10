@@ -545,7 +545,7 @@ export class DataClient {
   async readCycles(isDemo: boolean): Promise<CycleState> {
     if (isDemo) {
       const cycles = this.demo.readCycles();
-      return { cycles, months: cycles.map(cycle => cycle.month), activeMonth: cycles[0]?.month || '' };
+      return { cycles, months: cycles.map(cycle => cycle.month), activeMonth: cycles.find(cycle => cycle.status === 'active')?.month || '' };
     }
     return withDataErrors('ler ciclos', 'Não foi possível carregar os ciclos do clube.', async () => {
       const { data, error } = await this.client('ler ciclos')
@@ -560,7 +560,7 @@ export class DataClient {
   }
 
   async readSessionProfile(userId: string, isDemo: boolean): Promise<SessionProfile> {
-    if (isDemo) return { profile: this.demo.readProfile(userId), isAdmin: true };
+    if (isDemo) return { profile: this.demo.readProfile(userId), isAdmin: this.demo.readRole(userId) === 'admin' };
     return withDataErrors('ler perfil', 'Não foi possível carregar o perfil da conta.', async () => {
       const client = this.client('ler perfil');
       const [{ data: profile, error: profileError }, { data: role, error: roleError }] = await Promise.all([
@@ -699,7 +699,10 @@ export class DataClient {
   }
 
   async readGameOfMonth(input: GameOfMonthQuery): Promise<Game | null> {
-    if (input.isDemo) return this.demo.readGame('hades');
+    if (input.isDemo) {
+      const cycle = this.demo.readCycles().find(item => item.month === input.month);
+      return cycle ? this.demo.readGame(cycle.game_id) : null;
+    }
     return withDataErrors('ler jogo do mês', 'Não foi possível carregar o jogo do mês.', async () => {
       const { data, error } = await this.client('ler jogo do mês').from('club_months')
         .select('game_id, games (*)')

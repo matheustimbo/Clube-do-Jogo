@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   createAdminDataClient,
+  createDataClient,
   DemoStore,
   type ClubGameUndoPreview,
 } from '../../packages/data/src/index';
@@ -399,4 +400,35 @@ test('demo mantém avanço, undo, redo e expiração no mesmo escopo', async () 
   await client.undoClubGameChange({ userId: 'demo-user', isDemo: true, preview: replayPreview as ClubGameUndoPreview, forceDelete: true });
   now = new Date('2026-09-10T12:05:00.001Z');
   await assert.rejects(client.redoClubGameChange({ userId: 'demo-user', isDemo: true, eventId: 'demo-event-2' }), /prazo para refazer/);
+});
+
+
+test('demo publica mudanças administrativas para os leitores do app e restaura o estado ao sair', async () => {
+  const demo = new DemoStore();
+  const reader = createDataClient({ demo });
+  const admin = createAdminDataClient({ demo, randomId: () => 'demo-cycle-change' });
+  const scope = { userId: 'demo-user', isDemo: true };
+  const initial = await reader.readCycles(true);
+  const preview = await admin.previewClubGameChange({ ...scope, gameId: 'celeste', mode: 'next' });
+  const changed = await admin.setClubGame({ ...scope, preview });
+  const after = await reader.readCycles(true);
+  assert.equal(after.activeMonth, changed.month);
+  assert.equal(after.cycles.find(cycle => cycle.month === initial.activeMonth)?.status, 'closed');
+  assert.equal((await reader.readGameOfMonth({ ...scope, month: changed.month }))?.title, 'Celeste');
+  assert.equal((await reader.readGameOfMonth({ ...scope, month: initial.activeMonth }))?.title, 'Hades');
+
+  const undoPreview = await admin.previewClubGameUndo({ ...scope, eventId: changed.undoEventId! });
+  await admin.undoClubGameChange({ ...scope, preview: undoPreview!, forceDelete: true });
+  assert.equal((await reader.readCycles(true)).activeMonth, initial.activeMonth);
+  await admin.redoClubGameChange({ ...scope, eventId: changed.undoEventId! });
+  assert.equal((await reader.readCycles(true)).activeMonth, changed.month);
+
+  await admin.setUserRole({ ...scope, targetUserId: 'bia', role: 'admin' });
+  await admin.setUserRole({ ...scope, targetUserId: 'demo-user', role: 'member' });
+  assert.equal((await reader.readSessionProfile('demo-user', true)).isAdmin, false);
+  assert.equal((await reader.readSessionProfile('bia', true)).isAdmin, true);
+  reader.resetDemo();
+  assert.equal((await reader.readCycles(true)).activeMonth, initial.activeMonth);
+  assert.equal((await reader.readSessionProfile('demo-user', true)).isAdmin, true);
+  assert.equal((await reader.readSessionProfile('bia', true)).isAdmin, false);
 });

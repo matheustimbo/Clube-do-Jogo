@@ -138,16 +138,17 @@ export function useRanking(): UseQueryResult<RankingItem[], Error> {
   });
 }
 
-export function useGameOfMonth(): UseQueryResult<Game | null, Error> {
+export function useGameOfMonth(month?: string): UseQueryResult<Game | null, Error> {
   const context = useAppInternal();
   const userId = context.userId;
+  const selectedMonth = month || context.selectedMonth;
   return useQuery<Game | null, Error>({
-    queryKey: ['game-of-month', context.sessionEpoch, userId, context.selectedMonth, context.isDemo],
+    queryKey: ['game-of-month', context.sessionEpoch, userId, selectedMonth, context.isDemo],
     enabled: context.ready && Boolean(userId),
     queryFn: () => context.dataClient.readGameOfMonth({
       userId: requireUser(userId),
       isDemo: context.isDemo,
-      month: context.selectedMonth,
+      month: selectedMonth,
     }),
   });
 }

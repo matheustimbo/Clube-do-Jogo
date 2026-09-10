@@ -335,7 +335,7 @@ export class AdminDataClient {
     let state = scopes.get(this.demoScope);
     if (!state) {
       state = {
-        users: demoProfiles.map((profile, index) => cloneAdminUser({ ...profile, role: index === 0 ? 'admin' : 'member' })),
+        users: demoProfiles.map(profile => cloneAdminUser({ ...profile, role: this.demo.readRole(profile.id) })),
         cycles: cloneCycles(this.demo.readCycles()),
         events: [],
       };
@@ -428,6 +428,7 @@ export class AdminDataClient {
         throw new DataError('alterar cargo', 'O sistema precisa manter pelo menos um administrador.');
       }
       current.role = input.role;
+      this.demo.setRole(current.id, input.role);
       return { targetUserId: current.id, role: current.role, outcome: 'applied' };
     }
     const owner = this.client('alterar cargo');
@@ -557,6 +558,7 @@ export class AdminDataClient {
       afterCycles: cloneCycles(state.cycles),
     };
     state.events.unshift(event);
+    this.demo.setCycles(state.cycles);
     return { month: targetMonth, gameId: input.preview.gameId, status: 'active', undoEventId: event.id, outcome: 'applied' };
   }
 
@@ -668,6 +670,7 @@ export class AdminDataClient {
       throw new DataError('desfazer decisão de ciclo', 'A prévia mudou. Revise os dados antes de confirmar a reversão.');
     }
     state.cycles = cloneCycles(event.beforeCycles);
+    this.demo.setCycles(state.cycles);
     event.reverted_at = this.now().toISOString();
     const previous = this.previousUndoEvent(state.events, event);
     return {
@@ -723,6 +726,7 @@ export class AdminDataClient {
       if (candidate.reverted_at && !candidate.redo_invalidated_at) candidate.redo_invalidated_at = this.now().toISOString();
     });
     state.cycles = cloneCycles(event.afterCycles);
+    this.demo.setCycles(state.cycles);
     const replay: DemoCycleEvent = {
       ...event,
       id: this.randomId(),

@@ -7,6 +7,7 @@ import {
 } from '@clube-do-jogo/domain/demo';
 import { compareRankingItems, legacyRankingScore, preferenceRankingScore } from '@clube-do-jogo/domain';
 import type {
+  AppRole,
   ClubCycle,
   DiscoverItem,
   DiscoverSource,
@@ -92,7 +93,12 @@ export class DemoStore {
   private readonly profileOverrides = new Map<string, Profile>();
   private readonly platformOverrides = new Map<string, UserPlatform[]>();
 
+  private cycleOverrides: ClubCycle[] | null = null;
+  private readonly roleOverrides = new Map<string, AppRole>();
+
   reset() {
+    this.cycleOverrides = null;
+    this.roleOverrides.clear();
     this.voteOverrides.clear();
     this.progressOverrides.clear();
     this.backlogOverrides.clear();
@@ -118,7 +124,20 @@ export class DemoStore {
     return cloneProfile(next);
   }
 
+  readRole(userId: string): AppRole {
+    return this.roleOverrides.get(userId) || (userId === demoProfiles[0].id ? 'admin' : 'member');
+  }
+
+  setRole(userId: string, role: AppRole): void {
+    this.roleOverrides.set(userId, role);
+  }
+
+  setCycles(cycles: ClubCycle[]): void {
+    this.cycleOverrides = cycles.map(cycle => ({ ...cycle, game: this.readGame(cycle.game_id) }));
+  }
+
   readCycles(): ClubCycle[] {
+    if (this.cycleOverrides) return this.cycleOverrides.map(cycle => ({ ...cycle, game: this.readGame(cycle.game_id) }));
     return demoMonths.map((month, index) => ({
       month,
       game_id: demoGames[0].id,

@@ -77,9 +77,9 @@ async function invalidateRoleQueries(context: ReturnType<typeof useAppInternal>,
   if (refreshProfile && context.isSessionCurrent(epoch)) await context.refresh();
 }
 
-async function invalidateCycleQueries(context: ReturnType<typeof useAppInternal>, epoch: number): Promise<void> {
+async function invalidateCycleQueries(context: ReturnType<typeof useAppInternal>, epoch: number, selectedMonth?: string): Promise<void> {
   if (!context.isSessionCurrent(epoch)) return;
-  await context.refresh();
+  await context.refresh({ selectedMonth });
   if (!context.isSessionCurrent(epoch)) return;
   await Promise.all([
     'admin-cycle',
@@ -90,7 +90,7 @@ async function invalidateCycleQueries(context: ReturnType<typeof useAppInternal>
     'library',
     'discovery',
     'rewards',
-    'timeline',
+    'comments',
     'notes',
   ].map(prefix => context.queryClient.invalidateQueries({ queryKey: [prefix, epoch] })));
 }
@@ -137,7 +137,7 @@ export function useSetClubGame(): UseMutationResult<ClubGameChangeResult, Error,
       requireCurrentSession(context, epoch);
       return client.setClubGame({ ...scope(context), ...input });
     },
-    onSuccess: () => invalidateCycleQueries(context, epoch),
+    onSuccess: result => invalidateCycleQueries(context, epoch, result.month),
   });
 }
 
@@ -160,7 +160,7 @@ export function useUndoClubGameChange(): UseMutationResult<ClubGameUndoResult, E
       requireCurrentSession(context, epoch);
       return client.undoClubGameChange({ ...scope(context), ...input });
     },
-    onSuccess: () => invalidateCycleQueries(context, epoch),
+    onSuccess: result => invalidateCycleQueries(context, epoch, result.month),
   });
 }
 
@@ -172,6 +172,6 @@ export function useRedoClubGameChange(): UseMutationResult<ClubGameChangeResult,
       requireCurrentSession(context, epoch);
       return client.redoClubGameChange({ ...scope(context), ...input });
     },
-    onSuccess: () => invalidateCycleQueries(context, epoch),
+    onSuccess: result => invalidateCycleQueries(context, epoch, result.month),
   });
 }
