@@ -296,7 +296,9 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
 
   const refresh = useCallback(async () => {
     if (stateRef.current.isDemo) {
+      const generation = generationRef.current;
       const cycleState = await dataClient.readCycles(true);
+      if (generation !== generationRef.current || stateRef.current.userId !== 'demo-user' || !stateRef.current.isDemo) return;
       setState(current => ({
         ...current,
         ready: true,
@@ -315,10 +317,13 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
       resetSessionBoundary();
       return;
     }
+    const generation = generationRef.current;
+    const refreshedUserId = data.session.user.id;
     const [account, cycleState] = await Promise.all([
-      dataClient.readSessionProfile(data.session.user.id, false),
+      dataClient.readSessionProfile(refreshedUserId, false),
       dataClient.readCycles(false),
     ]);
+    if (generation !== generationRef.current || stateRef.current.userId !== refreshedUserId || stateRef.current.isDemo) return;
     const selectedMonth = stateRef.current.months.includes(stateRef.current.selectedMonth)
       && cycleState.months.includes(stateRef.current.selectedMonth)
       ? stateRef.current.selectedMonth
@@ -326,7 +331,7 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
     setState(current => ({
       ...current,
       ready: true,
-      userId: data.session!.user.id,
+      userId: refreshedUserId,
       profile: account.profile,
       isAdmin: account.isAdmin,
       error: null,
