@@ -1,70 +1,169 @@
-import { useCallback, useEffect, useSyncExternalStore } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
+import { nativeStorage, type NativeStorage } from '../platform/storage';
 
 type Listener = () => void;
 
-const cache = new Map<string, unknown>();
-const listeners = new Map<string, Set<Listener>>();
-const hydrated = new Set<string>();
-
-function getListeners(key: string): Set<Listener> {
-  let set = listeners.get(key);
-  if (!set) {
-    set = new Set();
-    listeners.set(key, set);
-  }
-  return set;
+export interface PersistentStateStatus {
+  loading: boolean;
+  saving: boolean;
+  error: Error | null;
+  retry(): void;
 }
 
-function notify(key: string) {
-  for (const listener of getListeners(key)) listener();
+export type PersistentStateSetter<T> = (value: T | ((current: T) => T)) => void;
+
+export interface PersistentStateStore<T> {
+  get(): T;
+  getStatus(): PersistentStateStatus;
+  subscribe(listener: Listener): () => void;
+  hydrate(): void;
+  set(value: T | ((current: T) => T)): void;
+  retry(): void;
 }
 
-function readCache<T>(key: string, initial: T): T {
-  return cache.has(key) ? (cache.get(key) as T) : initial;
+export interface PersistentStateOptions<T> {
+  storage?: NativeStorage;
+  parse?(value: string): T;
+  serialize?(value: T): string;
 }
 
-function writeCache<T>(key: string, value: T) {
-  cache.set(key, value);
-  notify(key);
+function asError(value: unknown, fallback: string) {
+  return value instanceof Error ? value : new Error(fallback);
 }
 
-function hydrate(key: string) {
-  if (hydrated.has(key)) return;
-  hydrated.add(key);
-  AsyncStorage.getItem(key)
-    .then(stored => {
-      if (stored === null || cache.has(key)) return;
-      try {
-        writeCache(key, JSON.parse(stored));
-      } catch {
+export function createPersistentStateStore<T>(
+  key: string,
+  initial: T,
+  options: PersistentStateOptions<T> = {},
+): PersistentStateStore<T> {
+  const storage = options.storage || nativeStorage;
+  const parse = options.parse || ((value: string) => JSON.parse(value) as T);
+  const serialize = options.serialize || ((value: T) => {
+    const encoded = JSON.stringify(value);
+    if (typeof encoded !== 'string') throw new Error('O estado não pôde ser serializado.');
+    return encoded;
+  });
+  let value = initial;
+  let hydrationStarted = false;
+  let hydrationGeneration = 0;
+  let writeVersion = 0;
+  let latestValue = initial;
+  let writeChain: Promise<void> = Promise.resolve();
+  const listeners = new Set<Listener>();
+  let status: PersistentStateStatus;
+  const retryCallback = () => store.retry();
+  const emit = () => listeners.forEach(listener => listener());
+  const updateStatus = (patch: Partial<Omit<PersistentStateStatus, 'retry'>>) => {
+    status = { ...status, ...patch, retry: retryCallback };
+    emit();
+  };
+  const enqueueWrite = (next: T, version: number) => {
+    let serialized: string;
+    try {
+      serialized = serialize(next);
+    } catch (reason) {
+      if (version === writeVersion) updateStatus({ saving: false, error: asError(reason, 'Não foi possível salvar a preferência.') });
+      return;
+    }
+    updateStatus({ saving: true, error: null });
+    const operation = writeChain.catch(() => undefined).then(() => storage.setItem(key, serialized));
+    writeChain = operation;
+    void operation.then(
+      () => {
+        if (version === writeVersion) updateStatus({ saving: false, error: null });
+      },
+      reason => {
+        if (version === writeVersion) updateStatus({ saving: false, error: asError(reason, 'Não foi possível salvar a preferência.') });
+      },
+    );
+  };
+  const store: PersistentStateStore<T> = {
+    get: () => value,
+    getStatus: () => status,
+    subscribe: listener => {
+      const subscription = () => listener();
+      listeners.add(subscription);
+      return () => listeners.delete(subscription);
+    },
+    hydrate: () => {
+      if (hydrationStarted) return;
+      hydrationStarted = true;
+      const generation = ++hydrationGeneration;
+      updateStatus({ loading: true, error: null });
+      void storage.getItem(key).then(
+        stored => {
+          if (generation !== hydrationGeneration) return;
+          if (writeVersion > 0) {
+            updateStatus({ loading: false });
+            return;
+          }
+          if (stored !== null) {
+            try {
+              value = parse(stored);
+              latestValue = value;
+              emit();
+              updateStatus({ loading: false, error: null });
+              return;
+            } catch (reason) {
+              updateStatus({ loading: false, error: asError(reason, 'A preferência salva é inválida.') });
+              return;
+            }
+          }
+          updateStatus({ loading: false, error: null });
+        },
+        reason => {
+          if (generation !== hydrationGeneration) return;
+          hydrationStarted = false;
+          updateStatus({ loading: false, error: asError(reason, 'Não foi possível carregar a preferência.') });
+        },
+      );
+    },
+    set: nextValue => {
+      const next = typeof nextValue === 'function'
+        ? (nextValue as (current: T) => T)(value)
+        : nextValue;
+      value = next;
+      latestValue = next;
+      const version = ++writeVersion;
+      emit();
+      enqueueWrite(next, version);
+    },
+    retry: () => {
+      if (writeVersion > 0) {
+        const version = ++writeVersion;
+        enqueueWrite(latestValue, version);
         return;
       }
-    })
-    .catch(() => {
-      return;
-    });
+      hydrationStarted = false;
+      store.hydrate();
+    },
+  };
+  status = { loading: false, saving: false, error: null, retry: retryCallback };
+  return store;
 }
 
-export function usePersistentState<T>(key: string, initial: T): [T, (value: T) => void] {
-  const subscribe = useCallback((onStoreChange: Listener) => {
-    const set = getListeners(key);
-    set.add(onStoreChange);
-    return () => set.delete(onStoreChange);
-  }, [key]);
+const cache = new Map<string, PersistentStateStore<unknown>>();
 
-  const value = useSyncExternalStore(subscribe, () => readCache(key, initial));
+function cachedStore<T>(key: string, initial: T, options: PersistentStateOptions<T>) {
+  const current = cache.get(key);
+  if (current) return current as PersistentStateStore<T>;
+  const created = createPersistentStateStore(key, initial, options);
+  cache.set(key, created as PersistentStateStore<unknown>);
+  return created;
+}
 
-  useEffect(() => {
-    hydrate(key);
-  }, [key]);
-
-  const update = useCallback((next: T) => {
-    writeCache(key, next);
-    AsyncStorage.setItem(key, JSON.stringify(next)).catch(() => {
-      return;
-    });
-  }, [key]);
-
-  return [value, update];
+export function usePersistentState<T>(
+  key: string,
+  initial: T,
+  options: PersistentStateOptions<T> = {},
+): [T, PersistentStateSetter<T>, PersistentStateStatus] {
+  const store = useMemo(() => cachedStore(key, initial, options), [initial, key, options]);
+  const subscribe = useCallback((listener: Listener) => store.subscribe(listener), [store]);
+  const getValue = useCallback(() => store.get(), [store]);
+  const getStatus = useCallback(() => store.getStatus(), [store]);
+  const value = useSyncExternalStore(subscribe, getValue, getValue);
+  const status = useSyncExternalStore(subscribe, getStatus, getStatus);
+  useEffect(() => store.hydrate(), [store]);
+  const update = useCallback<PersistentStateSetter<T>>(next => store.set(next), [store]);
+  return [value, update, status];
 }
