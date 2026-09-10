@@ -1,58 +1,79 @@
-# Builds e updates do mobile
+# Builds locais do mobile
 
-O Next mantém seu próprio deploy. Os builds Expo usam as APIs existentes por HTTPS e não executam migrações no banco. Um rollback mobile precisa continuar compatível com o schema e com as notas já armazenadas.
+O mobile é compilado localmente com Expo CLI, Android SDK e Xcode. O Next mantém seu próprio build e deploy. Este fluxo usa AVDs Android e simuladores iOS no `macbook-2`, sem EAS, distribuição em lojas ou alterações no banco de produção. A [documentação de builds locais do Expo](https://docs.expo.dev/guides/local-app-overview/) descreve as ferramentas usadas.
 
-## Ambientes
+## Configuração
 
-| Perfil EAS | Variante | Canal | Uso |
-| --- | --- | --- | --- |
-| development | development | development | Development client em aparelho físico. |
-| development-simulator | development | development | Development client no simulador iOS. |
-| preview | preview | preview | Distribuição interna, APK no Android e assinatura ad hoc no iOS. |
-| preview-simulator | preview | preview | Preview no simulador iOS. |
-| production | production | production | Binário para as lojas. |
+`APP_VARIANT` aceita `development`, `preview` ou `production`. O padrão local é `development`, com identificador `com.clubedojogo.mobile.dev`. Preview e produção exigem `EXPO_APPLICATION_ID` explícito, mas não exigem conta ou projeto EAS. A variante seleciona a configuração do app; `Release` seleciona a compilação otimizada. Use `development` com `Release` para medir o app local.
 
-`APP_VARIANT` identifica a variante também quando não há um build EAS em execução. Preview e produção exigem `EXPO_APPLICATION_ID` e `EXPO_EAS_PROJECT_ID`. O segundo valor é o UUID do projeto EAS, usado pelo push e pela URL de updates. Defina esses valores nos ambientes EAS correspondentes antes de construir. Use identificadores diferentes quando quiser instalar variantes lado a lado. Nenhum projeto remoto ou identificador de loja foi criado por esta migração.
+Todas as variantes usam apenas o bundle embarcado. Updates remotos ficam desabilitados e não há URL de update nem metadados de projeto EAS. `runtimeVersion` mantém a política `fingerprint` para identificar o runtime nativo e registrar a proveniência dos builds.
 
-Configure `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `EXPO_PUBLIC_API_BASE_URL` e `EXPO_PUBLIC_SITE_URL` por ambiente. Os valores `EXPO_PUBLIC_*` entram no bundle. As credenciais IGDB, service role, FCM, APNs e tokens do worker permanecem no servidor ou no serviço de build.
+Exporte `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `EXPO_PUBLIC_API_BASE_URL` e `EXPO_PUBLIC_SITE_URL` do ambiente local de teste. Os valores `EXPO_PUBLIC_*` entram no bundle. Nunca use service role, credenciais IGDB, APNs ou FCM nessas variáveis. `EXPO_NO_DOTENV=1` evita incorporar um ambiente diferente por arquivo `.env`.
 
-## Construir
+Execute `npm ci` na raiz de cada checkout. Cada host e worktree mantém suas próprias dependências. Os diretórios `android` e `ios` são gerados por CNG. Antes de regenerá-los, preserve qualquer alteração nativa manual e confira se a variante e o identificador coincidem com o build pretendido.
 
-Execute `npm ci` na raiz. Faça os comandos EAS a partir de `apps/mobile`. O lockfile inclui o monorepo inteiro.
+## Android em AVD
+
+Inicie um AVD dedicado e confirme seu serial com `adb devices`. Execute em `apps/mobile`, com as variáveis públicas do ambiente de teste já exportadas.
 
 ```sh
-eas build --profile preview --platform android
-eas build --profile preview-simulator --platform ios
-eas build --profile production --platform all
+APP_VARIANT=development EXPO_NO_DOTENV=1 EXPO_LOCAL_HTTP=1 npx expo run:android --variant release --no-bundler --device "${ANDROID_SERIAL:?Defina o serial do AVD}"
 ```
 
-Esses comandos iniciam builds remotos e precisam de projeto, assinatura e autorização de distribuição configurados. Os perfis de preview não equivalem a uma publicação nas lojas. A numeração EAS é remota; a versão local inicial de desenvolvimento é 1.
+`EXPO_LOCAL_HTTP=1` permite HTTP somente no Android de desenvolvimento. Preview e produção rejeitam essa opção. Se os serviços de teste usam `127.0.0.1` no bundle, configure `adb -s "$ANDROID_SERIAL" reverse tcp:55421 tcp:55421` e `adb -s "$ANDROID_SERIAL" reverse tcp:3101 tcp:3101` para a API Next deste ambiente. Não encaminhe Metro durante a medição de release.
 
-Para medir o bundle embarcado sem serviços EAS, mantenha `APP_VARIANT=development` e compile em modo release. Isso desliga updates remotos, preserva `com.clubedojogo.mobile.dev` e permite usar o ambiente Supabase local de teste. Defina `ANDROID_SERIAL` e `IOS_UDID` com os dispositivos dedicados antes dos comandos. Exporte também as variáveis públicas do ambiente local; `EXPO_NO_DOTENV=1` evita incorporar outro ambiente por um arquivo `.env`.
+O APK local usa a assinatura de desenvolvimento gerada pelo projeto. Ele serve para o AVD e não é apresentado como artefato de distribuição.
+
+## iOS no Mac remoto
+
+Acesse `ssh macbook-2`. Defina `CLUBE_CHECKOUT` com o caminho absoluto do checkout no Mac. Prepare o PATH também em SSH não interativo; os comandos abaixo usam o Node instalado nesse host. Confirme o host e o UDID dedicado antes de alterar qualquer perfil. Execute o SimSlim no Mac que hospeda o simulador.
 
 ```sh
-APP_VARIANT=development EXPO_NO_DOTENV=1 EXPO_LOCAL_HTTP=1 npx expo run:android --variant release --device "${ANDROID_SERIAL:?Defina o serial Android}"
-APP_VARIANT=development EXPO_NO_DOTENV=1 npx expo run:ios --configuration Release --device "${IOS_UDID:?Defina o UDID iOS}"
+export PATH="/opt/homebrew/bin:$HOME/.nvm/versions/node/v24.19.0/bin:$HOME/.maestro/bin:$PATH"
+cd "${CLUBE_CHECKOUT:?Defina o checkout no Mac}"
+npm ci
+cd apps/mobile
 ```
 
-`EXPO_LOCAL_HTTP=1` permite ao build Android local acessar os serviços de teste por HTTP. Preview e produção rejeitam essa opção. Sem ela, a configuração nativa mantém tráfego sem TLS desativado. No iOS, a configuração Expo já permite rede local sem liberar tráfego arbitrário.
+```sh
+hostname
+simslim --help
+simslim profiles
+simslim doctor --list
+simslim on "${IOS_UDID:?Defina o UDID dedicado}"
+simslim status "$IOS_UDID"
+simslim verify "$IOS_UDID"
+```
 
-No Mac remoto, confirme host e UDID, aplique a redução máxima do SimSlim e confira `status` e `verify`. Preserve a assinatura local do simulador. O build direto por Xcode com assinatura desativada falhou no Keychain do Expo Notifications; consulte `mobile-migration.md`.
+O padrão mantém todas as categorias reduzidas. Quando o cenário exigir uma funcionalidade listada pelo `doctor`, confira `simslim doctor "$IOS_UDID" --requires <recurso>`. Se necessário, preserve apenas a categoria ou daemon indispensável com `--except` ou `--keep`, registre o motivo e restaure a redução máxima depois do teste. Não altere simuladores de outras sessões. Rede local, AsyncStorage e cache do app não exigem iCloud ou sincronização de Keychain.
 
-Development aceita um `EXPO_EAS_PROJECT_ID` explícito para testar push em aparelho físico com development client. Esse identificador permanece em `extra.eas.projectId`; updates continuam desabilitados e sem URL nessa variante. Omita o identificador no teste local sem EAS.
+No checkout do Mac, instale as dependências próprias e gere o projeto iOS a partir de `apps/mobile`.
 
-Os diretórios `android` e `ios` são gerados por CNG. Antes de regenerá-los, confira se existem mudanças nativas manuais e preserve-as. Use checkout isolado para trocar a variante. Um diretório nativo antigo pode manter o identificador anterior mesmo após editar `app.config.ts`.
+```sh
+APP_VARIANT=development EXPO_NO_DOTENV=1 npx expo prebuild --platform ios --no-install
+```
 
-## Compatibilidade e rollback
+Execute `pod install` dentro de `apps/mobile/ios`. Depois, em `apps/mobile`, compile com assinatura ad hoc local e instale no simulador dedicado.
 
-`runtimeVersion` usa a política `fingerprint`. Alterações que afetam o runtime nativo exigem um novo binário. Publique somente updates com runtime compatível e com os valores de ambiente da variante selecionada. O perfil EAS de build não fornece automaticamente suas variáveis `env` ao comando de update. Configure `APP_VARIANT` também no ambiente EAS usado pelo update. A separação entre runtime e JavaScript segue a [documentação de compatibilidade do Expo](https://docs.expo.dev/eas-update/runtime-versions/).
+```sh
+APP_VARIANT=development EXPO_NO_DOTENV=1 xcodebuild -workspace ios/ClubedoJogo.xcworkspace -scheme ClubedoJogo -configuration Release -destination "id=${IOS_UDID:?Defina o UDID dedicado}" -derivedDataPath ios/build -jobs 2 CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- ONLY_ACTIVE_ARCH=YES ARCHS=arm64 build
+xcrun simctl install "$IOS_UDID" ios/build/Build/Products/Release-iphonesimulator/ClubedoJogo.app
+```
 
-Depois de confirmar os identificadores e completar a revisão do candidato, publique primeiro no canal preview. O procedimento de rollback usa `eas update:rollback`, que permite selecionar um update anterior ou o bundle embarcado. Teste reabertura, sessão, preferências e notas depois da reversão. Uma reversão de JavaScript não remove migrações nem desfaz dados. O comando e as duas modalidades estão na [documentação de rollback do Expo](https://docs.expo.dev/eas-update/rollbacks/).
+Execute a instalação somente após o build terminar com sucesso. A assinatura local é necessária. O build sem assinatura falhou no acesso ao Keychain usado pelo Expo Notifications. O `.app` arm64 desse comando é um artefato de simulador.
 
-## Evidência necessária para distribuir
+Para acessar os serviços Linux pelo loopback do Mac, mantenha um túnel SSH reverso apenas para as portas de Supabase e Next usadas pelo teste. Confira que o app abre com Metro indisponível.
 
-Registre commit, hash do binário, runtime, versão do sistema, aparelho, ambiente e fixture em cada execução. Guarde os resultados de unit, live e perf separadamente. A compilação e a exportação Hermes não comprovam instalação, entrega push ou desempenho.
+## Atualização e reversão locais
 
-Ainda precisam de execução e evidência a instalação em Android/iPhone físicos, push APNs/FCM, update e rollback no canal preview, rejeição de runtime incompatível, leitura de tela e os limites de desempenho em release. Não existe binário mobile de produção anterior para provar retrocompatibilidade neste primeiro lançamento.
+Arquive cada APK ou `.app` com commit, hash do arquivo, fingerprint, sistema, dispositivo e configuração. Instale o candidato sobre o binário anterior mantendo o identificador e a assinatura. Reabra o app e confirme sessão, preferências e notas. Para reverter, reinstale o artefato anterior preservado e repita as mesmas verificações.
 
-Antes da submissão, confirme os metadados e requisitos vigentes de privacidade e distribuição das lojas. Esta migração não envia aplicativos, configura credenciais de loja nem altera produção.
+O bundle muda pela instalação do binário. Não há canal de OTA, publicação EAS ou rollback remoto neste fluxo. Uma reversão de binário não desfaz dados ou migrações. Preserve a compatibilidade com o schema existente e com notas já armazenadas.
+
+## Evidência e limites
+
+Registre unit, live e perf separadamente. Faça cinco aquecimentos e dez amostras em release para o tempo de abertura. Guarde todos os valores, o p95, o limite aplicado e a identidade da fixture. Compilar e exportar Hermes não comprovam instalação ou desempenho.
+
+Notificações remotas permanecem indisponíveis sem configuração de transporte. Os testes locais cobrem fila e receipts sintéticos, recebimento de payload injetado, sessão e abertura do destino. Não descreva esses resultados como entrega por Expo Push Service, APNs ou FCM.
+
+O escopo atual não inclui aparelhos físicos, lojas, credenciais de distribuição ou OTA remota. Os critérios restantes de acessibilidade, navegação, privacidade e desempenho continuam sendo executados nos AVDs e simuladores dedicados.

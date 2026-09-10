@@ -1,26 +1,18 @@
 import type { ExpoConfig } from 'expo/config';
 
-const profileVariant = process.env.EAS_BUILD_PROFILE?.replace(/-simulator$/, '');
-const variant = process.env.APP_VARIANT ?? profileVariant ?? 'development';
+const variant = process.env.APP_VARIANT ?? 'development';
 const isDistributed = variant === 'preview' || variant === 'production';
 const applicationId = process.env.EXPO_APPLICATION_ID || 'com.clubedojogo.mobile.dev';
-const projectId = process.env.EXPO_EAS_PROJECT_ID;
 const localHttp = process.env.EXPO_LOCAL_HTTP === '1';
 
 if (!['development', 'preview', 'production'].includes(variant)) {
   throw new Error('APP_VARIANT deve ser development, preview ou production.');
 }
-if (profileVariant && variant !== profileVariant) {
-  throw new Error('APP_VARIANT precisa corresponder ao perfil EAS selecionado.');
-}
-if (isDistributed && (!process.env.EXPO_APPLICATION_ID || !projectId)) {
-  throw new Error('Defina EXPO_APPLICATION_ID e EXPO_EAS_PROJECT_ID antes de gerar preview ou produção.');
+if (isDistributed && !process.env.EXPO_APPLICATION_ID) {
+  throw new Error('Defina EXPO_APPLICATION_ID antes de gerar preview ou produção.');
 }
 if (isDistributed && localHttp) {
   throw new Error('EXPO_LOCAL_HTTP só pode ser usado na variante development.');
-}
-if (projectId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(projectId)) {
-  throw new Error('EXPO_EAS_PROJECT_ID deve ser o UUID do projeto EAS confirmado.');
 }
 
 const config: ExpoConfig = {
@@ -32,11 +24,7 @@ const config: ExpoConfig = {
   userInterfaceStyle: 'automatic',
   icon: './assets/icon.png',
   runtimeVersion: { policy: 'fingerprint' },
-  updates: {
-    enabled: isDistributed,
-    ...(isDistributed ? { url: `https://u.expo.dev/${projectId}` } : {}),
-  },
-  ...(projectId ? { extra: { eas: { projectId } } } : {}),
+  updates: { enabled: false },
   ios: {
     supportsTablet: true,
     bundleIdentifier: applicationId,

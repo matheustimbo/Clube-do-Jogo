@@ -1,10 +1,14 @@
 # Native push delivery
 
-Native notifications use the Expo Push Service while browser notifications keep the existing Web Push path. The server verifies each event and derives its recipients before inserting one durable Expo delivery per active installation.
+O escopo atual usa builds locais sem EAS, AVDs Android e simuladores iOS. A configuração mobile não fornece projeto Expo e mantém o registro remoto indisponível. As verificações usam transporte sintético no servidor e payloads locais no runtime para provar fila, sessão e navegação. A integração de entrega descrita abaixo permanece inativa e depende de configuração externa. Nenhuma evidência sintética comprova entrega APNs/FCM.
 
-## Required configuration
+The dormant external native transport targets the Expo Push Service; browser notifications keep the existing Web Push path. The server verifies each event and derives its recipients before inserting one durable Expo delivery per active installation.
 
-Set these server-only variables:
+## External transport reference, outside the current local scope
+
+The settings and rollout below document the dormant external adapter. They are not prerequisites for local builds or synthetic verification. Enabling it would require a separately reviewed mobile project configuration and credentials; setting these server variables alone does not enable mobile registration. Do not provision these services for the current simulator-only task.
+
+A future external integration would use these server-only variables:
 
 | Variable | Purpose |
 | --- | --- |

@@ -5,7 +5,6 @@ import test from 'node:test';
 
 const mobileRoot = fileURLToPath(new URL('../../apps/mobile/', import.meta.url));
 const expoBin = fileURLToPath(new URL('../../node_modules/expo/bin/cli', import.meta.url));
-const projectId = '00000000-0000-4000-8000-000000000001';
 
 function readConfig(variables: Record<string, string> = {}) {
   const env = { ...process.env };
@@ -31,44 +30,42 @@ test('build local mantém identidade de desenvolvimento e usa somente o bundle e
   assert.deepEqual(config.runtimeVersion, { policy: 'fingerprint' });
 });
 
-test('preview conecta updates e push somente ao projeto explícito', () => {
-  const result = readConfig({
-    EAS_BUILD_PROFILE: 'preview-simulator',
-    APP_VARIANT: 'preview',
-    EXPO_APPLICATION_ID: 'com.example.club.preview',
-    EXPO_EAS_PROJECT_ID: projectId,
-  });
-  assert.equal(result.status, 0, result.stderr);
-  const config = JSON.parse(result.stdout);
-  assert.equal(config.android.package, 'com.example.club.preview');
-  assert.equal(config.ios.bundleIdentifier, 'com.example.club.preview');
-  assert.equal(config.updates.enabled, true);
-  assert.equal(config.updates.url, `https://u.expo.dev/${projectId}`);
-  assert.equal(config.extra.eas.projectId, projectId);
+test('preview e produção geram configuração sem projeto EAS e usam somente o bundle embarcado', () => {
+  for (const variant of ['preview', 'production']) {
+    const result = readConfig({
+      APP_VARIANT: variant,
+      EXPO_APPLICATION_ID: `com.example.club.${variant}`,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const config = JSON.parse(result.stdout);
+    assert.equal(config.android.package, `com.example.club.${variant}`);
+    assert.equal(config.ios.bundleIdentifier, `com.example.club.${variant}`);
+    assert.equal(config.updates.enabled, false);
+    assert.equal(config.updates.url, undefined);
+    assert.equal(config.extra?.eas, undefined);
+  }
 });
 
-test('development pode identificar push sem habilitar ou apontar updates remotos', () => {
-  const result = readConfig({ EXPO_EAS_PROJECT_ID: projectId });
+test('configuração EAS herdada não altera variante nem adiciona serviços remotos', () => {
+  const result = readConfig({ EAS_BUILD_PROFILE: 'production', EXPO_EAS_PROJECT_ID: 'unused' });
   assert.equal(result.status, 0, result.stderr);
   const config = JSON.parse(result.stdout);
+  assert.equal(config.android.package, 'com.clubedojogo.mobile.dev');
   assert.equal(config.updates.enabled, false);
   assert.equal(config.updates.url, undefined);
-  assert.equal(config.extra.eas.projectId, projectId);
+  assert.equal(config.extra?.eas, undefined);
 });
 
 test('produção não herda identificação local quando falta configuração de distribuição', () => {
-  const result = readConfig({ EAS_BUILD_PROFILE: 'production' });
+  const result = readConfig({ APP_VARIANT: 'production' });
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /EXPO_APPLICATION_ID e EXPO_EAS_PROJECT_ID/);
+  assert.match(result.stderr, /Defina EXPO_APPLICATION_ID/);
 });
 
-test('perfil de produção rejeita variante de desenvolvimento e UUID inválido', () => {
-  const conflicting = readConfig({ EAS_BUILD_PROFILE: 'production', APP_VARIANT: 'development' });
-  assert.notEqual(conflicting.status, 0);
-  assert.match(conflicting.stderr, /corresponder ao perfil EAS/);
-  const invalidProject = readConfig({ EXPO_EAS_PROJECT_ID: 'project-name' });
-  assert.notEqual(invalidProject.status, 0);
-  assert.match(invalidProject.stderr, /UUID/);
+test('variante desconhecida é rejeitada antes de gerar o projeto nativo', () => {
+  const result = readConfig({ APP_VARIANT: 'staging' });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /APP_VARIANT deve ser/);
 });
 
 test('HTTP local exige opt-in de desenvolvimento e não entra em preview', () => {
@@ -80,7 +77,6 @@ test('HTTP local exige opt-in de desenvolvimento e não entra em preview', () =>
   const preview = readConfig({
     APP_VARIANT: 'preview',
     EXPO_APPLICATION_ID: 'com.example.club.preview',
-    EXPO_EAS_PROJECT_ID: projectId,
     EXPO_LOCAL_HTTP: '1',
   });
   assert.notEqual(preview.status, 0);

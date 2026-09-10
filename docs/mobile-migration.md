@@ -15,7 +15,7 @@ npm run ios --workspace @clube-do-jogo/mobile
 
 Os comandos Android/iOS geram os projetos nativos pelo Expo. `android`, `ios`, `.expo` e `dist` são gerados e não são versionados. O lockfile único fica na raiz. O esquema de callback é `clubedojogo://auth/callback`; a URL precisa estar permitida no projeto Supabase usado pelo ambiente.
 
-O identificador local é `com.clubedojogo.mobile.dev`. Um build EAS de produção exige `EXPO_APPLICATION_ID` explícito. As configurações de EAS não criam um projeto remoto nem publicam o aplicativo.
+O identificador local é `com.clubedojogo.mobile.dev`. Preview e produção exigem `EXPO_APPLICATION_ID` explícito. Os builds são locais, sem EAS. A validação usa AVDs Android e simuladores iOS no `macbook-2` com SimSlim no máximo.
 
 O Expo usa React 19.2.3, conforme o SDK 57, e a web mantém React 19.2.4. A resolução por autolinking mantém somente a cópia do mobile em cada bundle nativo. O Expo Doctor reporta essas duas instalações no disco (20/21 checks), embora a exportação inclua somente uma cópia de React por bundle; o aviso permanece visível. Esse uso segue o [autolinking do Expo](https://docs.expo.dev/modules/autolinking/#working-around-duplicates). `expo-router` também é uma dependência de desenvolvimento da raiz porque a geração de rotas tipadas do CLI precisa resolver esse pacote a partir do CLI instalado na raiz.
 
@@ -51,7 +51,7 @@ npm run test:domain executa as regras de empate, fórmula legacy, mês seguinte,
 
 ## Estado da implementação
 
-O aplicativo inclui sessão, jogo do mês, ranking, votos, avaliações, descoberta, biblioteca, perfis, mídia, conversas, anotações privadas, administração, temas, recompensas e integração de push. Os testes em builds de desenvolvimento não encerram a verificação de paridade, desempenho em release ou entrega em aparelhos físicos. A configuração de distribuição e rollback está em [mobile-release.md](./mobile-release.md).
+O aplicativo inclui sessão, jogo do mês, ranking, votos, avaliações, descoberta, biblioteca, perfis, mídia, conversas, anotações privadas, administração, temas, recompensas e integração de push. Os testes em builds de desenvolvimento não encerram a verificação de paridade e desempenho em release nos AVDs e simuladores iOS dedicados. Aparelhos físicos e EAS estão fora do escopo atual. A configuração de builds e reversão locais está em [mobile-release.md](./mobile-release.md).
 
 ## Reuso e paridade
 
