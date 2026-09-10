@@ -3,7 +3,11 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Button } from '@/components/Button';
 import { completeAuthCallback } from '@/platform/auth';
-import { consumeNavIntent, DEFAULT_APP_ROUTE } from '@/lib/nav-intent';
+import {
+  AUTHENTICATED_INTENT_NAVIGATION_OPTIONS,
+  consumeNavIntent,
+  DEFAULT_APP_ROUTE,
+} from '@/lib/nav-intent';
 import { useApp } from '@/state/app-provider';
 import { colors, spacing, typography } from '@/theme';
 
@@ -61,7 +65,9 @@ export default function AuthCallbackScreen() {
     if (ready && userId === callbackState.expectedUserId) {
       if (navigatedRequestId.current === requestId.current) return;
       navigatedRequestId.current = requestId.current;
-      router.replace(consumeNavIntent() ?? DEFAULT_APP_ROUTE);
+      const intent = consumeNavIntent();
+      if (intent) router.replace(intent, AUTHENTICATED_INTENT_NAVIGATION_OPTIONS);
+      else router.replace(DEFAULT_APP_ROUTE);
       return;
     }
     const timer = setTimeout(() => {

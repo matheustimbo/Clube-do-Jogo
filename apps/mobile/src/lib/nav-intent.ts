@@ -3,6 +3,8 @@ export type NavIntent =
   | { pathname: '/(app)/perfil/[id]'; params: { id: string } };
 
 export const DEFAULT_APP_ROUTE = '/(app)/(tabs)/jogo-do-mes' as const;
+export const APP_STACK_ANCHOR = '(tabs)' as const;
+export const AUTHENTICATED_INTENT_NAVIGATION_OPTIONS = { withAnchor: true } as const;
 
 export type RootNavigationAction =
   | { type: 'none' }

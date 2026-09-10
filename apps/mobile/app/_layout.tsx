@@ -9,6 +9,7 @@ import {
   consumeNavIntent,
   decideRootNavigation,
   DEFAULT_APP_ROUTE,
+  AUTHENTICATED_INTENT_NAVIGATION_OPTIONS,
   peekNavIntent,
 } from '@/lib/nav-intent';
 import { colors } from '@/theme';
@@ -43,7 +44,7 @@ function RootNavigator() {
     if (action.type === 'clear-intent') clearNavIntent();
     else if (action.type === 'open-intent') {
       consumeNavIntent();
-      router.replace(action.intent);
+      router.replace(action.intent, AUTHENTICATED_INTENT_NAVIGATION_OPTIONS);
     } else if (action.type === 'open-home') {
       router.replace(DEFAULT_APP_ROUTE);
     }
