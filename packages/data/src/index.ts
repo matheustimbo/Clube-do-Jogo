@@ -7,6 +7,7 @@ export * from './errors';
 export * from './media';
 export * from './notes';
 export * from './profiles';
+export * from './rewards';
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { DataClient } from './client';

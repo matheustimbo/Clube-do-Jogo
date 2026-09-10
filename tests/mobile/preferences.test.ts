@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import {
   createPersistentStateStore,
 } from '../../apps/mobile/src/hooks/use-persistent-state';
+import { mobilePreferencesStorageKey, normalizeMobilePreferences } from '../../apps/mobile/src/hooks/mobile-preferences-core';
 import type { NativeStorage } from '../../apps/mobile/src/platform/storage';
 
 class Deferred<T> {
@@ -94,4 +95,16 @@ test('write failures are observable and retry persists the current value', async
   await flush();
   assert.equal(storage.values.get('account/member'), JSON.stringify('latest'));
   assert.equal(store.getStatus().error, null);
+});
+
+test('preference scopes separate accounts and demo from one another', () => {
+  const member = mobilePreferencesStorageKey('member', false, 1);
+  const other = mobilePreferencesStorageKey('other', false, 1);
+  const demo = mobilePreferencesStorageKey('member', true, 1);
+  assert.notEqual(member, other);
+  assert.notEqual(member, demo);
+  assert.notEqual(mobilePreferencesStorageKey(null, false, 1), mobilePreferencesStorageKey(null, false, 2));
+  assert.deepEqual(normalizeMobilePreferences({ themeId: 'locked', reduceMotion: true, ratingScale: 7 }), {
+    themeId: 'original', reduceMotion: true, audioEnabled: true, ratingScale: 10,
+  });
 });

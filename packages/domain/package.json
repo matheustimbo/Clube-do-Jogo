@@ -11,6 +11,8 @@
     "./progress": "./src/progress.ts",
     "./dates": "./src/dates.ts",
     "./ratings": "./src/ratings.ts",
-    "./demo": "./src/demo.ts"
+    "./demo": "./src/demo.ts",
+    "./themes": "./src/themes.ts",
+    "./rewards": "./src/rewards.ts"
   }
 }
