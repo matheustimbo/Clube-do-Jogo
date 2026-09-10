@@ -1,4 +1,6 @@
 import {
+  focusManager,
+  onlineManager,
   useMutation,
   useQuery,
   type UseMutationResult,
@@ -7,10 +9,12 @@ import {
 import * as React from 'react';
 
 export { randomUUID as createNativeNoteId } from 'expo-crypto';
+import { randomUUID } from 'expo-crypto';
 import type { ClubComment, LocalNote, Profile } from '@clube-do-jogo/domain';
 import {
   createCommentsClient,
   createNotesClient,
+  NotesConflictError,
   type CommentDeleteInput,
   type CommentInput,
   type CommentRealtimeEvent,
@@ -18,12 +22,26 @@ import {
   type CommentUpdateInput,
   type CommentsClient,
   type NotesClient,
-  type NewNoteInput,
   type NoteDeleteInput,
-  type NoteUpdateInput,
 } from '@clube-do-jogo/data';
 import { createMobileApiTransport, getMobileSupabaseClient, nativeStorage } from '@/platform';
 import { useAppInternal } from './app-provider';
+import {
+  clearConflict,
+  createConflicts,
+  createQueue,
+  dequeue as dequeueNote,
+  enqueue as enqueueNote,
+  markAttempt,
+  markConflict,
+  parseQueue,
+  serializeQueue,
+  type NoteConflictsByNoteId,
+  type PendingLocalNote,
+  type PendingNotesQueue,
+} from './notes-queue';
+
+export { mergePendingIntoList, type NoteConflict, type PendingLocalNote, type PendingNotesQueue } from './notes-queue';
 
 // Best-effort push, mirroring src/components/timeline.tsx (`/api/push/comment` with the
 // same { commentId } payload). The comment is already saved by the time this runs, so a
@@ -68,19 +86,6 @@ export type ReactionVariables = {
   clubMonth?: string;
   emoji: string;
   enabled: boolean;
-  historical?: boolean;
-};
-
-export type NoteVariables = {
-  gameId: string;
-  note: Omit<LocalNote, 'userId' | 'gameId'>;
-  historical?: boolean;
-};
-
-export type NoteUpdateVariables = {
-  gameId: string;
-  note: Omit<LocalNote, 'userId' | 'gameId'>;
-  expectedUpdatedAt: string;
   historical?: boolean;
 };
 
@@ -309,23 +314,6 @@ function reactionInput(context: DiscussionContext, input: ReactionVariables): Co
   };
 }
 
-function noteFromInput(context: DiscussionContext, input: NoteVariables | NoteUpdateVariables): LocalNote {
-  const userId = requireUser(context.userId);
-  return {
-    ...input.note,
-    userId,
-    gameId: input.gameId,
-  };
-}
-
-function noteCreateInput(context: DiscussionContext, input: NoteVariables): NewNoteInput {
-  return { userId: requireUser(context.userId), isDemo: context.isDemo, note: noteFromInput(context, input), historical: hasHistoricalGuard(context, input.historical) };
-}
-
-function noteUpdateInput(context: DiscussionContext, input: NoteUpdateVariables): NoteUpdateInput {
-  return { userId: requireUser(context.userId), isDemo: context.isDemo, note: noteFromInput(context, input), expectedUpdatedAt: input.expectedUpdatedAt, historical: hasHistoricalGuard(context, input.historical) };
-}
-
 function noteDeleteInput(context: DiscussionContext, input: NoteDeleteVariables): NoteDeleteInput {
   return { userId: requireUser(context.userId), isDemo: context.isDemo, gameId: input.gameId, noteId: input.noteId, expectedUpdatedAt: input.expectedUpdatedAt, historical: hasHistoricalGuard(context, input.historical) };
 }
@@ -535,73 +523,6 @@ export function useNotes(gameId: string, options?: { snapshotMonth?: string | nu
   });
 }
 
-export function useCreateNote(): UseMutationResult<LocalNote, Error, NoteVariables, NoteMutationContext> {
-  const context = useAppInternal();
-  const epoch = context.sessionEpoch;
-  const client = getNotesClient(context.isDemo);
-  return useMutation<LocalNote, Error, NoteVariables, NoteMutationContext>({
-    mutationFn: input => {
-      if (!context.isSessionCurrent(epoch)) throw new Error('Sua sessão mudou. Tente novamente.');
-      return client.create(noteCreateInput(context, input));
-    },
-    onMutate: async input => {
-      if (!context.isSessionCurrent(epoch)) throw new Error('Sua sessão mudou. Tente novamente.');
-      if (hasHistoricalGuard(context, input.historical)) throw new Error('O histórico é somente leitura.');
-      const key = notesKey(context, input.gameId, null);
-      await context.queryClient.cancelQueries({ queryKey: key });
-      if (!context.isSessionCurrent(epoch)) throw new Error('Sua sessão mudou. Tente novamente.');
-      const previous = context.queryClient.getQueryData<LocalNote[]>(key);
-      return { key, previous };
-    },
-    onSuccess: (note, _input, mutationContext) => {
-      if (!context.isSessionCurrent(epoch) || !mutationContext) return;
-      context.queryClient.setQueryData<LocalNote[]>(mutationContext.key, current => {
-        const values = current || [];
-        return values.some(item => item.id === note.id) ? values.map(item => item.id === note.id ? note : item) : [...values, note];
-      });
-    },
-    onError: (_error, _input, mutationContext) => {
-      if (context.isSessionCurrent(epoch) && mutationContext) context.queryClient.setQueryData(mutationContext.key, mutationContext.previous);
-    },
-    onSettled: (_data, _error, _input, mutationContext) => {
-      if (!context.isSessionCurrent(epoch) || !mutationContext) return;
-      void context.queryClient.invalidateQueries({ queryKey: mutationContext.key });
-    },
-  });
-}
-
-export function useUpdateNote(): UseMutationResult<LocalNote, Error, NoteUpdateVariables, NoteMutationContext> {
-  const context = useAppInternal();
-  const epoch = context.sessionEpoch;
-  const client = getNotesClient(context.isDemo);
-  return useMutation<LocalNote, Error, NoteUpdateVariables, NoteMutationContext>({
-    mutationFn: input => {
-      if (!context.isSessionCurrent(epoch)) throw new Error('Sua sessão mudou. Tente novamente.');
-      return client.update(noteUpdateInput(context, input));
-    },
-    onMutate: async input => {
-      if (!context.isSessionCurrent(epoch)) throw new Error('Sua sessão mudou. Tente novamente.');
-      if (hasHistoricalGuard(context, input.historical)) throw new Error('O histórico é somente leitura.');
-      const key = notesKey(context, input.gameId, null);
-      await context.queryClient.cancelQueries({ queryKey: key });
-      if (!context.isSessionCurrent(epoch)) throw new Error('Sua sessão mudou. Tente novamente.');
-      const previous = context.queryClient.getQueryData<LocalNote[]>(key);
-      return { key, previous };
-    },
-    onSuccess: (note, _input, mutationContext) => {
-      if (!context.isSessionCurrent(epoch) || !mutationContext) return;
-      context.queryClient.setQueryData<LocalNote[]>(mutationContext.key, current => (current || []).map(item => item.id === note.id ? note : item));
-    },
-    onError: (_error, _input, mutationContext) => {
-      if (context.isSessionCurrent(epoch) && mutationContext) context.queryClient.setQueryData(mutationContext.key, mutationContext.previous);
-    },
-    onSettled: (_data, _error, _input, mutationContext) => {
-      if (!context.isSessionCurrent(epoch) || !mutationContext) return;
-      void context.queryClient.invalidateQueries({ queryKey: mutationContext.key });
-    },
-  });
-}
-
 export function useDeleteNote(): UseMutationResult<void, Error, NoteDeleteVariables, NoteMutationContext> {
   const context = useAppInternal();
   const epoch = context.sessionEpoch;
@@ -721,4 +642,165 @@ export function useNoteDraft(gameId: string): NoteDraftState {
   }, [context, epoch, key, userId]);
 
   return { draft: visibleDraft, loading: Boolean(key) && loadedKey !== key, error: visibleError, setDraft, clearDraft };
+}
+
+function pendingNotesKey(userId: string, gameId: string) {
+  return `@clube-do-jogo/notes-pending-queue/${encodeURIComponent(userId)}/${encodeURIComponent(gameId)}`;
+}
+
+export interface NotesPendingQueueState {
+  queue: PendingNotesQueue;
+  conflicts: NoteConflictsByNoteId;
+  loading: boolean;
+  corruptionError: Error | null;
+  submitCreate(note: LocalNote): void;
+  submitUpdate(note: LocalNote, expectedUpdatedAt: string): void;
+  resolveUseRemote(noteId: string): void;
+  resolveKeepAsNew(noteId: string): void;
+}
+
+// One slot per note id (`notes-queue.ts`), not the single (userId, gameId)
+// draft slot: a note that already got a "send" tap lives here, independent
+// of whatever the composer is being typed into next, so a second note typed
+// before the first confirms cannot overwrite it.
+export function useNotesPendingQueue(gameId: string): NotesPendingQueueState {
+  const context = useAppInternal();
+  const userId = context.userId;
+  const epoch = context.sessionEpoch;
+  const client = getNotesClient(context.isDemo);
+  const key = userId && gameId ? pendingNotesKey(userId, gameId) : null;
+
+  const [queue, setQueue] = React.useState<PendingNotesQueue>(createQueue);
+  const [conflicts, setConflicts] = React.useState<NoteConflictsByNoteId>(createConflicts);
+  const [loadedKey, setLoadedKey] = React.useState<string | null>(null);
+  const [corruptionError, setCorruptionError] = React.useState<Error | null>(null);
+  const queueRef = React.useRef(queue);
+  const conflictsRef = React.useRef(conflicts);
+  const flushingRef = React.useRef(new Set<string>());
+
+  const applyQueue = React.useCallback((next: PendingNotesQueue) => {
+    queueRef.current = next;
+    setQueue(next);
+    if (key) {
+      void enqueueDraftWrite(key, () => next.size
+        ? nativeStorage.setItem(key, serializeQueue(next))
+        : nativeStorage.removeItem(key));
+    }
+  }, [key]);
+
+  const applyConflicts = React.useCallback((next: NoteConflictsByNoteId) => {
+    conflictsRef.current = next;
+    setConflicts(next);
+  }, []);
+
+  React.useEffect(() => {
+    if (!key || !context.ready) return undefined;
+    let cancelled = false;
+    void (draftWrites.get(key) || Promise.resolve()).catch(() => undefined).then(() => nativeStorage.getItem(key)).then(value => {
+      if (cancelled || !context.isSessionCurrent(epoch) || context.userId !== userId) return;
+      try {
+        const parsed = parseQueue(value);
+        queueRef.current = parsed.queue;
+        setQueue(parsed.queue);
+        setCorruptionError(parsed.unrecoverableCount > 0
+          ? new Error(`${parsed.unrecoverableCount} anotação${parsed.unrecoverableCount === 1 ? '' : 'ões'} pendente${parsed.unrecoverableCount === 1 ? '' : 's'} não p${parsed.unrecoverableCount === 1 ? 'ôde' : 'uderam'} ser recuperada${parsed.unrecoverableCount === 1 ? '' : 's'}.`)
+          : null);
+      } catch (reason) {
+        queueRef.current = createQueue();
+        setQueue(createQueue());
+        setCorruptionError(reason instanceof Error ? reason : new Error('Não foi possível carregar as anotações pendentes.'));
+      }
+      setLoadedKey(key);
+    }).catch(reason => {
+      if (cancelled || !context.isSessionCurrent(epoch) || context.userId !== userId) return;
+      setLoadedKey(key);
+      setCorruptionError(reason instanceof Error ? reason : new Error('Não foi possível carregar as anotações pendentes.'));
+    });
+    return () => { cancelled = true; };
+  }, [context, context.ready, epoch, key, userId]);
+
+  const flushOne = React.useCallback(async (noteId: string) => {
+    if (!context.isSessionCurrent(epoch) || flushingRef.current.has(noteId) || conflictsRef.current.has(noteId)) return;
+    const entry = queueRef.current.get(noteId);
+    if (!entry) return;
+    flushingRef.current.add(noteId);
+    try {
+      const resolvedUserId = requireUser(context.userId);
+      if (entry.origin === 'update') {
+        await client.update({ userId: resolvedUserId, isDemo: context.isDemo, note: entry.note, expectedUpdatedAt: entry.expectedUpdatedAt || entry.note.updatedAt });
+      } else {
+        await client.create({ userId: resolvedUserId, isDemo: context.isDemo, note: entry.note });
+      }
+      if (!context.isSessionCurrent(epoch)) return;
+      applyQueue(dequeueNote(queueRef.current, noteId));
+      applyConflicts(clearConflict(conflictsRef.current, noteId));
+      void context.queryClient.invalidateQueries({ queryKey: notesKey(context, gameId, null) });
+    } catch (error) {
+      if (!context.isSessionCurrent(epoch)) return;
+      if (error instanceof NotesConflictError) {
+        applyConflicts(markConflict(conflictsRef.current, noteId, error.kind === 'changed' && error.remote
+          ? { kind: 'changed', local: entry.note, remote: error.remote }
+          : { kind: 'deleted', local: entry.note }));
+      }
+      applyQueue(markAttempt(queueRef.current, noteId, error instanceof Error ? error.message : 'Não foi possível enviar a anotação.'));
+    } finally {
+      flushingRef.current.delete(noteId);
+    }
+  }, [applyConflicts, applyQueue, client, context, epoch, gameId]);
+
+  const flushAll = React.useCallback(() => {
+    for (const noteId of queueRef.current.keys()) void flushOne(noteId);
+  }, [flushOne]);
+
+  React.useEffect(() => {
+    if (!key || loadedKey !== key || !context.userId) return undefined;
+    flushAll();
+    const unsubscribeOnline = onlineManager.subscribe(() => { if (onlineManager.isOnline()) flushAll(); });
+    const unsubscribeFocus = focusManager.subscribe(() => { if (focusManager.isFocused()) flushAll(); });
+    return () => {
+      unsubscribeOnline();
+      unsubscribeFocus();
+    };
+  }, [context.userId, flushAll, key, loadedKey]);
+
+  const submitCreate = React.useCallback((note: LocalNote) => {
+    const entry: PendingLocalNote = { note, origin: 'create', generation: 0 };
+    applyQueue(enqueueNote(queueRef.current, entry));
+    applyConflicts(clearConflict(conflictsRef.current, note.id));
+    void flushOne(note.id);
+  }, [applyConflicts, applyQueue, flushOne]);
+
+  const submitUpdate = React.useCallback((note: LocalNote, expectedUpdatedAt: string) => {
+    const entry: PendingLocalNote = { note, origin: 'update', expectedUpdatedAt, generation: 0 };
+    applyQueue(enqueueNote(queueRef.current, entry));
+    applyConflicts(clearConflict(conflictsRef.current, note.id));
+    void flushOne(note.id);
+  }, [applyConflicts, applyQueue, flushOne]);
+
+  const resolveUseRemote = React.useCallback((noteId: string) => {
+    applyQueue(dequeueNote(queueRef.current, noteId));
+    applyConflicts(clearConflict(conflictsRef.current, noteId));
+    void context.queryClient.invalidateQueries({ queryKey: notesKey(context, gameId, null) });
+  }, [applyConflicts, applyQueue, context, gameId]);
+
+  const resolveKeepAsNew = React.useCallback((noteId: string) => {
+    const entry = queueRef.current.get(noteId);
+    if (!entry) return;
+    const createdAt = new Date().toISOString();
+    const fresh: PendingLocalNote = { note: { ...entry.note, id: randomUUID(), createdAt, updatedAt: createdAt }, origin: 'create', generation: 0 };
+    applyQueue(enqueueNote(dequeueNote(queueRef.current, noteId), fresh));
+    applyConflicts(clearConflict(conflictsRef.current, noteId));
+    void flushOne(fresh.note.id);
+  }, [applyConflicts, applyQueue, flushOne]);
+
+  return {
+    queue,
+    conflicts,
+    loading: Boolean(key) && loadedKey !== key,
+    corruptionError,
+    submitCreate,
+    submitUpdate,
+    resolveUseRemote,
+    resolveKeepAsNew,
+  };
 }
