@@ -351,7 +351,7 @@ export function createSupabaseNativePushStore(admin: SupabaseClient, workerId: s
       })) as ClaimedNativeDelivery[];
     },
     async recordTickets(outcomes) {
-      await runWithConcurrency(outcomes, NATIVE_PUSH_STORE_WRITE_CONCURRENCY, async outcome => {
+      await runAllWithConcurrency(outcomes, NATIVE_PUSH_STORE_WRITE_CONCURRENCY, async outcome => {
         const { data, error } = await awaitStoreRequest(admin.rpc('record_native_push_ticket', {
           target_delivery_id: outcome.delivery.deliveryId,
           target_attempt_id: outcome.delivery.attemptId,
@@ -385,7 +385,7 @@ export function createSupabaseNativePushStore(admin: SupabaseClient, workerId: s
       })) as ClaimedNativeReceipt[];
     },
     async recordReceipts(outcomes) {
-      await runWithConcurrency(outcomes, NATIVE_PUSH_STORE_WRITE_CONCURRENCY, async outcome => {
+      await runAllWithConcurrency(outcomes, NATIVE_PUSH_STORE_WRITE_CONCURRENCY, async outcome => {
         const { data, error } = await awaitStoreRequest(admin.rpc('record_native_push_receipt', {
           target_delivery_id: outcome.receipt.deliveryId,
           target_attempt_id: outcome.receipt.attemptId,
@@ -404,27 +404,27 @@ export function createSupabaseNativePushStore(admin: SupabaseClient, workerId: s
   };
 }
 
-async function runWithConcurrency<T>(items: T[], concurrency: number, operation: (item: T) => Promise<void>) {
+async function runAllWithConcurrency<T>(items: T[], concurrency: number, operation: (item: T) => Promise<void>) {
   let nextIndex = 0;
-  let failed = false;
+  let hasError = false;
   let firstError: unknown;
   const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
-    while (!failed) {
+    while (true) {
       const index = nextIndex;
       nextIndex += 1;
       if (index >= items.length) return;
       try {
         await operation(items[index]);
       } catch (error) {
-        if (!failed) {
-          failed = true;
+        if (!hasError) {
+          hasError = true;
           firstError = error;
         }
       }
     }
   });
   await Promise.all(workers);
-  if (failed) throw firstError;
+  if (hasError) throw firstError;
 }
 
 export async function runNativePushWorker(
@@ -455,7 +455,8 @@ export async function runNativePushWorker(
       deliveryBatches.push(projectBatch.slice(offset, offset + SEND_LIMIT));
     }
   }
-  await runWithConcurrency(deliveryBatches, NATIVE_PUSH_SEND_CONCURRENCY, async batch => {
+  const ticketOutcomes: NativeTicketOutcome[] = [];
+  await runAllWithConcurrency(deliveryBatches, NATIVE_PUSH_SEND_CONCURRENCY, async batch => {
     let outcomes: NativeTicketOutcome[];
     try {
       const tickets = await transport.send(batch.map(delivery => ({
@@ -477,14 +478,15 @@ export async function runNativePushWorker(
           }))
         : uncertainOutcomes(batch, error, now);
     }
-    await store.recordTickets(outcomes);
-    for (const outcome of outcomes) {
-      if (outcome.status === 'ticketed') result.ticketed += 1;
-      if (outcome.status === 'retry') result.retried += 1;
-      if (outcome.status === 'invalid_token') result.invalidTokens += 1;
-      if (outcome.status === 'failed' || outcome.status === 'unknown') result.failed += 1;
-    }
+    ticketOutcomes.push(...outcomes);
   });
+  if (ticketOutcomes.length) await store.recordTickets(ticketOutcomes);
+  for (const outcome of ticketOutcomes) {
+    if (outcome.status === 'ticketed') result.ticketed += 1;
+    if (outcome.status === 'retry') result.retried += 1;
+    if (outcome.status === 'invalid_token') result.invalidTokens += 1;
+    if (outcome.status === 'failed' || outcome.status === 'unknown') result.failed += 1;
+  }
 
   const receipts = await store.claimReceipts(RECEIPT_LIMIT);
   for (let offset = 0; offset < receipts.length; offset += RECEIPT_LIMIT) {

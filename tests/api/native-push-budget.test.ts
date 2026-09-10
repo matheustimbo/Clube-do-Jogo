@@ -113,35 +113,124 @@ test('claim com cem projetos limita a dez sends concorrentes e persiste todos an
   });
 });
 
-test('falha de persistência espera operações concorrentes terminarem e não inicia receipts', async () => {
-  const deliveries = [delivery(0), delivery(1), delivery(2)];
-  const sends = [new Deferred<unknown[]>(), new Deferred<unknown[]>(), new Deferred<unknown[]>()];
-  const persistence = [new Deferred<void>(), new Deferred<void>()];
-  let sendIndex = 0;
-  let persistenceIndex = 0;
+test('falha de persistência ocorre depois de todos os projetos reclamados serem enviados', async () => {
+  const deliveries = Array.from({ length: 100 }, (_, index) => delivery(index));
+  let sends = 0;
+  let ticketWrites = 0;
   let receiptClaims = 0;
   const store: NativePushStore = {
     claimDeliveries: async () => deliveries,
     recordTickets: async outcomes => {
-      if (outcomes[0].delivery.deliveryId === 'delivery-0') throw new Error('lease perdida');
-      await persistence[persistenceIndex++].promise;
+      ticketWrites += 1;
+      assert.equal(outcomes.length, deliveries.length);
+      throw new Error('lease perdida');
     },
     claimReceipts: async () => { receiptClaims += 1; return []; },
     recordReceipts: async () => undefined,
   };
-  const worker = runNativePushWorker(store, {
-    send: () => sends[sendIndex++].promise,
+  await assert.rejects(runNativePushWorker(store, {
+    send: async () => [{ status: 'ok', id: `ticket-${sends++}` }],
+    getReceipts: async () => ({}),
+  }), /lease perdida/);
+  assert.equal(sends, deliveries.length);
+  assert.equal(ticketWrites, 1);
+  assert.equal(receiptClaims, 0);
+});
+
+test('store drena cem persistências de ticket com limite global de vinte após uma lease perdida', async () => {
+  type RpcResult = { data: boolean; error: null };
+  let active = 0;
+  let peak = 0;
+  let calls = 0;
+  const pending: Array<{ index: number; deferred: Deferred<RpcResult> }> = [];
+  const client = {
+    rpc(name: string) {
+      assert.equal(name, 'record_native_push_ticket');
+      return {
+        abortSignal() {
+          const index = calls++;
+          active += 1;
+          peak = Math.max(peak, active);
+          const deferred = new Deferred<RpcResult>();
+          pending.push({ index, deferred });
+          return deferred.promise.finally(() => { active -= 1; });
+        },
+      };
+    },
+  } as unknown as SupabaseClient;
+  const store = createSupabaseNativePushStore(client, 'worker-budget');
+  const outcomes: NativeTicketOutcome[] = Array.from({ length: 100 }, (_, index) => ({
+    delivery: delivery(index),
+    status: 'ticketed',
+    ticketId: `ticket-${index}`,
+  }));
+  const persistence = store.recordTickets(outcomes).catch(error => error as Error);
+  await flush();
+  assert.equal(active, NATIVE_PUSH_STORE_WRITE_CONCURRENCY);
+  for (let wave = 0; wave < 5; wave += 1) {
+    assert.equal(calls, Math.min((wave + 1) * NATIVE_PUSH_STORE_WRITE_CONCURRENCY, outcomes.length));
+    const current = pending.splice(0);
+    current.forEach(item => item.deferred.resolve({ data: item.index !== 0, error: null }));
+    await flush();
+  }
+  const error = await persistence;
+  assert.match(error.message, /ticket outcome was not persisted/);
+  assert.equal(calls, outcomes.length);
+  assert.equal(peak, NATIVE_PUSH_STORE_WRITE_CONCURRENCY);
+});
+
+test('worker aplica o limite global de vinte RPCs aos tickets de dez projetos', async () => {
+  type RpcResult = { data: boolean; error: null };
+  const deliveries = Array.from({ length: 100 }, (_, index) => ({
+    ...delivery(index),
+    projectId: `project-${Math.floor(index / 10)}`,
+  }));
+  let active = 0;
+  let peak = 0;
+  let calls = 0;
+  const pending: Array<Deferred<RpcResult>> = [];
+  const client = {
+    rpc(name: string) {
+      return {
+        abortSignal() {
+          if (name === 'claim_native_push_deliveries') return Promise.resolve({
+            data: deliveries.map(item => ({
+              delivery_id: item.deliveryId,
+              attempt_id: item.attemptId,
+              attempt_number: item.attemptNumber,
+              installation_id: item.installationId,
+              expo_push_token: item.expoPushToken,
+              project_id: item.projectId,
+              message: item.message,
+            })),
+            error: null,
+          });
+          if (name === 'claim_native_push_receipts') return Promise.resolve({ data: [], error: null });
+          assert.equal(name, 'record_native_push_ticket');
+          calls += 1;
+          active += 1;
+          peak = Math.max(peak, active);
+          const deferred = new Deferred<RpcResult>();
+          pending.push(deferred);
+          return deferred.promise.finally(() => { active -= 1; });
+        },
+      };
+    },
+  } as unknown as SupabaseClient;
+  const worker = runNativePushWorker(createSupabaseNativePushStore(client, 'worker-budget'), {
+    send: async messages => messages.map((_, index) => ({ status: 'ok', id: `ticket-${index}` })),
     getReceipts: async () => ({}),
   });
-  let settled = false;
-  void worker.then(() => { settled = true; }, () => { settled = true; });
   await flush();
-  sends.forEach((send, index) => send.resolve([{ status: 'ok', id: `ticket-${index}` }]));
-  await flush();
-  assert.equal(settled, false);
-  persistence.forEach(item => item.resolve());
-  await assert.rejects(worker, /lease perdida/);
-  assert.equal(receiptClaims, 0);
+  assert.equal(active, NATIVE_PUSH_STORE_WRITE_CONCURRENCY);
+  while (calls < deliveries.length || active > 0) {
+    const wave = pending.splice(0);
+    wave.forEach(item => item.resolve({ data: true, error: null }));
+    await flush();
+  }
+  await worker;
+  assert.equal(calls, deliveries.length);
+  assert.equal(peak, NATIVE_PUSH_STORE_WRITE_CONCURRENCY);
 });
 
 test('store limita mil persistências de receipt e aplica deadline a cada RPC', async () => {
