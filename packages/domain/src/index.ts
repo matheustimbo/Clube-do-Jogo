@@ -6,6 +6,7 @@ export * from './ratings';
 export * from './library';
 export * from './demo';
 export * from './avatar';
+export * from './product-updates';
 export { DEFAULT_THEME, getSelectableThemes, isThemeId, themes, THEME_STORAGE_KEY } from './themes';
 export type { ThemeAvailability, ThemeDefinition, ThemeId } from './themes';
 export { isRewardEligibility, themeIdFromReward, unlockedThemeIds } from './rewards';
