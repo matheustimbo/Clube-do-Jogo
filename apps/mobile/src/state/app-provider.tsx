@@ -245,7 +245,7 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
   const signUp = useCallback(async (name: string, email: string, password: string) => {
     if (!supabase) throw new Error('Configure o Supabase para criar uma conta.');
     if (!name.trim() || !email.trim() || !password) throw new Error('Informe nome, email e senha.');
-    const { data, error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
       options: {
@@ -254,7 +254,6 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
       },
     });
     if (error) throw new Error(authMessage(error, 'Não foi possível criar sua conta.'));
-    if (!data.session) throw new Error('Conta criada. Confirme seu email para entrar.');
   }, [supabase]);
 
   const signOut = useCallback(async () => {
