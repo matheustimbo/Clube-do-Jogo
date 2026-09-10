@@ -41,6 +41,17 @@ function callbackClient(exchangeCodeForSession: (code: string) => Promise<{ erro
   return { auth: { exchangeCodeForSession } } as unknown as AuthCallbackClient;
 }
 
+function callbackSessionClient(userId: string): AuthCallbackClient {
+  return {
+    auth: {
+      exchangeCodeForSession: async () => ({
+        data: { session: { user: { id: userId } }, user: { id: userId }, redirectType: null },
+        error: null,
+      }),
+    },
+  } as unknown as AuthCallbackClient;
+}
+
 function sessionClient(session: { access_token: string } | null, error: Error | null = null): SupabaseClient {
   return {
     auth: {
@@ -75,6 +86,17 @@ test('callback PKCE troca uma vez e compartilha a promessa concorrente', async (
 
   await authModule.completeAuthCallback(url, client);
   assert.equal(calls, 1);
+});
+
+test('callback PKCE devolve a identidade confirmada para sessão warm', async () => {
+  const { authModule } = await modulesPromise;
+
+  const result = await authModule.completeAuthCallback(
+    'clubedojogo://auth/callback?code=warm-session-code',
+    callbackSessionClient('warm-user'),
+  );
+
+  assert.deepEqual(result, { userId: 'warm-user' });
 });
 
 test('callback PKCE permite nova tentativa depois de erro de troca', async () => {
