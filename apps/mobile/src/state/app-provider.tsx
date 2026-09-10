@@ -17,6 +17,7 @@ import {
   signOutCurrentDevice,
 } from '@/platform';
 import { createInitialSessionGate, shouldHydrateAuthSession } from './auth-lifecycle';
+import { clearPushSession, preparePushSignOut } from './push-session';
 
 const SELECTED_MONTH_KEY = '@clube-do-jogo/selected-month';
 
@@ -265,12 +266,18 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
       resetSessionBoundary();
       return;
     }
+    const pushResult = await preparePushSignOut().catch(() => ({ unlinked: false, reason: 'offline' as const }));
+    if (!pushResult.unlinked && pushResult.reason !== 'stale') {
+      console.warn(`Push remoto não desassociado durante logout (${pushResult.reason}).`);
+    }
     try {
       await signOutCurrentDevice(supabase);
       resetSessionBoundary();
     } catch (error) {
       resetSessionBoundary();
       throw new Error(authMessage(error, 'Não foi possível sair da conta.'));
+    } finally {
+      clearPushSession();
     }
   }, [resetSessionBoundary, supabase]);
 
