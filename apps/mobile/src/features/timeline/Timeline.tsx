@@ -348,7 +348,7 @@ function CommentCard({
             </View>
           </View>
         ) : (
-          <Text style={styles.body}>{comment.body}</Text>
+          <Text testID={`comment-body-${comment.id}`} style={styles.body}>{comment.body}</Text>
         )}
 
         <View style={styles.actionsRow}>

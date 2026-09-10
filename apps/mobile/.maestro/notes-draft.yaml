@@ -12,8 +12,11 @@ appId: com.clubedojogo.mobile.dev
     element:
       id: private-notes-input
     direction: DOWN
+    centerElement: true
 - tapOn:
     id: private-notes-input
+    point: "95%,90%"
+- eraseText: 100
 - inputText: ${DRAFT_BODY}
 - stopApp
 - launchApp
@@ -29,24 +32,45 @@ appId: com.clubedojogo.mobile.dev
     element:
       id: private-notes-input
     direction: DOWN
+    centerElement: true
 - assertVisible: (?i)${DRAFT_BODY}
 - takeScreenshot: rascunho-restaurado
+- scrollUntilVisible:
+    element:
+      text: Salvar anotação
+    direction: DOWN
+    centerElement: true
 - tapOn: Salvar anotação
-- assertVisible: (?i).*${DRAFT_BODY}.*
-- longPressOn: (?i).*${DRAFT_BODY}.*
+- assertVisible:
+    id: note-row-.*
+    text: (?i).*${DRAFT_BODY}.*
+- longPressOn:
+    id: note-row-.*
+    text: (?i).*${DRAFT_BODY}.*
 - tapOn: Editar
 - scrollUntilVisible:
     element:
       id: private-notes-input
     direction: DOWN
+    centerElement: true
 - tapOn:
     id: private-notes-input
-- eraseText
+    point: "95%,90%"
+- eraseText: 100
 - inputText: ${EDITED_BODY}
+- scrollUntilVisible:
+    element:
+      text: Salvar anotação
+    direction: DOWN
+    centerElement: true
 - tapOn: Salvar anotação
-- assertVisible: (?i).*${EDITED_BODY}.*
+- assertVisible:
+    id: note-row-.*
+    text: (?i).*${EDITED_BODY}.*
 - takeScreenshot: anotacao-editada
-- longPressOn: (?i).*${EDITED_BODY}.*
+- longPressOn:
+    id: note-row-.*
+    text: (?i).*${EDITED_BODY}.*
 - tapOn: Excluir
 - tapOn: Apagar
 - assertNotVisible: (?i).*${EDITED_BODY}.*

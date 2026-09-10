@@ -152,6 +152,7 @@ function NotesEditor({ gameId, snapshotMonth }: PrivateNotesProps) {
               onLongPress={() => { if (!readOnly) setActionsTarget(note); }}
               accessibilityRole={readOnly ? undefined : 'button'}
               accessibilityLabel={readOnly ? undefined : `${note.body || "Anotação com imagem"}. Opções da anotação de ${formatShortDate(note.createdAt)}`}
+              testID={`note-row-${note.id}`}
               style={styles.bubbleRow}
             >
               <View style={styles.bubble}>

@@ -15,7 +15,8 @@ appId: com.clubedojogo.mobile.dev
     direction: DOWN
 - tapOn:
     id: timeline-composer-input
-- inputText: Conversa verificada no mobile
+- eraseText: 100
+- inputText: ${COMMENT_BODY}
 - scrollUntilVisible:
     element:
       text: Comentar
@@ -23,9 +24,12 @@ appId: com.clubedojogo.mobile.dev
 - tapOn: Comentar
 - scrollUntilVisible:
     element:
-      text: (?i)Conversa verificada no mobile
+      id: comment-body-[0-9a-f]{8}-.*
+      text: (?i)${COMMENT_BODY}
     direction: DOWN
-- assertVisible: (?i)Conversa verificada no mobile
+- assertVisible:
+    id: comment-body-[0-9a-f]{8}-.*
+    text: (?i)${COMMENT_BODY}
 - takeScreenshot: comentario-publicado
 - scrollUntilVisible:
     element:
@@ -36,9 +40,19 @@ appId: com.clubedojogo.mobile.dev
     element:
       id: private-notes-input
     direction: DOWN
+    centerElement: true
 - tapOn:
     id: private-notes-input
-- inputText: Anotacao privada verificada no mobile
+    point: "95%,90%"
+- eraseText: 100
+- inputText: ${NOTE_BODY}
+- scrollUntilVisible:
+    element:
+      text: Salvar anotação
+    direction: DOWN
+    centerElement: true
 - tapOn: Salvar anotação
-- assertVisible: (?i).*Anotacao privada verificada no mobile.*
+- assertVisible:
+    id: note-row-.*
+    text: (?i).*${NOTE_BODY}.*
 - takeScreenshot: anotacao-confirmada
