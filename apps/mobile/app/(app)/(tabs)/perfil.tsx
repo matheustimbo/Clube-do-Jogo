@@ -67,9 +67,14 @@ export default function ProfileScreen() {
     platforms: data.platforms.length,
   };
 
-  function saveProfile(input: { name: string; bio: string }) {
+  function saveProfile(input: { name: string; bio: string; avatarUrl: string | null }) {
     updateProfile.mutate(
-      { name: input.name.trim() || null, bio: input.bio.trim() || null },
+      {
+        name: input.name.trim() || null,
+        bio: input.bio.trim() || null,
+        avatar_url: input.avatarUrl,
+        avatar_crop: input.avatarUrl === person.avatar_url ? person.avatar_crop ?? null : null,
+      },
       { onSuccess: () => setEditOpen(false) },
     );
   }

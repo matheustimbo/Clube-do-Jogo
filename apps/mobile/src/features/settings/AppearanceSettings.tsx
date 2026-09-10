@@ -2,7 +2,7 @@ import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useMobilePreferences } from '@/hooks/use-mobile-preferences';
 import { useUnlockedThemeIds } from '@/state/reward-queries';
-import { ThemeSceneCard } from '@/features/themes';
+import { CosmicAmbienceSettings, ThemeSceneCard } from '@/features/themes';
 import { radii, spacing, themedStyles, typography, useThemeColors } from '@/theme';
 import { PreferencesPanel } from './PreferencesPanel';
 import { ThemePicker } from './ThemePicker';
@@ -56,6 +56,8 @@ export function AppearanceSettings() {
       </View>
 
       <ThemeSceneCard />
+
+      {preferences.themeId === 'cosmic-campfire' ? <CosmicAmbienceSettings /> : null}
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Movimento, som e notas</Text>

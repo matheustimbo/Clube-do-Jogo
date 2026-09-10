@@ -7,7 +7,7 @@ import { Screen } from '@/components/Screen';
 import { AppHeader } from '@/components/AppHeader';
 import { AddGameToVoteSheet } from '@/components/AddGameToVoteSheet';
 import { PreferenceButtons } from '@/components/PreferenceButtons';
-import { PreferenceParticipantsSheet } from '@/components/PreferenceParticipantsSheet';
+import { VoteParticipantsSheet } from '@/components/VoteParticipantsSheet';
 import { VoteReasonSheet, voteReasonLabel } from '@/components/VoteReasonSheet';
 import { EmptyState, ErrorState, LoadingState } from '@/components/StateViews';
 import { formatMonth, formatShortDate, shiftMonth } from '@/lib/format';
@@ -180,7 +180,7 @@ export default function RankingScreen() {
         onChoose={chooseSearch}
       />
 
-      <PreferenceParticipantsSheet
+      <VoteParticipantsSheet
         key={participantsTarget ? `${participantsTarget.item.game.id}:${participantsTarget.choice}` : 'closed'}
         visible={Boolean(participantsTarget)}
         onClose={() => setParticipantsTarget(null)}
