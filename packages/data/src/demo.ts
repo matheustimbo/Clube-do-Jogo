@@ -15,6 +15,8 @@ import type {
   ProfileWithGames,
   RankingItem,
   RankingFormula,
+  RatingDetails,
+  RatingMode,
   VoteChoice,
   VoteReason,
 } from '@clube-do-jogo/domain';
@@ -144,7 +146,8 @@ export class DemoStore {
       .map(cloneProgress);
     const override = this.progressOverrides.get(key(userId, gameId));
     const withoutUser = base.filter(progress => progress.user_id !== userId);
-    if (override) withoutUser.push(cloneProgress(override));
+    const ownProgress = override || base.find(progress => progress.user_id === userId);
+    if (ownProgress) withoutUser.push(cloneProgress(ownProgress));
     return withoutUser;
   }
 
@@ -162,6 +165,18 @@ export class DemoStore {
       game_id: gameId,
       ...progress,
       profile: cloneProfile(demoUserProfile(userId)),
+    });
+  }
+
+  setRating(userId: string, gameId: string, rating: number | null, ratingMode: RatingMode, ratingDetails: RatingDetails | null) {
+    const current = this.currentProgress(userId, gameId);
+    this.setProgress(userId, gameId, {
+      status: current?.status || 'not_started',
+      rating,
+      rating_mode: ratingMode,
+      rating_details: ratingDetails,
+      started_at: current?.started_at || null,
+      finished_at: current?.finished_at || null,
     });
   }
 
