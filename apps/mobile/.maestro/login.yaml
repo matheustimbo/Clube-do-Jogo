@@ -16,11 +16,14 @@ appId: com.clubedojogo.mobile.dev
 - tapOn: Sua senha
 - eraseText
 - inputText: ${TEST_PASSWORD}
-- hideKeyboard
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
 - tapOn:
     text: Entrar
     enabled: true
-    optional: true
 - extendedWaitUntil:
     visible: Ver detalhes de Outer Wilds
     timeout: 20000
