@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { createHash, randomBytes } from 'node:crypto';
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,10 +12,29 @@ const skillDir = resolve(scriptDir, '..');
 const rootDir = resolve(scriptDir, '../../../..');
 const stateRoot = join(rootDir, 'state', 'verify-clube-do-jogo');
 const evidenceRoot = join(rootDir, 'evidence', 'verify-clube-do-jogo');
-const forbiddenPort = 3101;
+const allowedPorts = new Set([3102, 3103]);
+const demoEnvironmentNames = [
+  'PATH',
+  'HOME',
+  'USER',
+  'LOGNAME',
+  'LANG',
+  'LC_ALL',
+  'LC_CTYPE',
+  'TZ',
+  'TERM',
+  'TMPDIR',
+  'TMP',
+  'TEMP',
+  'CI',
+  'NODE_ENV',
+  'NEXT_TELEMETRY_DISABLED',
+  'NO_COLOR',
+  'FORCE_COLOR',
+];
 
 function fail(message) {
-  throw new Error(message);
+  throw new Error(redact(message));
 }
 
 function usage() {
@@ -43,8 +62,8 @@ function parseArgs(values) {
 
 function ensurePort(value) {
   const port = Number(value);
-  if (!Number.isInteger(port) || port < 1024 || port > 65535 || port === forbiddenPort) {
-    fail(`Use uma porta TCP válida diferente de ${forbiddenPort}; recebida: ${value}`);
+  if (!Number.isInteger(port) || !allowedPorts.has(port)) {
+    fail(`Use somente as portas dedicadas ${[...allowedPorts].join(' ou ')}; recebida: ${value}`);
   }
   return port;
 }
@@ -60,11 +79,34 @@ function runText(command, args, options = {}) {
 }
 
 function gitSha() {
-  return runText('git', ['rev-parse', 'HEAD']).split('\n')[0] || 'unknown';
+  const value = runText('git', ['rev-parse', 'HEAD']).split('\n')[0] || '';
+  return /^[0-9a-f]{40}$/.test(value) ? value : null;
+}
+
+function redact(value) {
+  return String(value)
+    .replace(/([?&](?:access[_-]?token|refresh[_-]?token|token|api[_-]?key|apikey|secret|password|code|auth)=)[^&#\s]*/gi, '$1[REDACTED]')
+    .replace(/(\b(?:authorization|cookie|token|secret|password|api[_-]?key|apikey|service[_-]?role|anon[_-]?key)\s*[:=]\s*)(?:bearer\s+)?[^\s,;}]+/gi, '$1[REDACTED]')
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer [REDACTED]')
+    .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, '[REDACTED_JWT]');
+}
+
+function demoEnvironment() {
+  const environment = {};
+  for (const name of demoEnvironmentNames) {
+    if (process.env[name] !== undefined) environment[name] = process.env[name];
+  }
+  return {
+    ...environment,
+    NEXT_PUBLIC_SUPABASE_URL: '',
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: '',
+    NEXT_PUBLIC_AUTO_OPEN_PRODUCT_UPDATE: 'false',
+  };
 }
 
 function writeJson(path, value) {
   mkdirSync(dirname(path), { recursive: true });
+  ensureWriteTarget(path);
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
 }
 
@@ -87,6 +129,20 @@ function pathsFor(runId) {
   };
 }
 
+function ensureWriteTarget(path) {
+  try {
+    if (lstatSync(path).isSymbolicLink()) fail(`Destino simbólico recusado: ${path}`);
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+  }
+}
+
+function ensureRegularFile(path, label) {
+  let stats;
+  try { stats = lstatSync(path); } catch { fail(`Arquivo ausente: ${label}`); }
+  if (stats.isSymbolicLink() || !stats.isFile()) fail(`Arquivo inválido: ${label}`);
+}
+
 function listRunIds() {
   if (!existsSync(stateRoot)) return [];
   return readdirSync(stateRoot)
@@ -99,9 +155,58 @@ function readManifest(runId) {
   if (!selected) fail('Nenhum run encontrado; execute launch primeiro');
   const paths = pathsFor(selected);
   if (!existsSync(paths.stateManifest)) fail(`Manifesto ausente para run ${selected}`);
+  ensureRegularFile(paths.stateManifest, paths.stateManifest);
   const manifest = readJson(paths.stateManifest);
   if (manifest.runId !== selected) fail(`Manifesto inconsistente para run ${selected}`);
   return manifest;
+}
+
+function canonicalManifestPaths(manifest, strict = false) {
+  const paths = pathsFor(manifest.runId);
+  if (strict && (manifest.stateDir !== paths.stateDir || manifest.evidenceDir !== paths.evidenceDir)) {
+    fail(`Manifesto do run ${manifest.runId} não aponta para seus diretórios canônicos`);
+  }
+  if (manifest.stateDir !== undefined && manifest.stateDir !== paths.stateDir) fail(`stateDir divergente para run ${manifest.runId}`);
+  if (manifest.evidenceDir !== undefined && manifest.evidenceDir !== paths.evidenceDir) fail(`evidenceDir divergente para run ${manifest.runId}`);
+  return paths;
+}
+
+function validateManifestEnvelope(manifest) {
+  const paths = canonicalManifestPaths(manifest, true);
+  if (manifest.version !== 1) fail(`Versão de manifesto não suportada para run ${manifest.runId}`);
+  if (manifest.worktree !== rootDir) fail(`Worktree divergente para run ${manifest.runId}`);
+  if (!allowedPorts.has(manifest.port)) fail(`Porta não permitida no manifesto: ${manifest.port}`);
+  if (manifest.baseUrl !== `http://127.0.0.1:${manifest.port}`) fail(`baseUrl divergente para run ${manifest.runId}`);
+  if (manifest.mode !== 'demo') fail(`Modo não permitido no manifesto: ${manifest.mode}`);
+  if (!/^[0-9a-f]{40}$/.test(manifest.gitSha || '')) fail(`SHA inválido no manifesto do run ${manifest.runId}`);
+  if (!Number.isInteger(manifest.pid) || manifest.pid < 2) fail(`PID inválido no manifesto do run ${manifest.runId}`);
+  if (!Number.isInteger(manifest.pgid) || manifest.pgid < 2) fail(`PGID inválido no manifesto do run ${manifest.runId}`);
+  if (!manifest.processIdentity) fail(`Identidade ausente no manifesto do run ${manifest.runId}`);
+  if (!Array.isArray(manifest.processPids) || !manifest.processPids.includes(manifest.pid)) fail(`Grupo inicial ausente no manifesto do run ${manifest.runId}`);
+  if (manifest.logPath !== join(paths.evidenceDir, 'launch.log')) fail(`logPath divergente para run ${manifest.runId}`);
+  return paths;
+}
+
+function stableJson(value) {
+  if (Array.isArray(value)) return value.map(stableJson);
+  if (value && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort().map(key => [key, stableJson(value[key])]));
+  return value;
+}
+
+function sameJson(left, right) {
+  return JSON.stringify(stableJson(left)) === JSON.stringify(stableJson(right));
+}
+
+function assertArtifactIdentity(name, artifact, manifest) {
+  for (const field of ['runId', 'gitSha', 'worktree', 'port', 'baseUrl', 'mode']) {
+    if (artifact?.[field] !== manifest[field]) fail(`${name} divergente no campo ${field}`);
+  }
+}
+
+function redactTextFile(path) {
+  const original = readFileSync(path, 'utf8');
+  const sanitized = redact(original);
+  if (sanitized !== original) writeFileSync(path, sanitized, 'utf8');
 }
 
 function processAlive(pid) {
@@ -115,32 +220,45 @@ function processAlive(pid) {
 }
 
 function processInfo(pid) {
-  if (!processAlive(pid)) return { alive: false, cwd: null, command: null };
+  if (!processAlive(pid)) return { alive: false, state: null, cwd: null, command: null, pgid: null, identity: null };
   try {
     const cwd = realpathSync(`/proc/${pid}/cwd`);
     const command = readFileSync(`/proc/${pid}/cmdline`, 'utf8').split('\0').filter(Boolean).join(' ');
     const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
-    const startTicks = stat.slice(stat.lastIndexOf(')') + 2).trim().split(/\s+/)[19];
+    const fields = stat.slice(stat.lastIndexOf(')') + 2).trim().split(/\s+/);
+    const state = fields[0] || null;
+    const pgid = Number(fields[2]);
+    const startTicks = fields[19];
     const bootId = readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim();
-    return { alive: true, cwd, command, identity: `${bootId}:${startTicks}` };
+    const validPgid = Number.isInteger(pgid) && pgid >= 2 ? pgid : null;
+    const identity = bootId && /^\d+$/.test(startTicks || '') ? `${bootId}:${startTicks}` : null;
+    return { alive: state !== 'Z', state, cwd, command, pgid: validPgid, identity };
   } catch {
-    return { alive: true, cwd: null, command: null };
+    return { alive: true, state: null, cwd: null, command: null, pgid: null, identity: null };
   }
 }
 
-function processTree(pid) {
+function processTable() {
+  const result = spawnSync('ps', ['-eo', 'pid=,ppid=,pgid=,stat='], { encoding: 'utf8' });
+  if (result.error || result.status !== 0) return null;
   const table = new Map();
-  const lines = runText('ps', ['-eo', 'pid=,ppid=']).split('\n').filter(Boolean);
-  for (const line of lines) {
-    const fields = line.trim().split(/\s+/).map(Number);
-    if (fields.length >= 2 && Number.isInteger(fields[0]) && Number.isInteger(fields[1])) table.set(fields[0], fields[1]);
+  for (const line of result.stdout.split('\n').filter(Boolean)) {
+    const fields = line.trim().split(/\s+/);
+    const numbers = fields.slice(0, 3).map(Number);
+    if (numbers.length === 3 && numbers.every(Number.isInteger)) table.set(numbers[0], { ppid: numbers[1], pgid: numbers[2], state: fields[3] || null });
   }
+  return table;
+}
+
+function processTree(pid) {
+  const table = processTable();
+  if (!table) return null;
   const found = new Set([pid]);
   let changed = true;
   while (changed) {
     changed = false;
-    for (const [candidate, parent] of table) {
-      if (found.has(parent) && !found.has(candidate)) {
+    for (const [candidate, value] of table) {
+      if (found.has(value.ppid) && !found.has(candidate)) {
         found.add(candidate);
         changed = true;
       }
@@ -149,16 +267,56 @@ function processTree(pid) {
   return found;
 }
 
+function processGroupPids(pgid) {
+  const table = processTable();
+  if (!table) return null;
+  return [...table.entries()].filter(([, value]) => value.pgid === pgid && !value.state?.startsWith('Z')).map(([pid]) => pid);
+}
+
+async function waitForProcessInfo(pid, timeoutMs = 5_000) {
+  const deadline = Date.now() + timeoutMs;
+  let info = processInfo(pid);
+  while (Date.now() < deadline) {
+    if (info.alive && info.cwd === rootDir && info.pgid === pid && info.identity) return info;
+    await new Promise(resolvePromise => setTimeout(resolvePromise, 50));
+    info = processInfo(pid);
+  }
+  return info;
+}
+
+async function terminateUnpublishedChild(child) {
+  if (!child?.pid) return;
+  const info = processInfo(child.pid);
+  try {
+    if (info.alive && info.cwd === rootDir && info.pgid === child.pid) {
+      process.kill(-child.pid, 'SIGTERM');
+    } else {
+      child.kill('SIGTERM');
+    }
+  } catch {
+    try { child.kill('SIGKILL'); } catch { return; }
+  }
+  const stopped = await waitForExit(child.pid, 5_000);
+  if (!stopped) {
+    const after = processInfo(child.pid);
+    try {
+      if (after.alive && after.cwd === rootDir && after.pgid === child.pid) process.kill(-child.pid, 'SIGKILL');
+      else child.kill('SIGKILL');
+    } catch { return; }
+    await waitForExit(child.pid, 5_000);
+  }
+}
+
 function portPids(port) {
   const lsof = spawnSync('lsof', ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN', '-t'], { encoding: 'utf8' });
-  if (!lsof.error && lsof.status === 0) {
+  if (!lsof.error && (lsof.status === 0 || lsof.status === 1)) {
     return lsof.stdout.split(/\s+/).filter(Boolean).map(Number).filter(Number.isInteger);
   }
   const ss = spawnSync('ss', ['-ltnp', `sport = :${port}`], { encoding: 'utf8' });
-  if (!ss.error && ss.status === 0) {
+  if (!ss.error && (ss.status === 0 || ss.status === 1)) {
     return [...ss.stdout.matchAll(/pid=(\d+)/g)].map(match => Number(match[1]));
   }
-  return [];
+  return null;
 }
 
 async function getHttp(url) {
@@ -196,47 +354,65 @@ function writeManifest(manifest) {
   writeJson(paths.evidenceManifest, manifest);
 }
 
-function launchManifest(options) {
+async function launchManifest(options) {
   const port = ensurePort(options.port || process.env.PORT || '3102');
   const occupied = portPids(port);
+  if (!occupied) fail(`Não foi possível inspecionar a porta dedicada ${port}`);
   if (occupied.length) fail(`A porta ${port} já está ocupada pelos PIDs ${occupied.join(', ')}`);
   const runId = options.runId || process.env.RUN_ID || createRunId();
   if (!/^[A-Za-z0-9._-]+$/.test(runId)) fail(`RUN_ID inválido: ${runId}`);
+  const launchSha = gitSha();
+  if (!launchSha) fail('Não foi possível determinar o SHA do checkout antes do launch');
   const paths = pathsFor(runId);
   mkdirSync(paths.stateDir, { recursive: true });
   mkdirSync(paths.evidenceDir, { recursive: true });
   if (existsSync(paths.stateManifest)) fail(`RUN_ID já existe: ${runId}`);
   const logPath = join(paths.evidenceDir, 'launch.log');
+  ensureWriteTarget(logPath);
   const logFd = openSync(logPath, 'a');
   const command = ['npm', 'run', 'dev', '--', '--hostname', '127.0.0.1', '--port', String(port)];
   const child = spawn(command[0], command.slice(1), {
     cwd: rootDir,
     detached: true,
-    env: {
-      ...process.env,
-      NEXT_PUBLIC_SUPABASE_URL: '',
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: '',
-      NEXT_PUBLIC_AUTO_OPEN_PRODUCT_UPDATE: 'false',
-    },
+    env: demoEnvironment(),
     stdio: ['ignore', logFd, logFd],
   });
   closeSync(logFd);
+  if (!child.pid) {
+    await terminateUnpublishedChild(child);
+    fail('npm não retornou um PID');
+  }
+  const info = await waitForProcessInfo(child.pid);
+  if (!info.alive || info.cwd !== rootDir || info.pgid !== child.pid || !info.identity) {
+    await terminateUnpublishedChild(child);
+    fail(`Não foi possível estabelecer a identidade do processo ${child.pid} antes do manifesto`);
+  }
+  const initialPids = processGroupPids(info.pgid);
+  if (!initialPids || !initialPids.includes(child.pid)) {
+    await terminateUnpublishedChild(child);
+    fail(`Não foi possível inspecionar o grupo do processo ${child.pid} antes do manifesto`);
+  }
   child.unref();
   const manifest = {
     version: 1,
     runId,
-    gitSha: gitSha(),
+    gitSha: launchSha,
     worktree: rootDir,
     port,
     baseUrl: `http://127.0.0.1:${port}`,
     pid: child.pid,
-    processIdentity: processInfo(child.pid).identity,
+    pgid: info.pgid,
+    processIdentity: info.identity,
+    processPids: initialPids,
     command: command.join(' '),
     mode: 'demo',
     launchEnv: {
-      NEXT_PUBLIC_SUPABASE_URL: '',
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: '',
-      NEXT_PUBLIC_AUTO_OPEN_PRODUCT_UPDATE: 'false',
+      allowlist: demoEnvironmentNames,
+      overrides: {
+        NEXT_PUBLIC_SUPABASE_URL: '',
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: '',
+        NEXT_PUBLIC_AUTO_OPEN_PRODUCT_UPDATE: 'false',
+      },
     },
     startedAt: nowIso(),
     logPath,
@@ -249,20 +425,25 @@ function launchManifest(options) {
 }
 
 async function launch(options) {
-  const manifest = launchManifest(options);
+  const manifest = await launchManifest(options);
   try {
     const response = await waitForHttp(`${manifest.baseUrl}/jogo-do-mes`);
     const updated = { ...manifest, readyAt: nowIso(), readyStatus: response.status };
     writeManifest(updated);
     process.stdout.write(`${JSON.stringify({ runId: updated.runId, pid: updated.pid, port: updated.port, baseUrl: updated.baseUrl, evidenceDir: updated.evidenceDir }, null, 2)}\n`);
   } catch (error) {
-    await terminateManifest(manifest, false).catch(() => undefined);
+    try {
+      await terminateManifest(manifest, false);
+    } catch (cleanupError) {
+      fail(`Launch falhou e cleanup também falhou: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`);
+    }
     throw error;
   }
 }
 
 async function doctor(options) {
   const manifest = readManifest(options.runId);
+  const paths = validateManifestEnvelope(manifest);
   const info = processInfo(manifest.pid);
   const trackedTree = processTree(manifest.pid);
   const owners = portPids(manifest.port);
@@ -271,32 +452,39 @@ async function doctor(options) {
   try {
     http = await getHttp(`${manifest.baseUrl}/jogo-do-mes`);
   } catch (error) {
-    httpError = error instanceof Error ? error.message : String(error);
+    httpError = redact(error instanceof Error ? error.message : String(error));
   }
   const checks = {
     pidAlive: info.alive,
     worktreeCwd: info.cwd === manifest.worktree,
     processIdentity: Boolean(manifest.processIdentity) && info.identity === manifest.processIdentity,
-    portAllowed: manifest.port !== forbiddenPort,
+    processGroup: info.pgid === manifest.pgid,
+    portAllowed: allowedPorts.has(manifest.port),
+    processTreeAvailable: trackedTree !== null,
+    portInspectionAvailable: owners !== null,
     appResponds: http.status >= 200 && http.status < 400,
     appIdentity: http.body.includes('Clube do Jogo'),
-    portOwnedByRun: owners.length > 0 && owners.every(pid => trackedTree.has(pid)),
+    portOwnedByRun: Boolean(owners?.length) && Boolean(trackedTree) && owners.every(pid => trackedTree.has(pid)),
   };
   const ok = Object.values(checks).every(value => value === true);
   const report = {
     runId: manifest.runId,
+    gitSha: manifest.gitSha,
+    worktree: manifest.worktree,
+    baseUrl: manifest.baseUrl,
     checkedAt: nowIso(),
     ok,
     checks,
     pid: manifest.pid,
     pidInfo: info,
     port: manifest.port,
-    portPids: owners,
+    pgid: manifest.pgid,
+    portPids: owners || [],
     http: { status: http.status, error: httpError },
     mode: manifest.mode,
     localSupabase: 'disabled for demo',
   };
-  writeJson(join(manifest.evidenceDir, 'doctor.json'), report);
+  writeJson(join(paths.evidenceDir, 'doctor.json'), report);
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
   if (!ok) process.exitCode = 1;
 }
@@ -308,6 +496,7 @@ async function ariaSnapshot(page) {
 }
 
 async function driveRanking(manifest) {
+  const paths = validateManifestEnvelope(manifest);
   const { chromium } = await import('playwright');
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 1280, height: 960 }, locale: 'pt-BR' });
@@ -316,12 +505,16 @@ async function driveRanking(manifest) {
   const pageErrors = [];
   const failedRequests = [];
   page.on('console', message => {
-    if (message.type() === 'error') consoleErrors.push(message.text());
+    if (message.type() === 'error') consoleErrors.push(redact(message.text()));
   });
-  page.on('pageerror', error => pageErrors.push(error.message));
-  page.on('requestfailed', request => failedRequests.push({ url: request.url(), error: request.failure()?.errorText || 'unknown' }));
+  page.on('pageerror', error => pageErrors.push(redact(error.message)));
+  page.on('requestfailed', request => failedRequests.push({ url: redact(request.url()), error: redact(request.failure()?.errorText || 'unknown') }));
   const result = {
     runId: manifest.runId,
+    gitSha: manifest.gitSha,
+    worktree: manifest.worktree,
+    port: manifest.port,
+    mode: manifest.mode,
     feature: 'ranking-vote-reason',
     harness: 'Playwright',
     baseUrl: manifest.baseUrl,
@@ -345,8 +538,10 @@ async function driveRanking(manifest) {
     await page.getByRole('heading', { name: /Votação para/ }).waitFor({ state: 'visible', timeout: 30_000 });
     const card = page.locator('article.ranking-card').filter({ hasText: 'Cocoon' }).first();
     await card.waitFor({ state: 'visible', timeout: 30_000 });
-    writeFileSync(join(manifest.evidenceDir, 'before-action.aria.txt'), `${await ariaSnapshot(page)}\n`, 'utf8');
-    await page.screenshot({ path: join(manifest.evidenceDir, 'before-action.png'), fullPage: true });
+    ensureWriteTarget(join(paths.evidenceDir, 'before-action.aria.txt'));
+    ensureWriteTarget(join(paths.evidenceDir, 'before-action.png'));
+    writeFileSync(join(paths.evidenceDir, 'before-action.aria.txt'), `${redact(await ariaSnapshot(page))}\n`, 'utf8');
+    await page.screenshot({ path: join(paths.evidenceDir, 'before-action.png'), fullPage: true });
     result.actions.push('opened Ranking and captured before state');
     await card.getByRole('button', { name: 'Não', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: /Por que você não jogaria\?/ });
@@ -365,20 +560,22 @@ async function driveRanking(manifest) {
         participantDialog: 'getByRole(dialog, { name: "Escolhas do clube" }).getByText("Não consigo rodar")',
       },
       observed: 'Não consigo rodar',
-      url: page.url(),
+      url: redact(page.url()),
     };
-    writeFileSync(join(manifest.evidenceDir, 'after-vote.aria.txt'), `${await ariaSnapshot(page)}\n`, 'utf8');
-    await page.screenshot({ path: join(manifest.evidenceDir, 'after-vote.png'), fullPage: true });
+    ensureWriteTarget(join(paths.evidenceDir, 'after-vote.aria.txt'));
+    ensureWriteTarget(join(paths.evidenceDir, 'after-vote.png'));
+    writeFileSync(join(paths.evidenceDir, 'after-vote.aria.txt'), `${redact(await ariaSnapshot(page))}\n`, 'utf8');
+    await page.screenshot({ path: join(paths.evidenceDir, 'after-vote.png'), fullPage: true });
     result.status = 'passed';
   } catch (error) {
-    result.error = error instanceof Error ? error.message : String(error);
+    result.error = redact(error instanceof Error ? error.message : String(error));
     throw error;
   } finally {
     result.finishedAt = nowIso();
     result.consoleErrors = consoleErrors;
     result.pageErrors = pageErrors;
     result.failedRequests = failedRequests;
-    writeJson(join(manifest.evidenceDir, 'drive-result.json'), result);
+    writeJson(join(paths.evidenceDir, 'drive-result.json'), result);
     await context.close().catch(() => undefined);
     await browser.close().catch(() => undefined);
   }
@@ -389,91 +586,193 @@ async function drive(options, positional) {
   if (feature !== 'ranking') fail(`Feature não suportada: ${feature || '(ausente)'}`);
   const manifest = readManifest(options.runId);
   await driveRanking(manifest);
-  process.stdout.write(`${JSON.stringify(readJson(join(manifest.evidenceDir, 'drive-result.json')), null, 2)}\n`);
+  const paths = validateManifestEnvelope(manifest);
+  process.stdout.write(`${JSON.stringify(readJson(join(paths.evidenceDir, 'drive-result.json')), null, 2)}\n`);
 }
 
 function hashFile(path) {
+  ensureRegularFile(path, path);
   const hash = createHash('sha256').update(readFileSync(path)).digest('hex');
   return { path, bytes: statSync(path).size, sha256: hash };
 }
 
-function evidence(options) {
-  const manifest = readManifest(options.runId);
-  const required = ['manifest.json', 'launch.log', 'doctor.json', 'before-action.png', 'after-vote.png', 'before-action.aria.txt', 'after-vote.aria.txt', 'drive-result.json'];
-  const missing = required.filter(name => !existsSync(join(manifest.evidenceDir, name)));
-  if (missing.length) fail(`Evidência incompleta; ausentes: ${missing.join(', ')}`);
-  const driveResult = readJson(join(manifest.evidenceDir, 'drive-result.json'));
-  if (driveResult.status !== 'passed') fail(`drive-result.json não passou: ${driveResult.status}`);
-  const doctorResult = readJson(join(manifest.evidenceDir, 'doctor.json'));
-  if (doctorResult.ok !== true) fail('doctor.json não está aprovado');
-  const files = readdirSync(manifest.evidenceDir)
+function evidenceFiles(dir) {
+  return readdirSync(dir)
     .filter(name => name !== 'evidence.json')
-    .map(name => join(manifest.evidenceDir, name))
-    .filter(path => statSync(path).isFile())
+    .map(name => join(dir, name))
+    .map(path => {
+      const stats = lstatSync(path);
+      if (stats.isSymbolicLink()) fail(`Evidência simbólica recusada: ${path}`);
+      return stats.isFile() ? path : null;
+    })
+    .filter(Boolean)
     .sort()
     .map(hashFile);
+}
+
+function evidence(options) {
+  const manifest = readManifest(options.runId);
+  const paths = validateManifestEnvelope(manifest);
+  const currentSha = gitSha();
+  if (!currentSha || currentSha !== manifest.gitSha) fail(`SHA atual não corresponde ao manifesto do run ${manifest.runId}`);
+  if (!existsSync(paths.evidenceManifest)) fail(`Manifesto de evidência ausente para run ${manifest.runId}`);
+  ensureRegularFile(paths.evidenceManifest, paths.evidenceManifest);
+  if (!sameJson(readJson(paths.evidenceManifest), manifest)) fail(`Manifestos de estado e evidência divergentes para run ${manifest.runId}`);
+  const required = ['manifest.json', 'launch.log', 'doctor.json', 'before-action.png', 'after-vote.png', 'before-action.aria.txt', 'after-vote.aria.txt', 'drive-result.json'];
+  const missing = required.filter(name => !existsSync(join(paths.evidenceDir, name)));
+  if (missing.length) fail(`Evidência incompleta; ausentes: ${missing.join(', ')}`);
+  for (const name of required) ensureRegularFile(join(paths.evidenceDir, name), name);
+  for (const name of ['launch.log', 'doctor.json', 'drive-result.json', 'before-action.aria.txt', 'after-vote.aria.txt']) {
+    redactTextFile(join(paths.evidenceDir, name));
+  }
+  const storedManifest = readJson(paths.evidenceManifest);
+  if (!sameJson(storedManifest, manifest)) fail(`Manifesto de evidência alterado para run ${manifest.runId}`);
+  const driveResult = readJson(join(paths.evidenceDir, 'drive-result.json'));
+  if (driveResult.status !== 'passed') fail(`drive-result.json não passou: ${driveResult.status}`);
+  assertArtifactIdentity('drive-result.json', driveResult, manifest);
+  const doctorResult = readJson(join(paths.evidenceDir, 'doctor.json'));
+  if (doctorResult.ok !== true) fail('doctor.json não está aprovado');
+  assertArtifactIdentity('doctor.json', doctorResult, manifest);
+  const cleanupPath = join(paths.evidenceDir, 'cleanup.json');
+  const cleanupResult = existsSync(cleanupPath) ? readJson(cleanupPath) : null;
+  if (cleanupResult) {
+    assertArtifactIdentity('cleanup.json', cleanupResult, manifest);
+    if (cleanupResult.stopped !== true || cleanupResult.portFree !== true) fail('cleanup.json não confirma grupo e porta encerrados');
+    const doctorTime = Date.parse(doctorResult.checkedAt || '');
+    const cleanupTime = Date.parse(cleanupResult.cleanedAt || '');
+    if (!Number.isFinite(doctorTime) || !Number.isFinite(cleanupTime) || doctorTime > cleanupTime) fail('snapshot do doctor ocorre depois do cleanup');
+  }
+  const files = evidenceFiles(paths.evidenceDir);
   const report = {
     runId: manifest.runId,
     createdAt: nowIso(),
     gitSha: manifest.gitSha,
+    gitShaAtEvidence: currentSha,
+    shaMatchesLaunch: currentSha === manifest.gitSha,
     worktree: manifest.worktree,
+    port: manifest.port,
+    baseUrl: manifest.baseUrl,
     platform: 'web',
     mode: manifest.mode,
     feature: driveResult.feature,
     status: 'passed',
     files,
     sideEffect: driveResult.sideEffect,
-    checks: { doctor: doctorResult.ok, drive: driveResult.status === 'passed', evidenceRetained: true },
+    snapshots: { doctorCheckedAt: doctorResult.checkedAt, cleanupCleanedAt: cleanupResult?.cleanedAt || null },
+    checks: { doctor: doctorResult.ok, drive: driveResult.status === 'passed', evidenceRetained: true, manifestLinked: true, shaMatchesLaunch: currentSha === manifest.gitSha },
   };
-  writeJson(join(manifest.evidenceDir, 'evidence.json'), report);
+  writeJson(join(paths.evidenceDir, 'evidence.json'), report);
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
 }
 
 async function waitForExit(pid, timeoutMs = 10_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (!processAlive(pid)) return true;
+    if (!processInfo(pid).alive) return true;
     await new Promise(resolvePromise => setTimeout(resolvePromise, 250));
   }
-  return !processAlive(pid);
+  return !processInfo(pid).alive;
+}
+
+function inspectRun(manifest) {
+  const groupPids = processGroupPids(manifest.pgid);
+  const groupUnsafePids = [];
+  if (groupPids) {
+    for (const pid of groupPids) {
+      const info = processInfo(pid);
+      const owned = pid === manifest.pid
+        ? info.alive && info.cwd === manifest.worktree && info.pgid === manifest.pgid && info.identity === manifest.processIdentity
+        : info.alive && info.cwd === manifest.worktree && info.pgid === manifest.pgid;
+      if (!owned) groupUnsafePids.push(pid);
+    }
+    const leaderInfo = processInfo(manifest.pid);
+    if (leaderInfo.alive && !groupPids.includes(manifest.pid)) groupUnsafePids.push(manifest.pid);
+  }
+  const portOwners = portPids(manifest.port);
+  const portUnsafePids = portOwners && groupPids
+    ? portOwners.filter(pid => !groupPids.includes(pid))
+    : [];
+  return {
+    groupAvailable: groupPids !== null,
+    groupPids: groupPids || [],
+    groupUnsafePids: [...new Set(groupUnsafePids)],
+    portAvailable: portOwners !== null,
+    portOwners: portOwners || [],
+    portUnsafePids,
+  };
+}
+
+async function waitForRunStop(manifest, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let snapshot = inspectRun(manifest);
+  while (Date.now() < deadline) {
+    if (snapshot.groupUnsafePids.length || snapshot.portUnsafePids.length) return snapshot;
+    if (snapshot.groupAvailable && snapshot.portAvailable && snapshot.groupPids.length === 0 && snapshot.portOwners.length === 0) return snapshot;
+    await new Promise(resolvePromise => setTimeout(resolvePromise, 250));
+    snapshot = inspectRun(manifest);
+  }
+  return snapshot;
 }
 
 async function terminateManifest(manifest, writeCleanup = true) {
+  const paths = validateManifestEnvelope(manifest);
   const info = processInfo(manifest.pid);
-  const owned = !info.alive || (info.cwd === manifest.worktree && manifest.processIdentity && info.identity === manifest.processIdentity);
+  const owned = !info.alive || (info.cwd === manifest.worktree && info.pgid === manifest.pgid && manifest.processIdentity && info.identity === manifest.processIdentity);
   if (!owned) fail(`PID ${manifest.pid} não pertence ao worktree registrado; cleanup abortado`);
+  let snapshot = inspectRun(manifest);
+  if (!snapshot.groupAvailable || !snapshot.portAvailable) fail('Não foi possível inspecionar grupo e porta; cleanup abortado');
+  if (snapshot.groupUnsafePids.length || snapshot.portUnsafePids.length) {
+    fail(`Processos fora da posse registrada detectados; cleanup abortado (grupo: ${snapshot.groupUnsafePids.join(', ') || 'nenhum'}, porta: ${snapshot.portUnsafePids.join(', ') || 'nenhum'})`);
+  }
   let signal = null;
-  let stopped = !info.alive;
-  if (info.alive) {
+  if (snapshot.groupPids.length) {
     try {
-      process.kill(-manifest.pid, 'SIGTERM');
+      process.kill(-manifest.pgid, 'SIGTERM');
       signal = 'SIGTERM process-group';
-    } catch {
-      process.kill(manifest.pid, 'SIGTERM');
-      signal = 'SIGTERM pid';
+    } catch (error) {
+      if (error?.code !== 'ESRCH') throw error;
     }
-    stopped = await waitForExit(manifest.pid);
-    if (!stopped) {
-      try {
-        process.kill(-manifest.pid, 'SIGKILL');
-        signal = 'SIGKILL process-group';
-      } catch {
-        process.kill(manifest.pid, 'SIGKILL');
-        signal = 'SIGKILL pid';
+    snapshot = await waitForRunStop(manifest, 5_000);
+    if (snapshot.groupUnsafePids.length || snapshot.portUnsafePids.length) {
+      fail(`Processos fora da posse registrada detectados durante cleanup; cleanup abortado (grupo: ${snapshot.groupUnsafePids.join(', ') || 'nenhum'}, porta: ${snapshot.portUnsafePids.join(', ') || 'nenhum'})`);
+    }
+    if (snapshot.groupPids.length || snapshot.portOwners.length) {
+      const beforeKill = inspectRun(manifest);
+      if (!beforeKill.groupAvailable || !beforeKill.portAvailable || beforeKill.groupUnsafePids.length || beforeKill.portUnsafePids.length) {
+        fail('Não foi possível confirmar a posse antes do SIGKILL; cleanup abortado');
       }
-      stopped = await waitForExit(manifest.pid, 5_000);
+      try {
+        process.kill(-manifest.pgid, 'SIGKILL');
+        signal = 'SIGKILL process-group';
+      } catch (error) {
+        if (error?.code !== 'ESRCH') throw error;
+      }
+      snapshot = await waitForRunStop(manifest, 5_000);
     }
   }
+  const stopped = snapshot.groupAvailable && snapshot.groupPids.length === 0;
+  const portFree = snapshot.portAvailable && snapshot.portOwners.length === 0;
   const report = {
     runId: manifest.runId,
+    gitSha: manifest.gitSha,
+    worktree: manifest.worktree,
+    port: manifest.port,
+    baseUrl: manifest.baseUrl,
+    mode: manifest.mode,
     cleanedAt: nowIso(),
     pid: manifest.pid,
+    pgid: manifest.pgid,
+    initialPids: manifest.processPids || [],
+    remainingPids: snapshot.groupPids,
+    portPids: snapshot.portOwners,
+    portInspectionAvailable: snapshot.portAvailable,
     signal,
     stopped,
-    evidenceRetained: existsSync(manifest.evidenceDir),
+    portFree,
+    evidenceRetained: existsSync(paths.evidenceDir),
   };
-  if (writeCleanup) writeJson(join(manifest.evidenceDir, 'cleanup.json'), report);
-  if (!stopped) fail(`PID ${manifest.pid} continuou ativo após cleanup`);
+  if (writeCleanup) writeJson(join(paths.evidenceDir, 'cleanup.json'), report);
+  if (!stopped || !portFree) fail(`Cleanup incompleto para o run ${manifest.runId}: grupo restante ${snapshot.groupPids.join(', ') || 'nenhum'}, porta restante ${snapshot.portOwners.join(', ') || 'nenhum'}`);
   return report;
 }
 

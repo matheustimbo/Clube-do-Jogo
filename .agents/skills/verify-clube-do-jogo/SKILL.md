@@ -5,11 +5,11 @@ description: Execute verificações reproduzíveis do Clube do Jogo em Next demo
 
 # Verify Clube do Jogo
 
-Use esta skill a partir da raiz do checkout. Ela usa a pasta fonte `.agents/skills/verify-clube-do-jogo`; Claude Code encontra a mesma fonte pelo symlink `.claude/skills/verify-clube-do-jogo`. Os helpers de processos usam /proc e rodam em Linux/WSL. Os comandos iOS são executados remotamente no Mac indicado. O padrão web usa a porta dedicada `3102`, modo demo e nenhuma credencial Supabase. Nunca aponte o modo local autenticado para produção.
+Use esta skill a partir da raiz do checkout. Ela usa a pasta fonte `.agents/skills/verify-clube-do-jogo`; Claude Code encontra a mesma fonte pelo symlink `.claude/skills/verify-clube-do-jogo`. Os helpers de processos usam /proc e rodam em Linux/WSL. Os comandos iOS são executados remotamente no Mac indicado. O padrão web usa somente uma das portas dedicadas `3102` e `3103`, modo demo e nenhuma credencial Supabase. Nunca aponte o modo local autenticado para produção.
 
 ## Run contract
 
-Cada execução recebe um `RUN_ID` e grava o manifesto, log, snapshots, screenshots, resultado e hashes em `evidence/verify-clube-do-jogo/<RUN_ID>/`. O estado operacional fica em `state/verify-clube-do-jogo/<RUN_ID>/`. Essas pastas são artefatos ignorados; a limpeza encerra apenas o grupo de processos registrado no manifesto e preserva a evidência.
+Cada execução recebe um `RUN_ID` e grava o manifesto, log, snapshots, screenshots, resultado e hashes em `evidence/verify-clube-do-jogo/<RUN_ID>/`. O estado operacional fica em `state/verify-clube-do-jogo/<RUN_ID>/`. Essas pastas são artefatos ignorados; os caminhos são derivados do `RUN_ID` e a evidência só aceita artefatos que preservem o worktree, porta, modo e SHA do manifesto. A limpeza encerra apenas o grupo de processos registrado no manifesto e preserva a evidência.
 
 Use uma porta 3102 ou 3103 que não esteja em uso por outro agente:
 
@@ -21,7 +21,7 @@ Passe `RUN_ID=<id>` ou `--run-id <id>` aos comandos seguintes. Sem isso, o helpe
 
 ## Launch
 
-`launch` inicia `npm run dev -- --hostname 127.0.0.1 --port <port>` com `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` vazios e `NEXT_PUBLIC_AUTO_OPEN_PRODUCT_UPDATE=false`. O processo é separado em seu próprio grupo, o PID e a porta são escritos antes do polling HTTP, e a rota `/jogo-do-mes` precisa responder antes do comando terminar.
+`launch` inicia `npm run dev -- --hostname 127.0.0.1 --port <port>` com `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` vazios e `NEXT_PUBLIC_AUTO_OPEN_PRODUCT_UPDATE=false`. O processo recebe uma allowlist de ambiente demo sem segredos herdados do shell. Ele é separado em seu próprio grupo; o helper espera cwd, PGID, boot ID e instante de criação válidos antes de publicar o manifesto, e a rota `/jogo-do-mes` precisa responder antes do comando terminar.
 
 ```sh
 ./.agents/skills/verify-clube-do-jogo/scripts/verify-clube-do-jogo launch --port 3102
@@ -31,7 +31,7 @@ Se a inicialização falhar, execute `cleanup --run-id <id>` antes de tentar nov
 
 ## Doctor
 
-`doctor` verifica a identidade do processo pelo boot do host e instante de criação, além de confirmar que o PID ainda existe, que seu cwd pertence a este checkout, que a porta responde, que o HTML identifica Clube do Jogo e que a porta não foi tomada por processo externo. O doctor conhece o modo demo pelo manifesto de launch e não simula uma sessão autenticada.
+`doctor` verifica a identidade do processo pelo boot do host e instante de criação, além de confirmar que o PID ainda existe, que seu cwd pertence a este checkout, que o PGID e a árvore podem ser inspecionados, que a porta responde, que o HTML identifica Clube do Jogo e que a porta não foi tomada por processo externo. O doctor conhece o modo demo pelo manifesto de launch e não simula uma sessão autenticada.
 
 ```sh
 ./.agents/skills/verify-clube-do-jogo/scripts/verify-clube-do-jogo doctor --run-id <id>
@@ -51,7 +51,7 @@ O fluxo gera `before-action.png`, `after-vote.png`, snapshots ARIA antes/depois 
 
 ## Evidence
 
-`evidence` exige o manifesto, log, snapshots, screenshots e resultado com `status: passed`, calcula SHA-256 de cada arquivo e registra o commit atual, a porta e a fixture demo.
+`evidence` exige o manifesto, log, snapshots, screenshots e resultado com `status: passed`, calcula SHA-256 de cada arquivo e registra o commit atual, a porta e a fixture demo. Antes de escrever o relatório, ele confirma que o SHA atual é o SHA do launch, que o manifesto na pasta de evidência é igual ao manifesto de estado e que doctor/drive/cleanup têm o mesmo run, worktree, porta, URL e modo. Logs e snapshots de texto são redigidos antes de serem retidos.
 
 ```sh
 ./.agents/skills/verify-clube-do-jogo/scripts/verify-clube-do-jogo evidence --run-id <id>
@@ -61,7 +61,7 @@ Uma evidência válida inclui o comando executado, a feature, a URL, o efeito ob
 
 ## Cleanup
 
-`cleanup` compara a identidade do processo salvo e seu cwd e envia sinal somente ao grupo criado por `launch`. O manifesto, o log e todos os arquivos em `evidence` continuam disponíveis para revisão.
+`cleanup` compara a identidade do processo salvo, seu cwd e seu PGID, inspeciona todos os membros do grupo e a posse da porta antes de sinalizar. Ele nunca sinaliza um grupo com processo externo e só retorna sucesso depois de confirmar que os descendentes e a porta desapareceram; o relatório registra os PIDs restantes quando a limpeza falha. O manifesto, o log e todos os arquivos em `evidence` continuam disponíveis para revisão.
 
 ```sh
 ./.agents/skills/verify-clube-do-jogo/scripts/verify-clube-do-jogo cleanup --run-id <id>
@@ -82,7 +82,7 @@ Os helpers são executáveis e não dependem de `jq`:
 ./.agents/skills/verify-clube-do-jogo/scripts/verify-clube-do-jogo cleanup --run-id <id>
 ```
 
-O contrato de execução tem regressões automatizadas em `node --test .agents/skills/verify-clube-do-jogo/tests/run-contract.test.mjs`. Elas verificam a seleção de um run antigo por `--run-id` e a recusa de limpar um PID com identidade diferente.
+O contrato de execução tem regressões automatizadas em `node --test .agents/skills/verify-clube-do-jogo/tests/run-contract.test.mjs`. Elas verificam seleção explícita de run, caminhos/SHA/identidade de artefatos, allowlist demo e redaction, portas dedicadas, recusa de identidade diferente e encerramento de descendente órfão.
 
 `check` executa a validação estrutural da skill e `status` imprime o manifesto sem tocar no app:
 
