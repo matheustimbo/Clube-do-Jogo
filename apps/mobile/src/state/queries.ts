@@ -197,7 +197,7 @@ export function useVote(): UseMutationResult<void, Error, VoteVariables> {
   const context = useAppInternal();
   const epoch = context.sessionEpoch;
   const key = rankingKey(context);
-  return useMutation<void, Error, VoteVariables, { previous?: RankingItem[] }>({
+  return useMutation<void, Error, VoteVariables, { previous?: RankingItem[]; queryKey: ReturnType<typeof rankingKey> }>({
     mutationFn: input => {
       if (!context.isSessionCurrent(epoch)) throw new Error('Sua sessão mudou. Tente novamente.');
       const userId = requireUser(context.userId);
@@ -215,12 +215,13 @@ export function useVote(): UseMutationResult<void, Error, VoteVariables> {
       requireUser(context.userId);
       requireLive(context.isHistorical);
       await context.queryClient.cancelQueries({ queryKey: key });
+      if (!context.isSessionCurrent(epoch)) throw new Error('Sua sessão mudou. Tente novamente.');
       const previous = context.queryClient.getQueryData<RankingItem[]>(key);
       context.queryClient.setQueryData(key, optimisticRanking(previous, input, context.profile, context.dataClient.rankingFormula));
-      return { previous };
+      return { previous, queryKey: key };
     },
     onError: (_error, _input, rollback) => {
-      if (context.isSessionCurrent(epoch) && rollback?.previous) context.queryClient.setQueryData(key, rollback.previous);
+      if (context.isSessionCurrent(epoch) && rollback?.previous) context.queryClient.setQueryData(rollback.queryKey, rollback.previous);
     },
     onSettled: () => {
       if (!context.isSessionCurrent(epoch)) return;
@@ -233,7 +234,7 @@ export function useVote(): UseMutationResult<void, Error, VoteVariables> {
 export function useSetProgress(): UseMutationResult<void, Error, ProgressVariables> {
   const context = useAppInternal();
   const epoch = context.sessionEpoch;
-  return useMutation<void, Error, ProgressVariables, { previous?: GameProgress[] }>({
+  return useMutation<void, Error, ProgressVariables, { previous?: GameProgress[]; queryKey: ReturnType<typeof progressKey> }>({
     mutationFn: input => {
       if (!context.isSessionCurrent(epoch)) throw new Error('Sua sessão mudou. Tente novamente.');
       const userId = requireUser(context.userId);
@@ -246,12 +247,13 @@ export function useSetProgress(): UseMutationResult<void, Error, ProgressVariabl
       requireLive(context.isHistorical);
       const key = progressKey(context, input.gameId);
       await context.queryClient.cancelQueries({ queryKey: key });
+      if (!context.isSessionCurrent(epoch)) throw new Error('Sua sessão mudou. Tente novamente.');
       const previous = context.queryClient.getQueryData<GameProgress[]>(key);
       context.queryClient.setQueryData(key, optimisticProgress(previous, userId, input.gameId, input.status, context.profile));
-      return { previous };
+      return { previous, queryKey: key };
     },
     onError: (_error, input, rollback) => {
-      if (context.isSessionCurrent(epoch) && rollback?.previous) context.queryClient.setQueryData(progressKey(context, input.gameId), rollback.previous);
+      if (context.isSessionCurrent(epoch) && rollback?.previous) context.queryClient.setQueryData(rollback.queryKey, rollback.previous);
     },
     onSettled: (_data, _error, input) => {
       if (!context.isSessionCurrent(epoch)) return;
@@ -267,7 +269,7 @@ export function useBacklog(): UseMutationResult<void, Error, BacklogVariables> {
   const epoch = context.sessionEpoch;
   const targetId = context.userId;
   const key = libraryKey(context, targetId || 'anonymous');
-  return useMutation<void, Error, BacklogVariables, { previous?: ProfileWithGames }>({
+  return useMutation<void, Error, BacklogVariables, { previous?: ProfileWithGames; queryKey: ReturnType<typeof libraryKey> }>({
     mutationFn: input => {
       if (!context.isSessionCurrent(epoch)) throw new Error('Sua sessão mudou. Tente novamente.');
       return context.dataClient.setBacklog({ userId: requireUser(context.userId), isDemo: context.isDemo, ...input });
@@ -276,16 +278,17 @@ export function useBacklog(): UseMutationResult<void, Error, BacklogVariables> {
       if (!context.isSessionCurrent(epoch)) throw new Error('Sua sessão mudou. Tente novamente.');
       requireUser(context.userId);
       await context.queryClient.cancelQueries({ queryKey: key });
+      if (!context.isSessionCurrent(epoch)) throw new Error('Sua sessão mudou. Tente novamente.');
       const previous = context.queryClient.getQueryData<ProfileWithGames>(key);
       if (previous) {
         const now = new Date().toISOString();
         const library = previous.library.map(item => item.game.id === input.gameId ? { ...item, inBacklog: input.inBacklog, updatedAt: now } : item);
         context.queryClient.setQueryData(key, rebuildLibrary(previous, library));
       }
-      return { previous };
+      return { previous, queryKey: key };
     },
     onError: (_error, _input, rollback) => {
-      if (context.isSessionCurrent(epoch) && rollback?.previous) context.queryClient.setQueryData(key, rollback.previous);
+      if (context.isSessionCurrent(epoch) && rollback?.previous) context.queryClient.setQueryData(rollback.queryKey, rollback.previous);
     },
     onSettled: () => {
       if (!context.isSessionCurrent(epoch)) return;
@@ -300,7 +303,7 @@ export function useFavorite(): UseMutationResult<void, Error, FavoriteVariables>
   const epoch = context.sessionEpoch;
   const targetId = context.userId;
   const key = libraryKey(context, targetId || 'anonymous');
-  return useMutation<void, Error, FavoriteVariables, { previous?: ProfileWithGames }>({
+  return useMutation<void, Error, FavoriteVariables, { previous?: ProfileWithGames; queryKey: ReturnType<typeof libraryKey> }>({
     mutationFn: input => {
       if (!context.isSessionCurrent(epoch)) throw new Error('Sua sessão mudou. Tente novamente.');
       return context.dataClient.setFavorite({ userId: requireUser(context.userId), isDemo: context.isDemo, ...input });
@@ -309,16 +312,17 @@ export function useFavorite(): UseMutationResult<void, Error, FavoriteVariables>
       if (!context.isSessionCurrent(epoch)) throw new Error('Sua sessão mudou. Tente novamente.');
       requireUser(context.userId);
       await context.queryClient.cancelQueries({ queryKey: key });
+      if (!context.isSessionCurrent(epoch)) throw new Error('Sua sessão mudou. Tente novamente.');
       const previous = context.queryClient.getQueryData<ProfileWithGames>(key);
       if (previous) {
         const now = new Date().toISOString();
         const library = previous.library.map(item => item.game.id === input.gameId ? { ...item, favorite: input.favorite, updatedAt: now } : item);
         context.queryClient.setQueryData(key, rebuildLibrary(previous, library));
       }
-      return { previous };
+      return { previous, queryKey: key };
     },
     onError: (_error, _input, rollback) => {
-      if (context.isSessionCurrent(epoch) && rollback?.previous) context.queryClient.setQueryData(key, rollback.previous);
+      if (context.isSessionCurrent(epoch) && rollback?.previous) context.queryClient.setQueryData(rollback.queryKey, rollback.previous);
     },
     onSettled: () => {
       if (!context.isSessionCurrent(epoch)) return;

@@ -138,6 +138,8 @@ function optimisticLibrary(
 type RatingRollback = {
   previousProgress?: GameProgress[];
   previousLibrary?: ProfileWithGames;
+  progressQueryKey: ReturnType<typeof progressKey>;
+  libraryQueryKey: ReturnType<typeof libraryKey>;
 };
 
 export function useSetRating(): UseMutationResult<void, Error, RatingVariables> {
@@ -164,6 +166,7 @@ export function useSetRating(): UseMutationResult<void, Error, RatingVariables> 
         context.queryClient.cancelQueries({ queryKey: progressKeyForGame }),
         context.queryClient.cancelQueries({ queryKey: ownLibraryQueryKey }),
       ]);
+      if (!context.isSessionCurrent(epoch)) throw new Error('Sua sessão mudou. Tente novamente.');
       const previousProgress = context.queryClient.getQueryData<GameProgress[]>(progressKeyForGame);
       const previousLibrary = context.queryClient.getQueryData<ProfileWithGames>(ownLibraryQueryKey);
       context.queryClient.setQueryData(
@@ -174,20 +177,26 @@ export function useSetRating(): UseMutationResult<void, Error, RatingVariables> 
         ownLibraryQueryKey,
         optimisticLibrary(previousLibrary, input),
       );
-      return { previousProgress, previousLibrary };
+      return {
+        previousProgress,
+        previousLibrary,
+        progressQueryKey: progressKeyForGame,
+        libraryQueryKey: ownLibraryQueryKey,
+      };
     },
     onError: (_error, input, rollback) => {
       if (!context.isSessionCurrent(epoch)) return;
-      if (rollback?.previousProgress) {
-        context.queryClient.setQueryData(progressKey(context, input.gameId), rollback.previousProgress);
+      if (rollback?.previousProgress && rollback.progressQueryKey) {
+        context.queryClient.setQueryData(rollback.progressQueryKey, rollback.previousProgress);
       }
-      if (rollback?.previousLibrary) {
-        context.queryClient.setQueryData(ownLibraryQueryKey, rollback.previousLibrary);
+      if (rollback?.previousLibrary && rollback.libraryQueryKey) {
+        context.queryClient.setQueryData(rollback.libraryQueryKey, rollback.previousLibrary);
       }
     },
-    onSettled: (_data, _error, input) => {
+    onSettled: (_data, _error, input, rollback) => {
       if (!input || !context.isSessionCurrent(epoch)) return;
-      void context.queryClient.invalidateQueries({ queryKey: progressKey(context, input.gameId) });
+      void context.queryClient.invalidateQueries({ queryKey: rollback?.progressQueryKey || progressKey(context, input.gameId) });
+      void context.queryClient.invalidateQueries({ queryKey: rollback?.libraryQueryKey || ownLibraryQueryKey });
       void context.queryClient.invalidateQueries({ queryKey: ['library', context.sessionEpoch] });
     },
   });
