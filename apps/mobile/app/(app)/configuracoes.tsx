@@ -8,6 +8,7 @@ import { radii, spacing, themedStyles, typography, useThemeColors } from '@/them
 import { AdminPanel } from '@/features/admin';
 import { AppearanceSettings } from '@/features/settings';
 import { ReceivedRewards } from '@/features/rewards';
+import { NotificationSettings } from '@/features/notifications';
 
 export default function SettingsScreen() {
   const { profile, userId, isDemo, isAdmin, signOut } = useApp();
@@ -38,6 +39,8 @@ export default function SettingsScreen() {
       </View>
 
       <AppearanceSettings />
+
+      <NotificationSettings />
 
       <ReceivedRewards />
 

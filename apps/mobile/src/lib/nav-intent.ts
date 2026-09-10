@@ -6,6 +6,11 @@ export const DEFAULT_APP_ROUTE = '/(app)/(tabs)/jogo-do-mes' as const;
 export const APP_STACK_ANCHOR = '(tabs)' as const;
 export const AUTHENTICATED_INTENT_NAVIGATION_OPTIONS = { withAnchor: true } as const;
 
+export type PushNavIntent = NavIntent
+  | { pathname: typeof DEFAULT_APP_ROUTE; params?: { section: 'timeline' } }
+  | { pathname: '/(app)/(tabs)/ranking' }
+  | { pathname: '/(app)/(tabs)/perfil' };
+
 export type RootNavigationAction =
   | { type: 'none' }
   | { type: 'clear-intent' }

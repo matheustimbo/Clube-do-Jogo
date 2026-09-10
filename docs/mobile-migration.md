@@ -51,4 +51,16 @@ npm run test:domain executa as regras de empate, fórmula legacy, mês seguinte,
 
 ## Estado da implementação
 
-A primeira versão inclui sessão, cinco abas, jogo do mês, ranking, votos com motivo, progresso, detalhes de jogos, biblioteca e leitura de perfis. Avaliações simples/detalhadas e descoberta paginada estão integradas; a validação de UI está em andamento. A migração completa ainda depende das próximas etapas de mídia, notas e conversas, administração, temas, recompensas e push nativo.
+O aplicativo inclui sessão, jogo do mês, ranking, votos, avaliações, descoberta, biblioteca, perfis, mídia, conversas, anotações privadas e administração. Temas, recompensas e o canal de push nativo estão em integração. Os testes em builds de desenvolvimento não encerram a verificação de paridade, desempenho em release ou entrega em aparelhos físicos.
+
+## Simulador iOS
+
+Use o UDID dedicado e aplique a redução máxima do SimSlim antes de testar. Confira `simslim status` e `verify` no Mac que hospeda o simulador. Uma exceção precisa corresponder ao recurso necessário para o cenário.
+
+Ao construir diretamente com `xcodebuild`, preserve a assinatura local para o simulador. O build testado com `CODE_SIGNING_ALLOWED=NO` fez a leitura de Keychain do Expo Notifications falhar com `-34018`. Recompilar com `CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=-` corrigiu essa falha, mantendo o SimSlim com todas as categorias reduzidas. Isso não configura assinatura para distribuição.
+
+## Assets dos temas
+
+`node scripts/generate-mobile-audio.mjs` gera os WAVs locais a partir das frequências e envelopes usados na web. `node scripts/migrate-native-theme.mjs --check` identifica consumidores que ainda dependem de cores estáticas; sem `--check`, aplica a conversão para os hooks de paleta. Os arquivos de imagem continuam compartilhados com `public/themes`.
+
+O áudio é opt-in. Somente o tema Fogueira Cósmica usa a trilha e os sinais. Preferências são locais e separadas por conta; a lista de temas desbloqueados vem das recompensas confirmadas pelo servidor.

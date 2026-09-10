@@ -37,6 +37,12 @@ appId: com.clubedojogo.mobile.dev
 - assertVisible:
     id: settings-rating-5
     selected: true
+- scrollUntilVisible:
+    element: Este aparelho ou versão do app ainda não aceita notificações push.
+    direction: DOWN
+    centerElement: true
+- assertNotVisible: Ativar notificações
+- takeScreenshot: notificacoes-indisponiveis
 - stopApp
 - launchApp
 - extendedWaitUntil:
