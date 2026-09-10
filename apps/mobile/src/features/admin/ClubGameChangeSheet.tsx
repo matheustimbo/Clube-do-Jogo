@@ -11,8 +11,7 @@ import { Sheet } from '@/components/Sheet';
 import { EmptyState } from '@/components/StateViews';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useGame } from '@/state/queries';
-import { useDiscovery } from '@/state/queries';
-import { usePreviewClubGameChange, useSetClubGame, type SetClubGameVariables } from '@/state/admin-queries';
+import { useAdminGameOptions, usePreviewClubGameChange, useSetClubGame, type SetClubGameVariables } from '@/state/admin-queries';
 import { colors, radii, spacing, typography } from '@/theme';
 
 type Phase =
@@ -67,8 +66,8 @@ export function ClubGameChangeSheet({ visible, onClose, onApplied }: {
 function GamePicker({ onSelect }: { onSelect: (game: Game) => void }) {
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebouncedValue(query, 350);
-  const discovery = useDiscovery('popular', debouncedQuery);
-  const results = discovery.data || [];
+  const catalog = useAdminGameOptions(debouncedQuery);
+  const results = catalog.data || [];
 
   return (
     <View style={styles.pickerBody}>
@@ -83,24 +82,24 @@ function GamePicker({ onSelect }: { onSelect: (game: Game) => void }) {
         returnKeyType="search"
       />
       <ScrollView style={styles.pickerList} keyboardShouldPersistTaps="handled">
-        {discovery.isLoading ? (
+        {catalog.isLoading ? (
           <ActivityIndicator color={colors.violet400} style={styles.pickerLoading} />
-        ) : discovery.isError ? (
-          <Text style={styles.error}>{discovery.error.message}</Text>
+        ) : catalog.isError ? (
+          <Text style={styles.error}>{catalog.error.message}</Text>
         ) : results.length === 0 ? (
           <EmptyState icon="game-controller-outline" title="Nenhum jogo encontrado" description="Busque por outro título." />
         ) : (
           results.map(item => (
             <Pressable
-              key={item.game.id}
-              onPress={() => onSelect(item.game)}
+              key={item.id}
+              onPress={() => onSelect(item)}
               accessibilityRole="button"
-              accessibilityLabel={`Selecionar ${item.game.title} como jogo do clube`}
-              testID={`admin-club-game-${item.game.id}`}
+              accessibilityLabel={`Selecionar ${item.title} como jogo do clube`}
+              testID={`admin-club-game-${item.id}`}
               style={({ pressed }) => [styles.gameRow, pressed && styles.gameRowPressed]}
             >
-              <Image source={{ uri: item.game.image_url }} style={styles.gameCover} contentFit="cover" />
-              <Text style={styles.gameTitle} numberOfLines={2}>{item.game.title}</Text>
+              <Image source={{ uri: item.image_url }} style={styles.gameCover} contentFit="cover" />
+              <Text style={styles.gameTitle} numberOfLines={2}>{item.title}</Text>
               <Ionicons name="chevron-forward" size={18} color={colors.zinc600} />
             </Pressable>
           ))
