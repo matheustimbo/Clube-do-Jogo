@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { nativeStorage, type NativeStorage } from '../platform/storage';
+import { identityScope } from './mobile-preferences-core';
+import { getIdentitySnapshot, subscribeIdentity } from '../state/identity-scope';
 
 type Listener = () => void;
 
@@ -25,6 +27,23 @@ export interface PersistentStateOptions<T> {
   storage?: NativeStorage;
   parse?(value: string): T;
   serialize?(value: T): string;
+  /**
+   * Whether the hook composes the key with the current identity (userId/isDemo/sessionEpoch
+   * from AppProvider). Defaults to true. Set to false only when the caller already builds its
+   * own identity-scoped key (e.g. an explicit target user id that differs from the signed-in
+   * account), reusing `identityScope` from `mobile-preferences-core`.
+   */
+  scope?: boolean;
+}
+
+export function resolvePersistentStateKey(
+  key: string,
+  scoped: boolean,
+  userId: string | null,
+  isDemo: boolean,
+  sessionEpoch: number,
+): string {
+  return scoped ? `${key}/${identityScope(userId, isDemo, sessionEpoch)}` : key;
 }
 
 function asError(value: unknown, fallback: string) {
@@ -157,7 +176,9 @@ export function usePersistentState<T>(
   initial: T,
   options: PersistentStateOptions<T> = {},
 ): [T, PersistentStateSetter<T>, PersistentStateStatus] {
-  const store = useMemo(() => cachedStore(key, initial, options), [initial, key, options]);
+  const identity = useSyncExternalStore(subscribeIdentity, getIdentitySnapshot, getIdentitySnapshot);
+  const resolvedKey = resolvePersistentStateKey(key, options.scope !== false, identity.userId, identity.isDemo, identity.sessionEpoch);
+  const store = useMemo(() => cachedStore(resolvedKey, initial, options), [initial, resolvedKey, options]);
   const subscribe = useCallback((listener: Listener) => store.subscribe(listener), [store]);
   const getValue = useCallback(() => store.get(), [store]);
   const getStatus = useCallback(() => store.getStatus(), [store]);

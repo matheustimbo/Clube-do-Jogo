@@ -44,7 +44,7 @@ export function useMobilePreferences(): MobilePreferencesState {
   const context = useAppInternal();
   const rewards = useRewardGrants();
   const key = mobilePreferencesStorageKey(context.userId, context.isDemo, context.sessionEpoch);
-  const persistenceOptions = React.useMemo(() => ({ parse: parseMobilePreferences }), []);
+  const persistenceOptions = React.useMemo(() => ({ parse: parseMobilePreferences, scope: false }), []);
   const [stored, setStored, status] = usePersistentState<MobilePreferences>(key, DEFAULT_MOBILE_PREFERENCES, persistenceOptions);
   const unlockedIds = React.useMemo(() => unlockedThemeIds(rewards.data || []), [rewards.data]);
   const visibleThemeId = selectableTheme(unlockedIds, stored.themeId) ? stored.themeId : DEFAULT_THEME;

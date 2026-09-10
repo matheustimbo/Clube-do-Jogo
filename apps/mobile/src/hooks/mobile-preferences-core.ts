@@ -17,9 +17,13 @@ export const DEFAULT_MOBILE_PREFERENCES: MobilePreferences = {
 
 const MOBILE_PREFERENCES_PREFIX = '@clube-do-jogo/mobile/preferences';
 
-export function mobilePreferencesStorageKey(userId: string | null, isDemo: boolean, sessionEpoch: number) {
+export function identityScope(userId: string | null, isDemo: boolean, sessionEpoch: number): string {
   const scope = userId ? encodeURIComponent(userId) : `anonymous-${sessionEpoch}`;
-  return `${MOBILE_PREFERENCES_PREFIX}/${isDemo ? 'demo' : 'account'}/${scope}`;
+  return `${isDemo ? 'demo' : 'account'}/${scope}`;
+}
+
+export function mobilePreferencesStorageKey(userId: string | null, isDemo: boolean, sessionEpoch: number) {
+  return `${MOBILE_PREFERENCES_PREFIX}/${identityScope(userId, isDemo, sessionEpoch)}`;
 }
 
 export function normalizeMobilePreferences(value: unknown): MobilePreferences {
