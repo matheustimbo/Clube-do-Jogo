@@ -8,6 +8,9 @@ import {
   enqueue,
   markAttempt,
   markConflict,
+  mergePendingIntoList,
+  parseQueue,
+  serializeQueue,
   summarize,
   type PendingLocalNote,
 } from '../../apps/mobile/src/state/notes-queue';
@@ -78,4 +81,34 @@ test('a conflict kind of deleted carries no remote field', () => {
   const conflict = conflicts.get('note-a');
   assert.equal(conflict?.kind, 'deleted');
   assert.equal('remote' in (conflict as object), false);
+});
+
+test('serializeQueue then parseQueue round-trips two distinct pending notes intact', () => {
+  const noteA = pending('note-a', 'texto da nota A');
+  const noteB = pending('note-b', 'texto da nota B');
+  const queue = enqueue(enqueue(createQueue(), noteA), noteB);
+
+  const restored = parseQueue(serializeQueue(queue));
+
+  assert.equal(restored.size, 2);
+  assert.deepEqual(restored.get('note-a'), noteA);
+  assert.deepEqual(restored.get('note-b'), noteB);
+});
+
+test('parseQueue treats a missing key as an empty queue', () => {
+  assert.equal(parseQueue(null).size, 0);
+});
+
+test('parseQueue surfaces a corrupted top-level blob instead of silently dropping the whole queue', () => {
+  assert.throws(() => parseQueue('{"not":"an array"}'));
+});
+
+test('mergePendingIntoList appends unconfirmed notes without duplicating a note that already synced', () => {
+  const confirmed = [pending('note-a', 'texto da nota A').note];
+  const queue = enqueue(enqueue(createQueue(), pending('note-a', 'texto da nota A')), pending('note-b', 'texto da nota B'));
+
+  const merged = mergePendingIntoList(confirmed, queue);
+
+  assert.equal(merged.length, 2);
+  assert.deepEqual(merged.map(note => note.id).sort(), ['note-a', 'note-b']);
 });
