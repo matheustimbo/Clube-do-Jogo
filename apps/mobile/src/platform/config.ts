@@ -9,6 +9,7 @@ const expoApiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
 const expoApiUrl = process.env.EXPO_PUBLIC_API_URL;
 const expoSiteUrl = process.env.EXPO_PUBLIC_SITE_URL;
 const expoRankingFormula = process.env.EXPO_PUBLIC_RANKING_FORMULA;
+const expoAutoOpenProductUpdate = process.env.EXPO_PUBLIC_AUTO_OPEN_PRODUCT_UPDATE;
 
 export interface SupabaseConfig {
   url: string;
@@ -42,6 +43,10 @@ export function getApiBaseUrl() {
 
 export function getRankingFormula() {
   return environmentValue(expoRankingFormula) === 'legacy' ? 'legacy' as const : 'preference' as const;
+}
+
+export function isProductUpdateAutoOpenEnabled() {
+  return environmentValue(expoAutoOpenProductUpdate) !== 'false';
 }
 
 export function getMobileSiteUrl(): string | null {
