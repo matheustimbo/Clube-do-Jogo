@@ -36,6 +36,8 @@ const config: ExpoConfig = {
   },
   plugins: [
     'expo-router',
+    // Ciclo de vida de UIScene: sem isso o app não lança quando compilado com o SDK do iOS 27.
+    './plugins/withUISceneLifecycle',
     ['expo-build-properties', { android: { usesCleartextTraffic: localHttp } }],
     ['expo-audio', { microphonePermission: false, recordAudioAndroid: false, enableBackgroundPlayback: false, enableBackgroundRecording: false }],
     ['expo-notifications', { defaultChannel: 'default', color: '#8b5cf6', enableBackgroundRemoteNotifications: false }],
