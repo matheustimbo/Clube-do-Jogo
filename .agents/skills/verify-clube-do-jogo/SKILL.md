@@ -7,6 +7,16 @@ description: Execute verificações reproduzíveis do Clube do Jogo em Next demo
 
 Use esta skill a partir da raiz do checkout. Ela usa a pasta fonte `.agents/skills/verify-clube-do-jogo`; Claude Code encontra a mesma fonte pelo symlink `.claude/skills/verify-clube-do-jogo`. Os helpers de processos usam /proc e o comando ss e rodam em Linux/WSL. Uma porta ocupada sem PID inspecionável faz a verificação falhar. Os comandos iOS são executados remotamente no Mac indicado. O padrão web usa somente uma das portas dedicadas `3102` e `3103`, modo demo e nenhuma credencial Supabase. Nunca aponte o modo local autenticado para produção.
 
+## Busca no repositório: dois diretórios mobile, não um
+
+O mobile do Expo divide propositalmente componentes/estado de telas/rotas em dois diretórios de topo dentro de `apps/mobile`: `src/` guarda hooks, componentes e estado; `app/` guarda as rotas do Expo Router — as telas de fato. Uma feature pode existir e nunca ser usada, ou existir e estar plenamente conectada; a única forma de saber é procurar nos dois lugares. Buscar só em `src/` já produziu, nesta mesma leva, três falsos negativos de "não existe"/"não está conectado" (duas vezes sobre chaves de estado persistido, uma vez sobre `useClubGameAdminAction`, que na verdade está ligado em `apps/mobile/app/(app)/(tabs)/ranking.tsx` e `apps/mobile/app/(app)/jogos/[id].tsx`). Qualquer afirmação sobre existência ou uso de código mobile — em um mapa de feature, em um recibo de verificação, em um relatório — precisa cobrir os dois diretórios antes de ser escrita. Comando pronto:
+
+```sh
+grep -rn "<símbolo>" apps/mobile/src apps/mobile/app
+```
+
+Se o símbolo não aparecer em `apps/mobile/app`, ele pode ainda não ter uma tela que o use — mas essa é uma conclusão que só se pode tirar depois de rodar o grep nos dois diretórios, nunca só em `src/`.
+
 ## Run contract
 
 Cada execução recebe um `RUN_ID` e grava o manifesto, log, snapshots, screenshots, resultado e hashes em `evidence/verify-clube-do-jogo/<RUN_ID>/`. O estado operacional fica em `state/verify-clube-do-jogo/<RUN_ID>/`. Essas pastas são artefatos ignorados; os caminhos são derivados do `RUN_ID`, os diretórios canônicos não podem ser symlinks e a evidência só aceita artefatos que preservem o worktree, porta, modo e SHA do manifesto. Launch, drive e evidence registram um snapshot limpo do checkout antes e depois da condução. A limpeza encerra apenas o grupo de processos registrado no manifesto e preserva a evidência.
@@ -18,6 +28,21 @@ Use uma porta 3102 ou 3103 que não esteja em uso por outro agente:
 ```
 
 Passe `RUN_ID=<id>` ou `--run-id <id>` aos comandos seguintes. Sem isso, o helper seleciona o manifesto mais recente. Não use `pkill`, `killall`, limpeza ampla de diretórios ou comandos que alterem simuladores compartilhados.
+
+### Execução serial, com lock e não por confiança
+
+O simulador ou emulador é um recurso de escritor único, e isso vale tanto entre sessões quanto entre fluxos da mesma execução: nunca dirija dois fluxos Maestro ao mesmo dispositivo ao mesmo tempo, mesmo que os dois pareçam independentes. O perigo real não é a falha visível. É o falso positivo: um fluxo pode registrar `PASS` só porque o outro fluxo navegou o app até a tela que o primeiro esperava encontrar, e o recibo não prova nada do que afirma provar. Um `PASS` inválido é pior do que nenhum recibo, porque custa confiança sem custar suspeita.
+
+Não confie apenas na disciplina de não sobrepor comandos; use um lock estrutural por dispositivo antes de qualquer `maestro test`:
+
+```sh
+lock_dir="state/verify-clube-do-jogo/device-locks/${UDID_OU_SERIAL}.lock"
+mkdir "$lock_dir" 2>/dev/null || { echo "Dispositivo em uso por outro fluxo, aborte."; exit 1; }
+trap 'rmdir "$lock_dir"' EXIT
+maestro --device "$UDID_OU_SERIAL" test apps/mobile/.maestro/<fluxo>.yaml
+```
+
+`mkdir` é atômico no mesmo host, então duas execuções concorrentes nunca adquirem o lock ao mesmo tempo. Execute isso no host que efetivamente segura o dispositivo (o Mac para iOS via `ssh macbook-2`, o Linux/WSL para o emulador Android), e libere o lock mesmo em falha (`trap`).
 
 ## Launch
 
@@ -106,11 +131,62 @@ O contrato de execução tem regressões automatizadas em `node --test .agents/s
 
 Há duas lanes mobile. A lane de dev client usa Metro para carregar o bundle, e ações que dependem da UI ativa podem exigir foreground. A lane de Release usa o bundle embarcado e deve ser conduzida sem Metro. A receita de build, instalação, assinatura local e túnel está em [docs/mobile-release.md](../../../docs/mobile-release.md).
 
+### Pré-condições obrigatórias antes de qualquer condução live
+
+Estas duas verificações são gate, não sugestão. Sem elas o app sobe, renderiza o shell e fica em spinner indefinido, e uma série inteira de Maestro retorna timeouts que se parecem com falha de performance mas são apenas dependência inalcançável. Isso já custou uma série de 15 lançamentos descartada como inválida. Verifique sempre do lado do simulador (o Mac), nunca do Linux, porque é a ponta que realmente importa: um serviço escutando no Linux não prova que o simulador consegue alcançá-lo.
+
+**1. Fixture Supabase (porta 55421).** A fixture roda no Linux e alcança o Mac por túnel SSH reverso, que morre junto com a sessão que o abriu — um túnel de uma sessão anterior não sobrevive para a sua.
+
 ```sh
-npm run start --workspace @clube-do-jogo/mobile
+ssh macbook-2 'lsof -nP -iTCP:55421 -sTCP:LISTEN'
+ssh macbook-2 'curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:55421/auth/v1/health'  # espera 200
+# se não houver listener no Mac, abra o túnel e mantenha-o vivo durante toda a condução:
+ssh -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 -R 55421:127.0.0.1:55421 macbook-2
 ```
 
+**2. API de descoberta e mídia Next (porta 3101 no Mac).** `readGameMedia` bate nessa API; se ela não responder, o erro de mídia bloqueia o resto da tela de detalhe do jogo, mesmo quando o resto do app funciona. Suba o Next local e espere a rota `/jogo-do-mes` responder antes de considerar o servidor pronto — não assuma prontidão pelo PID existir; veja o padrão de polling com deadline em `research/run-perf-auth-local.py` no diretório do programa (`os.environ` filtrado para uma allowlist, `subprocess.Popen` em grupo próprio, loop de `urllib.request.urlopen` com timeout curto e prazo total, e cleanup em `finally` que só encerra os processos que a própria execução criou). Depois de subir, confirme do Mac, não do Linux:
+
+```sh
+ssh macbook-2 'curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:3101/jogo-do-mes'  # espera 200
+```
+
+Uma falha causada por qualquer uma dessas duas pré-condições não é um defeito do app; é ambiente não preparado. Não classifique o app como quebrado ou lento sem antes confirmar as duas.
+
+```sh
+EXPO_PUBLIC_AUTO_OPEN_PRODUCT_UPDATE=false npm run start --workspace @clube-do-jogo/mobile
+```
+
+### Escotilha de abertura automática do diálogo de novidades
+
+O ambiente de condução mobile deve passar `EXPO_PUBLIC_AUTO_OPEN_PRODUCT_UPDATE=false`, análogo ao que `launch` já faz para a web (`NEXT_PUBLIC_AUTO_OPEN_PRODUCT_UPDATE=false`, ver `scripts/verify-clube-do-jogo.mjs:126`). A semântica é `!== 'false'` nos dois lados: só o valor exato `'false'` desliga a abertura automática; qualquer outro valor ou a ausência da variável mantém o diálogo abrindo sozinho no primeiro login de uma versão nova. Essa escotilha mobile é recente (PR #33, `pstack/expo-35-product-update-flag`); antes dela o mobile não tinha como suprimir a abertura automática e a verificação mobile do diálogo de novidades ficava bloqueada por essa assimetria entre plataformas — a próxima feature com abertura automática deve nascer com escotilha nas duas plataformas, não só na web.
+
+A escotilha suprime **só** a abertura automática. A reabertura manual por `Configurações` → `Preferências` → `Novidades da V1.1` continua funcionando com a variável em `'false'`. Isso é o que permite um fluxo suprimir o diálogo automático no início de uma sessão (para não competir com outro diálogo do mesmo login, como a folha de recompensas) e ainda assim exercitar a reabertura manual como prova de funcionalidade separada; um fluxo que assumir que a variável desliga o recurso inteiro nunca vai escrever esse segundo passo.
+
 No dev client, Metro precisa estar acessível para carregar o bundle. Foreground só é requisito de uma ação que dependa da UI ativa ou do cenário específico de restauração de sessão. O callback `clubedojogo://auth/callback` também deve ser testado com o app Release instalado e frio, quando o sistema abre o app pelo deep link sem Metro. Use um dispositivo dedicado e não conduza o mesmo simulador ou emulador em duas sessões.
+
+### Autoria de fluxo: nunca presuma estado
+
+Um fluxo não pode assumir que o app abre na tela de login. O app restaura sessão automaticamente, e sete fluxos falharam no primeiro passo hoje por assertar a tela de login direto, quando o dispositivo já tinha uma sessão restaurada de uma condução anterior. Todo fluxo que precisa de uma sessão conhecida deve primeiro forçar o estado, não presumi-lo: saia da conta, espere o texto `Boas-vindas de volta` e então refaça o login. O padrão correto está em `apps/mobile/.maestro/logout.yaml` (sai da conta e espera `Boas-vindas de volta`) seguido de `login.yaml` (assume a tela de login e autentica); um fluxo Android já provado encadeia os dois. Não escreva um fluxo novo que comece direto em `assertVisible: Boas-vindas de volta` sem ter forçado esse estado antes.
+
+Presumir sessão é um caso do defeito maior: **todo fluxo precisa convergir para o mesmo estado final, não importa quantas vezes rodou nem o que a execução anterior deixou na fixture.** Um fluxo que só passa na primeira execução do dia não é ferramenta, é foto. A série de hoje encontrou três fluxos que compartilhavam essa mesma premissa quebrada, o que significa que a premissa em si é o defeito, não os três fluxos isolados:
+
+- `progresso-confirmacao` terminava revertendo o status para "Não iniciado". Depois de três execuções, o passo de normalização não encontrava mais o estado "Comecei" que esperava — e descobriu-se que esse normalize **nunca funcionou**: ele tocava no botão de status antes de navegar para a aba onde esse botão existe. Só "passava" porque a fixture nascia no estado certo por acaso. O `PASS` dele na série anterior era sorte, não prova.
+- `notas-timeline` tenta "Escrever anotação", que deixa de ser oferecido quando o dia já tem anotação. Uma execução anterior do próprio fluxo já tinha postado a nota de hoje, e a execução seguinte não tinha como repetir a ação.
+- A metade de remoção do `biblioteca-acoes` apaga um jogo da biblioteca e não o repõe; a fixture fica diferente para a execução seguinte, que perde o jogo que esperava encontrar.
+
+Três formas de resolver isso, porque o autor precisa de opção, não só de proibição:
+
+1. **Normalizar no começo, no lugar onde a ação é possível.** Navegue até a tela ou aba onde o controle existe antes de tocar nele; o defeito do `progresso-confirmacao` foi normalizar cedo demais, fora do lugar certo.
+2. **Restaurar o estado no fim.** Se o fluxo muda algo (uma anotação, um status, um item de biblioteca), desfaça essa mudança como último passo, para a próxima execução herdar o mesmo ponto de partida.
+3. **Agir sobre algo que o próprio fluxo criou.** Em vez de depender de um item pré-existente na fixture, crie o alvo dentro do próprio fluxo (por exemplo, adicione o jogo antes de removê-lo) para que o resultado não dependa de execuções anteriores.
+
+Não confie em a fixture nascer num estado específico; trate esse nascimento como um acidente de quando a fixture foi semeada pela última vez, não como um contrato. Um fluxo não idempotente produz `PASS` que não prova nada, e essa é a terceira forma de falsa confiança que esta leva encontrou — as outras duas já estão registradas nesta skill: o falso positivo por execução concorrente sem lock (seção "Execução serial, com lock e não por confiança", acima) e o falso negativo por buscar existência de código mobile só em `apps/mobile/src/` (seção "Busca no repositório: dois diretórios mobile, não um", no topo deste arquivo). O padrão comum às três é o recibo afirmar mais do que foi de fato provado; ao revisar um fluxo novo ou um recibo antigo, pergunte explicitamente qual dessas três formas ele poderia estar escondendo.
+
+Busca ao vivo no IGDB para títulos não cacheados não é verificável neste ambiente sem `IGDB_CLIENT_ID` e `IGDB_CLIENT_SECRET` reais — `.env.example` só tem placeholder vazio para os dois — e nessa condição o esperado é a interface mostrar o erro de descoberta; não leia esse erro como defeito do app.
+
+### Bloqueio conhecido: emulador Android
+
+O emulador Android está bloqueado neste ambiente. Três tentativas, threads do QEMU pendendo por 15 a 20s antes do processo sair com código 1; sete causas descartadas por medição direta (memória, disco, carga, `/dev/kvm`, grupo kvm, virtualização aninhada, processos zumbis e locks do AVD). Diagnóstico completo em `/home/matheus/.codex/orchestrate/clube-do-jogo-expo/research/android-emulator-blocked.json`. **Não reescave essa investigação.** A causa é ambiental e está fora do que uma sessão consegue corrigir; a condução live foi propositalmente redirecionada para o simulador iOS. Só retome Android se um sinal novo e concreto aparecer (por exemplo, o emulador subir por outra via), não por repetir as mesmas sete hipóteses já descartadas.
 
 Android documentado, com a atribuição separada para que o shell não expanda uma variável vazia:
 
@@ -162,9 +238,15 @@ REMOTE
 
 Antes de qualquer execução iOS, o operador deve consultar `simslim --help` e `simslim profiles`, aplicar `simslim on <UDID>` com a redução máxima, conferir `status` e `verify`, e reaplicar a redução máxima ao final. O recibo deste dispositivo mostrou 170/170 daemons gerenciados desativados; mantenha o perfil máximo e não adicione exceções sem uma necessidade comprovada do teste. Só use `simslim doctor --requires` depois de consultar a ajuda dessa versão e informar um recurso válido que o teste realmente exige; uma condução básica de rede não exige daemon extra e deve registrar `not-required` em vez de chamar `doctor --requires` sem argumento. As abas Maestro aceitam a acessibilidade dinâmica, por exemplo `Ranking(, tab, 2 of 5)?` com `index: 0`; não substitua essa forma por um texto fixo.
 
-Os fluxos disponíveis são `apps/mobile/.maestro/login.yaml`, `club.yaml`, `history.yaml` e `auth-link-recovery.yaml`. O último cobre o retorno de um link inválido; ele não fabrica um código PKCE válido nem implementa automação nativa fora do Maestro. Para um callback válido, use a fixture e o fluxo de e-mail autorizados pelo ambiente local, conduza o app Release frio e registre somente o esquema, host, caminho e forma redigida dos parâmetros, por exemplo `clubedojogo://auth/callback?code=<redacted>`; não inclua o valor de `code`, tokens, cookies, credenciais ou a URL completa em recibos e capturas publicados. Material necessário à troca deve permanecer em arquivos privados do teste, com acesso restrito. Registre o resultado da sessão, a forma do callback e o SHA do binário. Depois de incluir módulo nativo, como `react-native-webview`, rode `npx expo prebuild --no-install` e gere um development client novo no checkout dedicado antes do Maestro; não reutilize um binário antigo. A sessão real usa apenas o Supabase local `http://127.0.0.1:55421`, projeto `clube-expo-local`, com contas de fixture e RLS; rejeite qualquer host diferente e nunca use dados de produção. O demo continua sendo a opção para navegação sem credenciais.
+Confira a lista real antes de assumir cobertura: `ls apps/mobile/.maestro/*.yaml`. Nesta leva são 19 arquivos, entre eles `login.yaml`, `club.yaml`, `history.yaml`, `auth-link-recovery.yaml`, `auth-deeplink-back.yaml`, `logout.yaml`, `login-rewards.yaml`, `admin-cycle.yaml`, `admin-undo.yaml`, `admin-picker-cancel.yaml`, `admin-roles.yaml`, `notes-draft.yaml`, `notes-timeline.yaml`, `profile-media.yaml`, `ratings.yaml`, `themes.yaml`, `theme-scenes.yaml`, `theme-audio.yaml` e `theme-audio-off.yaml`. Esta lista é um retrato de uma leva; não a trate como fixa e não a cite sem conferir `ls` de novo. `auth-link-recovery.yaml` cobre o retorno de um link inválido; ele não fabrica um código PKCE válido nem implementa automação nativa fora do Maestro. Para um callback válido, use a fixture e o fluxo de e-mail autorizados pelo ambiente local, conduza o app Release frio e registre somente o esquema, host, caminho e forma redigida dos parâmetros, por exemplo `clubedojogo://auth/callback?code=<redacted>`; não inclua o valor de `code`, tokens, cookies, credenciais ou a URL completa em recibos e capturas publicados. Material necessário à troca deve permanecer em arquivos privados do teste, com acesso restrito. Registre o resultado da sessão, a forma do callback e o SHA do binário. Depois de incluir módulo nativo, como `react-native-webview`, rode `npx expo prebuild --no-install` e gere um development client novo no checkout dedicado antes do Maestro; não reutilize um binário antigo. A sessão real usa apenas o Supabase local `http://127.0.0.1:55421`, projeto `clube-expo-local`, com contas de fixture e RLS; rejeite qualquer host diferente e nunca use dados de produção. O demo continua sendo a opção para navegação sem credenciais.
 
 A prova nativa deve seguir [docs/mobile-release.md](../../../docs/mobile-release.md), incluindo bundle embarcado, `--no-bundler`, assinatura local, SimSlim máximo no Mac e metadados de SHA, dispositivo e manifesto. O helper automatiza o contrato web. Para build, condução e autenticação nativos, o agente executa os comandos documentados no dispositivo atribuído à tarefa.
+
+## Gotcha: accessible parent Pressable swallows nested actions
+
+A verificação viva encontrou um defeito de acessibilidade que typecheck, teste e lint não pegam: no iOS, um `Pressable` pai que carrega papel de acessibilidade (`accessibilityRole`) **e** rótulo de acessibilidade (`accessibilityLabel`) colapsa toda a subárvore de acessibilidade abaixo dele. Um botão filho aninhado dentro desse `Pressable` continua visível e clicável por coordenada de tela, então um toque cego ou um teste que clica por posição passa. Mas o botão fica inalcançável para VoiceOver e para qualquer automação que navegue pela árvore de acessibilidade em vez de por coordenada, porque o filho nunca aparece como um nó próprio. Foi corrigido em `apps/mobile/src/components/GameListRow.tsx` e `apps/mobile/src/features/notes/PrivateNotes.tsx` tornando o Pressable pai e o botão de ação elementos irmãos, não um dentro do outro.
+
+Procure este padrão sempre que revisar ou escrever um componente com uma ação secundária dentro de uma linha ou cartão tocável inteiro: um `Pressable`/`TouchableOpacity` com `accessibilityRole` e `accessibilityLabel` ao mesmo tempo, contendo outro elemento tocável como filho. `testID` **não é a solução** para esse defeito: adicionar `testID` ao botão filho faz uma automação por seletor de teste passar, mas deixa o VoiceOver de fora, porque o `testID` não participa da árvore de acessibilidade que o leitor de tela usa. A correção é estrutural (irmãos, não aninhamento), não um atalho de seletor.
 
 ## Unit, live, and performance
 
