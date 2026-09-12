@@ -75,6 +75,11 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
       in: window,
       launchOptions: launchOptions)
 
+    // Consumidas. Se a cena reconectar, o React Native não pode reiniciar com um
+    // deep link ou notificação já processados: no retorno de login isso
+    // significaria trocar de novo um código de autenticação já gasto.
+    AppDelegate.sceneLaunchOptions = nil
+
     // Reencaminha o que chegou junto com a conexão da cena para os subscribers.
     deliver(urlContexts, to: appDelegate)
     for userActivity in userActivities {
