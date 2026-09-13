@@ -100,3 +100,27 @@ test('HTTP local exige opt-in de desenvolvimento e não entra em preview', () =>
   assert.notEqual(preview.status, 0);
   assert.match(preview.stderr, /EXPO_LOCAL_HTTP só pode ser usado/);
 });
+
+function readIntrospectedSchemes(variables: Record<string, string>) {
+  const env = { ...process.env };
+  for (const key of ['APP_VARIANT', 'EXPO_APPLICATION_ID', 'EXPO_LOCAL_HTTP']) delete env[key];
+  const result = spawnSync(process.execPath, [expoBin, 'config', '--type', 'introspect', '--json'], {
+    cwd: mobileRoot,
+    env: { ...env, EXPO_NO_DOTENV: '1', EXPO_NO_TELEMETRY: '1', ...variables },
+    encoding: 'utf8',
+    timeout: 120_000,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const config = JSON.parse(result.stdout);
+  const urlTypes: Array<{ CFBundleURLSchemes?: string[] }> = config.ios?.infoPlist?.CFBundleURLTypes ?? [];
+  return urlTypes.flatMap(type => type.CFBundleURLSchemes ?? []);
+}
+
+test('o esquema exp+ do dev client só existe na variante development', () => {
+  assert.ok(readIntrospectedSchemes({}).includes('exp+clube-do-jogo'));
+  for (const variant of ['preview', 'production']) {
+    const schemes = readIntrospectedSchemes({ APP_VARIANT: variant, EXPO_APPLICATION_ID: `com.example.club.${variant}` });
+    assert.ok(schemes.includes('clubedojogo'), `${variant} mantém o esquema do app: ${schemes.join(',')}`);
+    assert.ok(!schemes.some(scheme => scheme.startsWith('exp+')), `${variant} vazou esquema do dev client: ${schemes.join(',')}`);
+  }
+});
