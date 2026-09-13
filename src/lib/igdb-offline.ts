@@ -34,6 +34,8 @@ function game(input: {
   id: number;
   slug: string;
   title: string;
+  /** Capa real da IGDB quando o jogo existe no seed; sem ela a rota de mídia não sobrescreve a capa gravada. */
+  cover?: string;
   year: number;
   hours: number;
   rating: number;
@@ -47,7 +49,7 @@ function game(input: {
     duration_hours: input.hours,
     average_rating: input.rating,
     release_year: input.year,
-    image_url: image(input.slug, 'cover', 600, 800),
+    image_url: input.cover ? `https://images.igdb.com/igdb/image/upload/t_cover_big/${input.cover}.jpg` : null,
     description: input.description,
     screenshot_urls: [1, 2, 3].map(index => image(input.slug, `shot${index}`, 1280, 720)),
     trailer_url: null,
@@ -58,10 +60,10 @@ function game(input: {
 }
 
 export const OFFLINE_CATALOG: readonly IGDBGameResult[] = [
-  game({ id: 900001, slug: 'outer-wilds', title: 'Outer Wilds', year: 2019, hours: 17, rating: 86, genres: ['Adventure', 'Puzzle'], platformIds: [6, 48, 49, 130], description: 'Um sistema solar preso num loop de 22 minutos, explorado com curiosidade e um banjo.' }),
-  game({ id: 900002, slug: 'hollow-knight', title: 'Hollow Knight', year: 2017, hours: 27, rating: 88, genres: ['Platform', 'Adventure'], platformIds: [6, 48, 49, 130], description: 'Um reino de insetos em ruínas, desenhado à mão e cheio de segredos.' }),
-  game({ id: 900003, slug: 'celeste', title: 'Celeste', year: 2018, hours: 8, rating: 88, genres: ['Platform', 'Indie'], platformIds: [6, 48, 49, 130], description: 'Madeline escala uma montanha e o próprio pânico em fases precisas e generosas.' }),
-  game({ id: 900004, slug: 'hades', title: 'Hades', year: 2020, hours: 22, rating: 90, genres: ['Role-playing (RPG)', 'Hack and slash/Beat \'em up'], platformIds: [6, 48, 167, 49, 169, 130], description: 'Zagreu tenta fugir do submundo, uma corrida de cada vez, com a família inteira comentando.' }),
+  game({ id: 900001, slug: 'outer-wilds', cover: 'co65ac', title: 'Outer Wilds', year: 2019, hours: 17, rating: 86, genres: ['Adventure', 'Puzzle'], platformIds: [6, 48, 49, 130], description: 'Um sistema solar preso num loop de 22 minutos, explorado com curiosidade e um banjo.' }),
+  game({ id: 900002, slug: 'hollow-knight', cover: 'co93cr', title: 'Hollow Knight', year: 2017, hours: 27, rating: 88, genres: ['Platform', 'Adventure'], platformIds: [6, 48, 49, 130], description: 'Um reino de insetos em ruínas, desenhado à mão e cheio de segredos.' }),
+  game({ id: 900003, slug: 'celeste', cover: 'co3byy', title: 'Celeste', year: 2018, hours: 8, rating: 88, genres: ['Platform', 'Indie'], platformIds: [6, 48, 49, 130], description: 'Madeline escala uma montanha e o próprio pânico em fases precisas e generosas.' }),
+  game({ id: 900004, slug: 'hades', cover: 'co39vc', title: 'Hades', year: 2020, hours: 22, rating: 90, genres: ['Role-playing (RPG)', 'Hack and slash/Beat \'em up'], platformIds: [6, 48, 167, 49, 169, 130], description: 'Zagreu tenta fugir do submundo, uma corrida de cada vez, com a família inteira comentando.' }),
   game({ id: 900005, slug: 'stardew-valley', title: 'Stardew Valley', year: 2016, hours: 53, rating: 87, genres: ['Simulator', 'Role-playing (RPG)'], platformIds: [6, 48, 49, 130], description: 'Herde uma fazenda, conheça a vila e descubra que a mina tem mais camadas do que parece.' }),
   game({ id: 900006, slug: 'disco-elysium', title: 'Disco Elysium', year: 2019, hours: 30, rating: 91, genres: ['Role-playing (RPG)', 'Adventure'], platformIds: [6, 48, 167, 49, 169, 130], description: 'Um detetive sem memória, uma cidade sem esperança e uma cabeça cheia de vozes discordando.' }),
   game({ id: 900007, slug: 'return-of-the-obra-dinn', title: 'Return of the Obra Dinn', year: 2018, hours: 9, rating: 86, genres: ['Puzzle', 'Adventure'], platformIds: [6, 48, 49, 130], description: 'Sessenta pessoas sumiram de um navio mercante. Descubra quem era cada uma e como morreu.' }),

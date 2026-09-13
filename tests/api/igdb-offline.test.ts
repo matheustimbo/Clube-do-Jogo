@@ -39,6 +39,12 @@ test('every offline game carries the metadata the search route treats as fresh',
   assert.equal(new Set(OFFLINE_CATALOG.map(game => game.id)).size, OFFLINE_CATALOG.length);
 });
 
+test('seed games keep their real cover and the rest leave the stored cover alone', () => {
+  const byTitle = new Map(OFFLINE_CATALOG.map(game => [game.title, game]));
+  assert.equal(byTitle.get('Outer Wilds')?.image_url, 'https://images.igdb.com/igdb/image/upload/t_cover_big/co65ac.jpg');
+  assert.equal(byTitle.get('Tunic')?.image_url, null);
+});
+
 test('search matches title substrings case- and accent-insensitively and caps at five', () => {
   assert.deepEqual(offlineSearchGames('HOLLOW').map(game => game.title), ['Hollow Knight']);
   assert.deepEqual(offlineSearchGames('céleste').map(game => game.title), ['Celeste']);
