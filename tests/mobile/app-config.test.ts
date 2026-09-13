@@ -8,7 +8,7 @@ const expoBin = fileURLToPath(new URL('../../node_modules/expo/bin/cli', import.
 
 function readConfig(variables: Record<string, string> = {}) {
   const env = { ...process.env };
-  for (const key of ['APP_VARIANT', 'EAS_BUILD_PROFILE', 'EXPO_APPLICATION_ID', 'EXPO_EAS_PROJECT_ID', 'EXPO_LOCAL_HTTP']) {
+  for (const key of ['APP_VARIANT', 'EAS_BUILD_PROFILE', 'EXPO_APPLICATION_ID', 'EXPO_EAS_PROJECT_ID', 'EXPO_LOCAL_HTTP', 'EXPO_PUBLIC_SITE_URL']) {
     delete env[key];
   }
   return spawnSync(process.execPath, [expoBin, 'config', '--type', 'public', '--json'], {
@@ -28,6 +28,24 @@ test('build local mantém identidade de desenvolvimento e usa somente o bundle e
   assert.equal(config.updates.enabled, false);
   assert.equal(config.updates.url, undefined);
   assert.deepEqual(config.runtimeVersion, { policy: 'fingerprint' });
+});
+
+test('associated domain aceita só host https sem porta e cai no domínio de produção nos outros casos', () => {
+  const production = ['webcredentials:clube-do-jogo-coral.vercel.app'];
+  const cases: Array<[string | undefined, string[]]> = [
+    [undefined, production],
+    ['https://staging.example.com', ['webcredentials:staging.example.com']],
+    ['http://localhost:3000', production],
+    ['https://example.com:8443', production],
+    ['not-a-url', production],
+    ['https://localhost', production],
+  ];
+  for (const [siteUrl, expected] of cases) {
+    const result = readConfig(siteUrl === undefined ? {} : { EXPO_PUBLIC_SITE_URL: siteUrl });
+    assert.equal(result.status, 0, `${siteUrl}: ${result.stderr}`);
+    const config = JSON.parse(result.stdout);
+    assert.deepEqual(config.ios.associatedDomains, expected, `EXPO_PUBLIC_SITE_URL=${siteUrl}`);
+  }
 });
 
 test('preview e produção geram configuração sem projeto EAS e usam somente o bundle embarcado', () => {

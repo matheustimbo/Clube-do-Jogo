@@ -83,6 +83,8 @@ export default function LoginScreen() {
                   onChangeText={setName}
                   placeholder="Seu nome"
                   placeholderTextColor={colors.zinc600}
+                  textContentType="name"
+                  autoComplete="name"
                   style={styles.input}
                   accessibilityLabel="Seu nome"
                 />
@@ -98,6 +100,8 @@ export default function LoginScreen() {
                 autoCapitalize="none"
                 autoCorrect={false}
                 keyboardType="email-address"
+                textContentType="username"
+                autoComplete="email"
                 style={styles.input}
                 accessibilityLabel="Seu e-mail"
               />
@@ -110,6 +114,8 @@ export default function LoginScreen() {
                 placeholder="Sua senha"
                 placeholderTextColor={colors.zinc600}
                 secureTextEntry
+                textContentType={mode === 'login' ? 'password' : 'newPassword'}
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                 style={styles.input}
                 accessibilityLabel="Sua senha"
               />

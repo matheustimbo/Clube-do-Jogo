@@ -5,6 +5,25 @@ const isDistributed = variant === 'preview' || variant === 'production';
 const applicationId = process.env.EXPO_APPLICATION_ID || 'com.clubedojogo.mobile.dev';
 const localHttp = process.env.EXPO_LOCAL_HTTP === '1';
 
+// `webcredentials` só aceita um domínio: sem esquema, sem porta, e sob https.
+// Retorna null em vez de lançar, senão uma variável mal formada derruba todo
+// comando do Expo CLI, inclusive os testes que leem esta configuração.
+function webcredentialsHost(raw: string | undefined): string | null {
+  if (!raw) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== 'https:') return null;
+  if (parsed.port) return null;
+  if (!parsed.hostname.includes('.')) return null;
+  return parsed.hostname;
+}
+
+const siteHost = webcredentialsHost(process.env.EXPO_PUBLIC_SITE_URL) ?? 'clube-do-jogo-coral.vercel.app';
+
 if (!['development', 'preview', 'production'].includes(variant)) {
   throw new Error('APP_VARIANT deve ser development, preview ou production.');
 }
@@ -29,6 +48,9 @@ const config: ExpoConfig = {
     supportsTablet: true,
     bundleIdentifier: applicationId,
     buildNumber: '1',
+    // Deixa o Apple Passwords sugerir a credencial salva do site na tela de login
+    // do app. Depende de /.well-known/apple-app-site-association estar no ar.
+    associatedDomains: [`webcredentials:${siteHost}`],
   },
   android: {
     package: applicationId,
