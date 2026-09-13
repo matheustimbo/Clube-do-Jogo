@@ -61,7 +61,7 @@
     "esbuild": "^0.27.0",
     "eslint": "^9",
     "eslint-config-next": "^16.2.12",
-    "expo-router": "~57.0.17",
+    "expo-router": "~57.0.21",
     "supabase": "^2.111.0",
     "tailwindcss": "^4",
     "tsx": "^4.23.13",
