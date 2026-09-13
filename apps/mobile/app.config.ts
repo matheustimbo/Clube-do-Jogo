@@ -58,6 +58,10 @@ const config: ExpoConfig = {
   },
   plugins: [
     'expo-router',
+    // O expo-dev-client entra sozinho pelo autolinking; sem essa entrada explícita ele grava o
+    // esquema exp+clube-do-jogo no Info.plist e no manifest também nas builds de loja, onde
+    // o launcher nem está compilado. Manter a URL só no build de desenvolvimento.
+    ['expo-dev-client', { addGeneratedScheme: !isDistributed }],
     // Ciclo de vida de UIScene: sem isso o app não lança quando compilado com o SDK do iOS 27.
     './plugins/withUISceneLifecycle',
     ['expo-build-properties', { android: { usesCleartextTraffic: localHttp } }],
