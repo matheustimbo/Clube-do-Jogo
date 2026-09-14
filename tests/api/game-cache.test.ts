@@ -24,21 +24,30 @@ function igdbGame(overrides: Partial<IGDBGameResult> = {}): IGDBGameResult {
   };
 }
 
-function fakeSupabase(payloads: UpsertPayload[], failFirstWith?: { code: string }): SupabaseClient {
+const STORED_COVER = 'https://images.igdb.com/igdb/image/upload/t_cover_big/stored.jpg';
+
+// Devolve as linhas do lote fora de ordem, que é o que o PostgREST pode fazer:
+// se a rota passar a depender da ordem do retorno, o teste pega.
+function fakeSupabase(payloads: UpsertPayload[], failFirstWith?: { code: string }, roundTrips?: { count: number }): SupabaseClient {
   let calls = 0;
+  const stored = (payload: UpsertPayload) => ({ id: `stored-${payload.igdb_id}`, image_url: STORED_COVER, ...payload });
   const client = {
     from() {
       return {
-        upsert(payload: UpsertPayload) {
-          payloads.push(payload);
+        upsert(payload: UpsertPayload | UpsertPayload[]) {
+          const batch = Array.isArray(payload) ? payload : [payload];
+          batch.forEach(one => payloads.push(one));
           calls += 1;
-          const error = calls === 1 && failFirstWith ? failFirstWith : null;
+          if (roundTrips) roundTrips.count += 1;
+          // Coluna que falta é problema de schema, não de sorte: recusa toda vez que
+          // ela chega, senão o teste do retorno ao schema antigo passa por acidente.
+          const error = failFirstWith && batch.some(one => Object.hasOwn(one, 'average_rating')) ? failFirstWith : null;
+          const rows = batch.map(stored).reverse();
           return {
-            select: () => ({
-              single: async () => (error
-                ? { data: null, error }
-                : { data: { id: 'stored-row', image_url: 'https://images.igdb.com/igdb/image/upload/t_cover_big/stored.jpg', ...payload }, error: null }),
-            }),
+            select: () => Object.assign(
+              Promise.resolve(error ? { data: null, error } : { data: rows, error: null }),
+              { single: async () => (error ? { data: null, error } : { data: rows[0], error: null }) },
+            ),
           };
         },
       };
@@ -84,25 +93,52 @@ test('a game with art is upserted with exactly that url', async () => {
 test('the legacy-column retry keeps the same cover decision', async () => {
   const withoutArt: UpsertPayload[] = [];
   await cacheIGDBGames(fakeSupabase(withoutArt, { code: 'PGRST204' }), [igdbGame({ image_url: null })]);
-  assert.equal(withoutArt.length, 2);
-  assert.deepEqual(Object.keys(withoutArt[1]), ['igdb_id', 'title', 'duration_hours', 'description']);
+  assert.deepEqual(Object.keys(withoutArt.at(-1)!), ['igdb_id', 'title', 'duration_hours', 'description']);
 
   const withArt: UpsertPayload[] = [];
   await cacheIGDBGames(fakeSupabase(withArt, { code: 'PGRST204' }), [
     igdbGame({ image_url: 'https://images.igdb.com/igdb/image/upload/t_cover_big/co65ac.jpg' }),
   ]);
-  assert.deepEqual(Object.keys(withArt[1]), ['igdb_id', 'title', 'duration_hours', 'image_url', 'description']);
-  assert.equal(withArt[1].image_url, 'https://images.igdb.com/igdb/image/upload/t_cover_big/co65ac.jpg');
+  assert.deepEqual(Object.keys(withArt.at(-1)!), ['igdb_id', 'title', 'duration_hours', 'image_url', 'description']);
+  assert.equal(withArt.at(-1)!.image_url, 'https://images.igdb.com/igdb/image/upload/t_cover_big/co65ac.jpg');
 });
 
 test('a capa já gravada sobrevive e é o que a rota devolve ao cliente', async () => {
   const payloads: UpsertPayload[] = [];
   const saved = await cacheIGDBGames(fakeSupabase(payloads), [igdbGame({ image_url: null })]);
-  assert.equal(saved[0].image_url, 'https://images.igdb.com/igdb/image/upload/t_cover_big/stored.jpg');
+  assert.equal(saved[0].image_url, STORED_COVER);
 });
 
 test('capa nova da IGDB substitui a que estava lá', async () => {
   const payloads: UpsertPayload[] = [];
   const saved = await cacheIGDBGames(fakeSupabase(payloads), [igdbGame({ image_url: 'https://images.igdb.com/igdb/image/upload/t_cover_big/nova.jpg' })]);
   assert.equal(saved[0].image_url, 'https://images.igdb.com/igdb/image/upload/t_cover_big/nova.jpg');
+});
+
+test('uma página inteira não vira uma ida ao banco por jogo', async () => {
+  const roundTrips = { count: 0 };
+  const page = Array.from({ length: 24 }, (_, index) => igdbGame({
+    id: 1000 + index,
+    title: `Jogo ${index}`,
+    image_url: index % 2 === 0 ? `https://images.igdb.com/igdb/image/upload/t_cover_big/capa${index}.jpg` : null,
+  }));
+  const saved = await cacheIGDBGames(fakeSupabase([], undefined, roundTrips), page);
+  assert.equal(saved.length, 24);
+  assert.ok(roundTrips.count <= 2, `esperava no máximo 2 idas ao banco, foram ${roundTrips.count}`);
+});
+
+test('a ordem que a IGDB devolveu é a ordem que o cliente recebe', async () => {
+  const page = Array.from({ length: 6 }, (_, index) => igdbGame({ id: 2000 + index, title: `Jogo ${index}` }));
+  const saved = await cacheIGDBGames(fakeSupabase([]), page);
+  assert.deepEqual(saved.map(game => game.title), ['Jogo 0', 'Jogo 1', 'Jogo 2', 'Jogo 3', 'Jogo 4', 'Jogo 5']);
+});
+
+test('jogo com capa e jogo sem capa não viajam no mesmo lote', async () => {
+  const payloads: UpsertPayload[] = [];
+  await cacheIGDBGames(fakeSupabase(payloads), [
+    igdbGame({ id: 1, title: 'Com capa', image_url: 'https://images.igdb.com/igdb/image/upload/t_cover_big/co65ac.jpg' }),
+    igdbGame({ id: 2, title: 'Sem capa', image_url: null }),
+  ]);
+  const semCapa = payloads.find(payload => payload.title === 'Sem capa');
+  assert.equal(Object.hasOwn(semCapa!, 'image_url'), false);
 });
