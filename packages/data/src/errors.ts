@@ -23,6 +23,9 @@ export function toDataError(operation: string, message: string, cause: unknown):
   if (code === '401' || code === 'PGRST301' || code === 'invalid_grant') {
     return new DataError(operation, 'Sua sessão expirou. Entre novamente para continuar.', cause);
   }
+  if (code === 'refused-after-refresh') {
+    return new DataError(operation, 'O servidor recusou o acesso mesmo com a sessão renovada. Avise quem cuida do clube.', cause);
+  }
   if (code === '23505') {
     return new DataError(operation, 'Este registro já existe.', cause);
   }

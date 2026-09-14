@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { toDataError } from '@clube-do-jogo/data';
 import { createMobileApiTransport } from '../../apps/mobile/src/platform/api';
 
 const BASE = 'https://clube.example.com';
@@ -63,7 +64,7 @@ test('401 com sessão recém-renovada não culpa o membro', async () => {
   try {
     await assert.rejects(
       createMobileApiTransport(client, BASE).request('/api/discover'),
-      { message: 'O servidor recusou o acesso mesmo com a sessão renovada. Avise quem cuida do clube.' },
+      { message: 'O servidor recusou o acesso mesmo com a sessão renovada.' },
     );
     assert.equal(net.sent.length, 2, 'tenta no máximo uma vez a mais');
     assert.equal(calls.refresh, 1);
@@ -87,5 +88,25 @@ test('resposta boa não dispara renovação', async () => {
   try {
     assert.equal((await createMobileApiTransport(client, BASE).request('/api/discover')).status, 200);
     assert.equal(calls.refresh, 0);
+  } finally { net.restore(); }
+});
+
+test('a frase do transporte chega ao membro, não a genérica da operação', async () => {
+  const { client } = fakeClient(['velho', 'novo']);
+  const net = fakeFetch([401, 401]);
+  try {
+    const failure = await createMobileApiTransport(client, BASE).request('/api/discover').then(() => null, (e: unknown) => e);
+    const shown = toDataError('explorar jogos', 'Não foi possível carregar a descoberta.', failure);
+    assert.equal(shown.message, 'O servidor recusou o acesso mesmo com a sessão renovada. Avise quem cuida do clube.');
+  } finally { net.restore(); }
+});
+
+test('sessão morta chega ao membro como expiração, não como falha genérica', async () => {
+  const { client } = fakeClient(['velho'], true);
+  const net = fakeFetch([401]);
+  try {
+    const failure = await createMobileApiTransport(client, BASE).request('/api/discover').then(() => null, (e: unknown) => e);
+    const shown = toDataError('explorar jogos', 'Não foi possível carregar a descoberta.', failure);
+    assert.equal(shown.message, 'Sua sessão expirou. Entre novamente para continuar.');
   } finally { net.restore(); }
 });

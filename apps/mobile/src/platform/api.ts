@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { ApiError } from '@clube-do-jogo/data';
 import { getApiBaseUrl } from './config';
 
 function resolveApiUrl(path: string, baseValue: string) {
@@ -35,7 +36,7 @@ export function createMobileApiTransport(client: SupabaseClient | null, apiBaseU
       if (!client) throw new Error('Configure o Supabase para acessar a API.');
       const { data, error } = await client.auth.getSession();
       if (error) throw new Error('Não foi possível validar sua sessão.');
-      if (!data.session?.access_token) throw new Error(SESSION_EXPIRED);
+      if (!data.session?.access_token) throw new ApiError(401, SESSION_EXPIRED);
 
       const url = resolveApiUrl(path, base);
       const send = (token: string) => {
@@ -51,13 +52,13 @@ export function createMobileApiTransport(client: SupabaseClient | null, apiBaseU
 
       const refreshed = await client.auth.refreshSession();
       const token = refreshed.data.session?.access_token;
-      if (refreshed.error || !token) throw new Error(SESSION_EXPIRED);
+      if (refreshed.error || !token) throw new ApiError(401, SESSION_EXPIRED);
 
       // Repetir um POST costuma ser perigoso, mas um 401 é recusa antes de
       // executar, então a primeira tentativa não deixou efeito para duplicar.
       const retry = await send(token);
       if (retry.status === 401) {
-        throw new Error('O servidor recusou o acesso mesmo com a sessão renovada. Avise quem cuida do clube.');
+        throw new ApiError(401, 'O servidor recusou o acesso mesmo com a sessão renovada.', 'refused-after-refresh');
       }
       return retry;
     },
