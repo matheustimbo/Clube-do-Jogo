@@ -105,9 +105,13 @@ function Discussion({ gameId, clubMonth }: TimelineProps) {
       setReactionNotice('Limite de 10 emojis diferentes atingido neste comentário.');
       return;
     }
-    setReactionNotice('');
     setReactionPickerTarget(null);
     setReaction.mutate({ gameId, clubMonth, commentId: comment.id, emoji, enabled: !existing?.reactedByMe });
+  }
+
+  function openReactionPicker(target: ReactionPickerTarget) {
+    setReactionNotice('');
+    setReactionPickerTarget(target);
   }
 
   function toggleReaction(comment: ClubComment, emoji: string) {
@@ -156,8 +160,6 @@ function Discussion({ gameId, clubMonth }: TimelineProps) {
         </View>
       ) : null}
 
-      {reactionNotice ? <Text style={styles.notice}>{reactionNotice}</Text> : null}
-
       {comments.length === 0 ? (
         <EmptyState
           icon="chatbubbles-outline"
@@ -183,7 +185,7 @@ function Discussion({ gameId, clubMonth }: TimelineProps) {
                 onReply={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)}
                 onEdit={() => openEdit(comment)}
                 onDelete={() => setDeleteTarget({ comment, rootId: comment.id })}
-                onOpenReactionPicker={() => setReactionPickerTarget({ comment, rootId: comment.id })}
+                onOpenReactionPicker={() => openReactionPicker({ comment, rootId: comment.id })}
                 onOpenReactionsList={() => setReactionsListTarget(comment)}
                 onToggleReaction={emoji => toggleReaction(comment, emoji)}
               />
@@ -205,7 +207,7 @@ function Discussion({ gameId, clubMonth }: TimelineProps) {
                       onOpenProfile={openProfile}
                       onEdit={() => openEdit(reply)}
                       onDelete={() => setDeleteTarget({ comment: reply, rootId: comment.id })}
-                      onOpenReactionPicker={() => setReactionPickerTarget({ comment: reply, rootId: comment.id })}
+                      onOpenReactionPicker={() => openReactionPicker({ comment: reply, rootId: comment.id })}
                       onOpenReactionsList={() => setReactionsListTarget(reply)}
                       onToggleReaction={emoji => toggleReaction(reply, emoji)}
                     />
@@ -241,6 +243,7 @@ function Discussion({ gameId, clubMonth }: TimelineProps) {
 
       <ReactionPickerSheet
         visible={Boolean(reactionPickerTarget)}
+        notice={reactionNotice}
         onClose={() => setReactionPickerTarget(null)}
         onSelect={pickReaction}
       />
@@ -411,14 +414,6 @@ const useStyles = themedStyles(colors => ({
   composerActions: { flexDirection: 'row', justifyContent: 'flex-end' },
   composerButton: { height: 38, paddingHorizontal: spacing.md },
   formError: { ...typography.small, color: colors.red300 },
-  notice: {
-    ...typography.small,
-    color: colors.amber300,
-    backgroundColor: 'rgba(251,191,36,0.1)',
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
   list: { gap: spacing.lg },
   thread: { gap: spacing.sm },
   replies: { marginLeft: spacing.xl, gap: spacing.sm },
