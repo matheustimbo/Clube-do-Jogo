@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { cacheIGDBGames } from '../../src/lib/game-cache';
-import type { IGDBGameResult } from '../../src/lib/igdb';
+import { cacheCatalogGames } from '../../src/lib/game-cache';
+import type { CatalogGame } from '../../src/lib/game-catalog';
 
 type UpsertPayload = Record<string, unknown>;
 type StoredRow = UpsertPayload & { id: string };
 type UpsertCall = { rows: UpsertPayload[]; columns: string[] };
 
-function igdbGame(overrides: Partial<IGDBGameResult> = {}): IGDBGameResult {
+function catalogGame(overrides: Partial<CatalogGame> = {}): CatalogGame {
   return {
     id: 1942,
     title: 'Tunic',
@@ -101,7 +101,7 @@ function fakeSupabase(payloads: UpsertPayload[], options: FakeOptions = {}): Sup
 
 test('a game with no art is upserted without an image_url key at all', async () => {
   const payloads: UpsertPayload[] = [];
-  await cacheIGDBGames(fakeSupabase(payloads), [igdbGame({ image_url: null })]);
+  await cacheCatalogGames(fakeSupabase(payloads), [catalogGame({ image_url: null })]);
   assert.equal(payloads.length, 1);
   assert.equal(Object.hasOwn(payloads[0], 'image_url'), false);
   assert.deepEqual(payloads[0], {
@@ -121,26 +121,26 @@ test('a game with no art is upserted without an image_url key at all', async () 
 
 test('an empty cover string counts as no art', async () => {
   const payloads: UpsertPayload[] = [];
-  await cacheIGDBGames(fakeSupabase(payloads), [igdbGame({ image_url: '' })]);
+  await cacheCatalogGames(fakeSupabase(payloads), [catalogGame({ image_url: '' })]);
   assert.equal(Object.hasOwn(payloads[0], 'image_url'), false);
 });
 
 test('a game with art is upserted with exactly that url', async () => {
   const payloads: UpsertPayload[] = [];
-  await cacheIGDBGames(fakeSupabase(payloads), [
-    igdbGame({ image_url: 'https://images.igdb.com/igdb/image/upload/t_cover_big/co65ac.jpg' }),
+  await cacheCatalogGames(fakeSupabase(payloads), [
+    catalogGame({ image_url: 'https://images.igdb.com/igdb/image/upload/t_cover_big/co65ac.jpg' }),
   ]);
   assert.equal(payloads[0].image_url, 'https://images.igdb.com/igdb/image/upload/t_cover_big/co65ac.jpg');
 });
 
 test('the legacy-column retry keeps the same cover decision', async () => {
   const withoutArt: UpsertPayload[] = [];
-  await cacheIGDBGames(fakeSupabase(withoutArt, { failFirstWith: { code: 'PGRST204' } }), [igdbGame({ image_url: null })]);
+  await cacheCatalogGames(fakeSupabase(withoutArt, { failFirstWith: { code: 'PGRST204' } }), [catalogGame({ image_url: null })]);
   assert.deepEqual(Object.keys(withoutArt.at(-1)!), ['igdb_id', 'title', 'duration_hours', 'description']);
 
   const withArt: UpsertPayload[] = [];
-  await cacheIGDBGames(fakeSupabase(withArt, { failFirstWith: { code: 'PGRST204' } }), [
-    igdbGame({ image_url: 'https://images.igdb.com/igdb/image/upload/t_cover_big/co65ac.jpg' }),
+  await cacheCatalogGames(fakeSupabase(withArt, { failFirstWith: { code: 'PGRST204' } }), [
+    catalogGame({ image_url: 'https://images.igdb.com/igdb/image/upload/t_cover_big/co65ac.jpg' }),
   ]);
   assert.deepEqual(Object.keys(withArt.at(-1)!), ['igdb_id', 'title', 'duration_hours', 'image_url', 'description']);
   assert.equal(withArt.at(-1)!.image_url, 'https://images.igdb.com/igdb/image/upload/t_cover_big/co65ac.jpg');
@@ -148,46 +148,46 @@ test('the legacy-column retry keeps the same cover decision', async () => {
 
 test('a capa já gravada sobrevive e é o que a rota devolve ao cliente', async () => {
   const payloads: UpsertPayload[] = [];
-  const saved = await cacheIGDBGames(fakeSupabase(payloads), [igdbGame({ image_url: null })]);
+  const saved = await cacheCatalogGames(fakeSupabase(payloads), [catalogGame({ image_url: null })]);
   assert.equal(saved[0].image_url, STORED_COVER);
 });
 
 test('capa nova da IGDB substitui a que estava lá', async () => {
   const payloads: UpsertPayload[] = [];
-  const saved = await cacheIGDBGames(fakeSupabase(payloads), [igdbGame({ image_url: 'https://images.igdb.com/igdb/image/upload/t_cover_big/nova.jpg' })]);
+  const saved = await cacheCatalogGames(fakeSupabase(payloads), [catalogGame({ image_url: 'https://images.igdb.com/igdb/image/upload/t_cover_big/nova.jpg' })]);
   assert.equal(saved[0].image_url, 'https://images.igdb.com/igdb/image/upload/t_cover_big/nova.jpg');
 });
 
 test('uma página inteira não vira uma ida ao banco por jogo', async () => {
   const roundTrips = { count: 0 };
-  const page = Array.from({ length: 24 }, (_, index) => igdbGame({
+  const page = Array.from({ length: 24 }, (_, index) => catalogGame({
     id: 1000 + index,
     title: `Jogo ${index}`,
     image_url: index % 2 === 0 ? `https://images.igdb.com/igdb/image/upload/t_cover_big/capa${index}.jpg` : null,
   }));
-  const saved = await cacheIGDBGames(fakeSupabase([], { roundTrips }), page);
+  const saved = await cacheCatalogGames(fakeSupabase([], { roundTrips }), page);
   assert.equal(saved.length, 24);
   assert.ok(roundTrips.count <= 2, `esperava no máximo 2 idas ao banco, foram ${roundTrips.count}`);
 });
 
 test('a ordem que a IGDB devolveu é a ordem que o cliente recebe', async () => {
-  const page = Array.from({ length: 6 }, (_, index) => igdbGame({ id: 2000 + index, title: `Jogo ${index}` }));
-  const saved = await cacheIGDBGames(fakeSupabase([]), page);
+  const page = Array.from({ length: 6 }, (_, index) => catalogGame({ id: 2000 + index, title: `Jogo ${index}` }));
+  const saved = await cacheCatalogGames(fakeSupabase([]), page);
   assert.deepEqual(saved.map(game => game.title), ['Jogo 0', 'Jogo 1', 'Jogo 2', 'Jogo 3', 'Jogo 4', 'Jogo 5']);
 });
 
 test('capas intercaladas voltam na ordem da IGDB, não na ordem dos lotes', async () => {
   const cover = 'https://images.igdb.com/igdb/image/upload/t_cover_big/co65ac.jpg';
-  const page = Array.from({ length: 4 }, (_, index) => igdbGame({ id: 3000 + index, title: `Jogo ${index}`, image_url: index % 2 ? null : cover }));
-  const saved = await cacheIGDBGames(fakeSupabase([]), page);
+  const page = Array.from({ length: 4 }, (_, index) => catalogGame({ id: 3000 + index, title: `Jogo ${index}`, image_url: index % 2 ? null : cover }));
+  const saved = await cacheCatalogGames(fakeSupabase([]), page);
   assert.deepEqual(saved.map(game => game.title), ['Jogo 0', 'Jogo 1', 'Jogo 2', 'Jogo 3']);
 });
 
 test('jogo com capa e jogo sem capa não viajam no mesmo lote', async () => {
   const calls: UpsertCall[] = [];
-  const saved = await cacheIGDBGames(fakeSupabase([], { calls }), [
-    igdbGame({ id: 1, title: 'Com capa', image_url: 'https://images.igdb.com/igdb/image/upload/t_cover_big/co65ac.jpg' }),
-    igdbGame({ id: 2, title: 'Sem capa', image_url: null }),
+  const saved = await cacheCatalogGames(fakeSupabase([], { calls }), [
+    catalogGame({ id: 1, title: 'Com capa', image_url: 'https://images.igdb.com/igdb/image/upload/t_cover_big/co65ac.jpg' }),
+    catalogGame({ id: 2, title: 'Sem capa', image_url: null }),
   ]);
   for (const call of calls) {
     const withCover = call.rows.filter(row => Object.hasOwn(row, 'image_url')).length;
@@ -198,10 +198,10 @@ test('jogo com capa e jogo sem capa não viajam no mesmo lote', async () => {
 
 test('jogo que cai na linha de mesmo título com outro igdb_id continua no resultado, na ordem', async () => {
   const existing: StoredRow = { id: 'stored-legado', igdb_id: 777, title: 'Celeste', image_url: STORED_COVER };
-  const saved = await cacheIGDBGames(fakeSupabase([], { existingByTitle: new Map([['Celeste', existing]]) }), [
-    igdbGame({ id: 10, title: 'Antes' }),
-    igdbGame({ id: 11, title: 'Celeste' }),
-    igdbGame({ id: 12, title: 'Depois' }),
+  const saved = await cacheCatalogGames(fakeSupabase([], { existingByTitle: new Map([['Celeste', existing]]) }), [
+    catalogGame({ id: 10, title: 'Antes' }),
+    catalogGame({ id: 11, title: 'Celeste' }),
+    catalogGame({ id: 12, title: 'Depois' }),
   ]);
   assert.deepEqual(saved.map(game => game.title), ['Antes', 'Celeste', 'Depois']);
   assert.equal(saved[1].id, 'stored-legado');

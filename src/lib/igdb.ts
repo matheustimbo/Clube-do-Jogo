@@ -1,40 +1,13 @@
 import { evaluate2026ReleaseEligibility, type GotyReleaseEligibility } from '@clube-do-jogo/domain';
-import { isOfflineCatalogEnabled, offlineBrowseGames, offlineGameById, offlineGameMugshots, offlineSearchGames, offlineSearchPlatforms } from './igdb-offline';
+import type { CatalogBrowseOptions, CatalogCharacterMugshot, CatalogGame, CatalogPlatform } from './game-catalog';
+import { isOfflineCatalogEnabled, offlineBrowseGames, offlineSearchGames } from './igdb-offline';
 
-export interface IGDBGotyGameResult extends IGDBGameResult {
+export interface IGDBGotyGameResult extends CatalogGame {
   release_eligibility: GotyReleaseEligibility;
   effective_release_year: number | null;
   effective_release_date: string | null;
   eligibility_label: string;
   is_eligible_2026: boolean;
-}
-
-export interface IGDBGameResult {
-  id: number;
-  title: string;
-  duration_hours: number;
-  average_rating: number | null;
-  release_year: number | null;
-  image_url: string | null;
-  description: string;
-  screenshot_urls: string[];
-  trailer_url: string | null;
-  genres: string[];
-  platforms: string[];
-  platform_ids: number[];
-}
-
-export interface IGDBPlatformResult {
-  igdb_platform_id: number;
-  name: string;
-  abbreviation: string | null;
-  logo_url: string | null;
-}
-
-export interface IGDBCharacterMugshot {
-  id: number;
-  name: string;
-  image_url: string;
 }
 
 interface IGDBGame {
@@ -157,7 +130,7 @@ async function fetchGameDurations(clientId: string, token: string, gameIds: numb
   }
 }
 
-function mapIGDBGame(game: IGDBGame, durationHours = 10): IGDBGameResult {
+function mapIGDBGame(game: IGDBGame, durationHours = 10): CatalogGame {
   const imageUrl = game.cover?.image_id
     ? `https://images.igdb.com/igdb/image/upload/t_cover_big/${game.cover.image_id}.jpg`
     : null;
@@ -183,8 +156,7 @@ function mapIGDBGame(game: IGDBGame, durationHours = 10): IGDBGameResult {
   };
 }
 
-export async function searchPlatformsWithIGDB(query: string): Promise<IGDBPlatformResult[]> {
-  if (isOfflineCatalogEnabled()) return offlineSearchPlatforms(query);
+export async function searchPlatformsWithIGDB(query: string): Promise<CatalogPlatform[]> {
   const clientId = process.env.IGDB_CLIENT_ID;
   if (!clientId) throw new Error('IGDB_CLIENT_ID não configurado.');
   const token = await getTwitchToken();
@@ -209,8 +181,7 @@ export async function searchPlatformsWithIGDB(query: string): Promise<IGDBPlatfo
   }));
 }
 
-export async function searchGamesWithIGDB(query: string): Promise<IGDBGameResult[]> {
-  if (isOfflineCatalogEnabled()) return offlineSearchGames(query);
+export async function searchGamesWithIGDB(query: string): Promise<CatalogGame[]> {
   const clientId = process.env.IGDB_CLIENT_ID;
   if (!clientId) throw new Error('IGDB_CLIENT_ID não configurado.');
 
@@ -244,18 +215,7 @@ export async function searchGamesWithIGDB(query: string): Promise<IGDBGameResult
   return games.map(game => mapIGDBGame(game, durations.get(game.id)));
 }
 
-export type IGDBBrowseSort = 'popular' | 'rated' | 'recent' | 'anticipated';
-
-export async function browseGamesWithIGDB(options: {
-  query?: string;
-  sort?: IGDBBrowseSort;
-  genre?: number;
-  platform?: number;
-  year?: number;
-  offset?: number;
-  limit?: number;
-}): Promise<IGDBGameResult[]> {
-  if (isOfflineCatalogEnabled()) return offlineBrowseGames(options);
+export async function browseGamesWithIGDB(options: CatalogBrowseOptions): Promise<CatalogGame[]> {
   const clientId = process.env.IGDB_CLIENT_ID;
   if (!clientId) throw new Error('IGDB_CLIENT_ID não configurado.');
   const token = await getTwitchToken();
@@ -304,8 +264,7 @@ export async function browseGamesWithIGDB(options: {
   return games.map(game => mapIGDBGame(game, durations.get(game.id)));
 }
 
-export async function getGameMugshotsByIGDBId(igdbGameId: number): Promise<IGDBCharacterMugshot[]> {
-  if (isOfflineCatalogEnabled()) return offlineGameMugshots(igdbGameId);
+export async function getGameMugshotsByIGDBId(igdbGameId: number): Promise<CatalogCharacterMugshot[]> {
   const clientId = process.env.IGDB_CLIENT_ID;
   if (!clientId) throw new Error('IGDB_CLIENT_ID não configurado.');
   const token = await getTwitchToken();
@@ -337,8 +296,7 @@ export async function getGameMugshotsByIGDBId(igdbGameId: number): Promise<IGDBC
   });
 }
 
-export async function getGameByIGDBId(igdbId: number): Promise<IGDBGameResult | null> {
-  if (isOfflineCatalogEnabled()) return offlineGameById(igdbId);
+export async function getGameByIGDBId(igdbId: number): Promise<CatalogGame | null> {
   const clientId = process.env.IGDB_CLIENT_ID;
   if (!clientId) throw new Error('IGDB_CLIENT_ID não configurado.');
 

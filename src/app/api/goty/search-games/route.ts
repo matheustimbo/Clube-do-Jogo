@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { GOTY_2026_CURATED_CATALOG, type GotySearchGameResult } from '@clube-do-jogo/domain';
 import { createClient } from '@/lib/supabase/server';
 import { searchGoty2026GamesWithIGDB } from '@/lib/igdb';
-import { cacheIGDBGames } from '@/lib/game-cache';
+import { cacheCatalogGames } from '@/lib/game-cache';
 import type { Game } from '@/lib/types';
 
 function normalize(value: string): string {
@@ -58,7 +58,7 @@ export async function GET(request: Request) {
 
       if (igdbGames.length > 0) {
         source = 'igdb';
-        const cached = await cacheIGDBGames(supabase, igdbGames);
+        const cached = await cacheCatalogGames(supabase, igdbGames);
         const byIgdbId = new Map<number, Game>(
           cached.flatMap(item => (item.igdb_id ? [[item.igdb_id, item] as const] : [])),
         );

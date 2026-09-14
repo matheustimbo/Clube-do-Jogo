@@ -1,8 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Game } from './types';
-import type { IGDBGameResult } from './igdb';
+import type { CatalogGame } from './game-catalog';
 
-function payloadFor(game: IGDBGameResult) {
+function payloadFor(game: CatalogGame) {
   return {
     igdb_id: game.id,
     title: game.title,
@@ -23,9 +23,9 @@ function payloadFor(game: IGDBGameResult) {
 
 // Cada jogo de entrada junto da linha que o representa no banco. A linha pode ter
 // outro igdb_id (título repetido no fallback 23505), então ninguém casa pelo id dela.
-type CachedGame = [IGDBGameResult, Game];
+type CachedGame = [CatalogGame, Game];
 
-async function cacheOneByOne(supabase: SupabaseClient, games: IGDBGameResult[]): Promise<CachedGame[]> {
+async function cacheOneByOne(supabase: SupabaseClient, games: CatalogGame[]): Promise<CachedGame[]> {
   const saved: CachedGame[] = [];
   for (const game of games) {
     const payload = payloadFor(game);
@@ -58,12 +58,12 @@ async function cacheOneByOne(supabase: SupabaseClient, games: IGDBGameResult[]):
       }
       continue;
     }
-    if (error) console.error('Erro ao armazenar jogo da IGDB:', error);
+    if (error) console.error('Erro ao armazenar jogo do catálogo:', error);
   }
   return saved;
 }
 
-async function cacheBatch(supabase: SupabaseClient, games: IGDBGameResult[]): Promise<CachedGame[]> {
+async function cacheBatch(supabase: SupabaseClient, games: CatalogGame[]): Promise<CachedGame[]> {
   if (!games.length) return [];
   const { data, error } = await supabase.from('games').upsert(games.map(payloadFor), { onConflict: 'igdb_id' }).select();
   // Um lote é tudo ou nada, e as recuperações por linha (schema antigo, título
@@ -78,7 +78,7 @@ async function cacheBatch(supabase: SupabaseClient, games: IGDBGameResult[]): Pr
   });
 }
 
-export async function cacheIGDBGames(supabase: SupabaseClient, games: IGDBGameResult[]): Promise<Game[]> {
+export async function cacheCatalogGames(supabase: SupabaseClient, games: CatalogGame[]): Promise<Game[]> {
   if (!games.length) return [];
   // Um lote só para quem tem capa e outro para quem não tem: o postgrest-js manda
   // `columns` com a união das chaves do lote, então misturar os dois faria a capa
