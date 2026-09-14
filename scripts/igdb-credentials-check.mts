@@ -5,7 +5,7 @@ delete process.env.IGDB_OFFLINE_CATALOG;
 const { browseGamesWithIGDB, getGameByIGDBId, getGameMugshotsByIGDBId, searchGamesWithIGDB, searchPlatformsWithIGDB } =
   await import('../src/lib/igdb');
 
-const OUTER_WILDS = 26192;
+const OUTER_WILDS = 11737;
 
 const checks: Array<{ name: string; run: () => Promise<string> }> = [
   {
