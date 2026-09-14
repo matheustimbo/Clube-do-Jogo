@@ -1,19 +1,19 @@
-import type { IGDBCharacterMugshot, IGDBGameResult, IGDBPlatformResult } from './igdb';
+import type { CatalogBrowseOptions, CatalogCharacterMugshot, CatalogGame, CatalogPlatform } from './game-catalog';
 
 /**
- * Catálogo local usado no lugar da IGDB quando IGDB_OFFLINE_CATALOG=1.
+ * Catálogo local usado no lugar do provedor externo quando IGDB_OFFLINE_CATALOG=1.
  *
  * Existe para as verificações vivas (fixture Supabase + Next local) que não têm
- * o IGDB_CLIENT_ID/SECRET. A build final tem o segredo e nunca liga esta flag.
+ * credenciais do catálogo. A build final tem o segredo e nunca liga esta flag.
  * Os jogos casam com o seed da fixture (Outer Wilds, Hollow Knight, Celeste,
  * Hades) e trazem todos os campos que /api/search considera "metadados frescos",
- * senão a rota tenta a IGDB de qualquer jeito.
+ * senão a rota tenta o catálogo externo de qualquer jeito.
  */
 export function isOfflineCatalogEnabled(): boolean {
   return process.env.IGDB_OFFLINE_CATALOG === '1';
 }
 
-const PLATFORMS: IGDBPlatformResult[] = [
+const PLATFORMS: CatalogPlatform[] = [
   { igdb_platform_id: 6, name: 'PC (Microsoft Windows)', abbreviation: 'PC', logo_url: null },
   { igdb_platform_id: 130, name: 'Nintendo Switch', abbreviation: 'Switch', logo_url: null },
   { igdb_platform_id: 48, name: 'PlayStation 4', abbreviation: 'PS4', logo_url: null },
@@ -34,7 +34,7 @@ function game(input: {
   id: number;
   slug: string;
   title: string;
-  /** Capa real da IGDB quando o jogo existe no seed; sem ela a rota de mídia não sobrescreve a capa gravada. */
+  /** Capa real do catálogo quando o jogo existe no seed; sem ela a rota de mídia não sobrescreve a capa gravada. */
   cover?: string;
   year: number;
   hours: number;
@@ -42,7 +42,7 @@ function game(input: {
   genres: string[];
   platformIds: number[];
   description: string;
-}): IGDBGameResult {
+}): CatalogGame {
   return {
     id: input.id,
     title: input.title,
@@ -59,7 +59,7 @@ function game(input: {
   };
 }
 
-export const OFFLINE_CATALOG: readonly IGDBGameResult[] = [
+export const OFFLINE_CATALOG: readonly CatalogGame[] = [
   game({ id: 900001, slug: 'outer-wilds', cover: 'co65ac', title: 'Outer Wilds', year: 2019, hours: 17, rating: 86, genres: ['Adventure', 'Puzzle'], platformIds: [6, 48, 49, 130], description: 'Um sistema solar preso num loop de 22 minutos, explorado com curiosidade e um banjo.' }),
   game({ id: 900002, slug: 'hollow-knight', cover: 'co93cr', title: 'Hollow Knight', year: 2017, hours: 27, rating: 88, genres: ['Platform', 'Adventure'], platformIds: [6, 48, 49, 130], description: 'Um reino de insetos em ruínas, desenhado à mão e cheio de segredos.' }),
   game({ id: 900003, slug: 'celeste', cover: 'co3byy', title: 'Celeste', year: 2018, hours: 8, rating: 88, genres: ['Platform', 'Indie'], platformIds: [6, 48, 49, 130], description: 'Madeline escala uma montanha e o próprio pânico em fases precisas e generosas.' }),
@@ -76,13 +76,13 @@ function normalize(text: string) {
   return text.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 }
 
-export function offlineSearchGames(query: string): IGDBGameResult[] {
+export function offlineSearchGames(query: string): CatalogGame[] {
   const needle = normalize(query.trim());
   if (!needle) return [];
   return OFFLINE_CATALOG.filter(entry => normalize(entry.title).includes(needle)).slice(0, 5);
 }
 
-export function offlineBrowseGames(options: { query?: string; platform?: number; year?: number; offset?: number; limit?: number }): IGDBGameResult[] {
+export function offlineBrowseGames(options: CatalogBrowseOptions): CatalogGame[] {
   const limit = Math.max(1, Math.min(40, options.limit || 24));
   const offset = Math.max(0, options.offset || 0);
   const needle = normalize(options.query?.trim() ?? '');
@@ -93,11 +93,11 @@ export function offlineBrowseGames(options: { query?: string; platform?: number;
     .slice(offset, offset + limit);
 }
 
-export function offlineGameById(id: number): IGDBGameResult | null {
+export function offlineGameById(id: number): CatalogGame | null {
   return OFFLINE_CATALOG.find(entry => entry.id === id) ?? null;
 }
 
-export function offlineGameMugshots(gameId: number): IGDBCharacterMugshot[] {
+export function offlineGameMugshots(gameId: number): CatalogCharacterMugshot[] {
   const entry = offlineGameById(gameId);
   if (!entry) return [];
   return [1, 2].map(index => ({
@@ -107,7 +107,7 @@ export function offlineGameMugshots(gameId: number): IGDBCharacterMugshot[] {
   }));
 }
 
-export function offlineSearchPlatforms(query: string): IGDBPlatformResult[] {
+export function offlineSearchPlatforms(query: string): CatalogPlatform[] {
   const needle = normalize(query.trim());
   if (!needle) return [];
   return PLATFORMS.filter(platform =>

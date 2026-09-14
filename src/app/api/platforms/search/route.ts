@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { searchPlatformsWithIGDB } from '@/lib/igdb';
+import { searchPlatforms } from '@/lib/game-catalog';
 
 export async function GET(request: Request) {
   const query = new URL(request.url).searchParams.get('q')?.trim();
@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
 
   try {
-    return NextResponse.json(await searchPlatformsWithIGDB(query));
+    return NextResponse.json(await searchPlatforms(query));
   } catch (error) {
     console.error('Erro ao buscar plataformas:', error);
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Não foi possível buscar consoles.' }, { status: 500 });

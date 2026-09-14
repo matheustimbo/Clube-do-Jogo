@@ -20,6 +20,7 @@ import { useGameMedia, useGameMugshots, useUpdateProfile } from '@/state/profile
 import { ScreenshotsCarousel } from '@/features/media/ScreenshotsCarousel';
 import { ImageGalleryModal } from '@/features/media/ImageGalleryModal';
 import { MugshotsGrid } from '@/features/media/MugshotsGrid';
+import { CatalogAttribution } from '@/components/CatalogAttribution';
 import { TrailerModal } from '@/features/media/TrailerModal';
 import { AvatarCropEditor, DEFAULT_AVATAR_SELECTION_CROP } from '@/features/profile/AvatarCropEditor';
 import { useClubGameAdminAction } from '@/features/admin';
@@ -482,6 +483,8 @@ export default function GameDetailScreen() {
       />}
 
       {clubGameAdmin.sheet}
+
+      <CatalogAttribution />
     </Screen>
   );
 }

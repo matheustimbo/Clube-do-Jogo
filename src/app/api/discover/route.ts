@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { browseGamesWithIGDB, type IGDBBrowseSort } from '@/lib/igdb';
-import { cacheIGDBGames } from '@/lib/game-cache';
+import { browseGames, type CatalogBrowseSort } from '@/lib/game-catalog';
+import { cacheCatalogGames } from '@/lib/game-cache';
 import type { DiscoverItem, DiscoverSource, Game } from '@/lib/types';
 
 const catalogSources = new Set<DiscoverSource>(['popular', 'rated', 'recent', 'anticipated']);
@@ -41,8 +41,8 @@ export async function GET(request: Request) {
     if (!user) return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
 
     if (catalogSources.has(source)) {
-      const external = await browseGamesWithIGDB({ query, sort: source as IGDBBrowseSort, genre, platform, year, offset, limit });
-      const games = await cacheIGDBGames(supabase, external);
+      const external = await browseGames({ query, sort: source as CatalogBrowseSort, genre, platform, year, offset, limit });
+      const games = await cacheCatalogGames(supabase, external);
       return NextResponse.json({ items: games.map(game => ({ game } satisfies DiscoverItem)), hasMore: external.length === limit });
     }
 

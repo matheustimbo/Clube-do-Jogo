@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { getGameMugshotsByIGDBId, searchGamesWithIGDB } from '@/lib/igdb';
+import { getGameMugshots, searchGames } from '@/lib/game-catalog';
 
 function normalizedTitle(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -17,9 +17,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   try {
     const igdbId = game.igdb_id
-      ?? (await searchGamesWithIGDB(game.title)).find(candidate => normalizedTitle(candidate.title) === normalizedTitle(game.title))?.id;
+      ?? (await searchGames(game.title)).find(candidate => normalizedTitle(candidate.title) === normalizedTitle(game.title))?.id;
     if (!igdbId) return NextResponse.json({ mugshots: [] });
-    return NextResponse.json({ mugshots: await getGameMugshotsByIGDBId(igdbId) });
+    return NextResponse.json({ mugshots: await getGameMugshots(igdbId) });
   } catch (value) {
     console.error('Erro ao buscar mugshots do jogo:', value);
     return NextResponse.json({ mugshots: [] });
