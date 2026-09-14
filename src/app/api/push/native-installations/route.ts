@@ -5,12 +5,11 @@ import {
   registerNativePushInstallation,
   unlinkNativePushInstallation,
 } from '@/lib/push-native';
-import { createClient } from '@/lib/supabase/server';
+import { createRequestContext } from '@/lib/supabase/server';
 
 async function authenticatedClient() {
-  const client = await createClient();
-  const { data: { user } } = await client.auth.getUser();
-  return user ? client : null;
+  const { supabase: client, userId } = await createRequestContext();
+  return userId ? client : null;
 }
 
 export async function POST(request: Request) {

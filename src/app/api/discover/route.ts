@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createRequestContext } from '@/lib/supabase/server';
 import { browseGamesWithIGDB, type IGDBBrowseSort } from '@/lib/igdb';
 import { cacheIGDBGames } from '@/lib/game-cache';
 import type { DiscoverItem, DiscoverSource, Game } from '@/lib/types';
@@ -36,9 +36,8 @@ export async function GET(request: Request) {
   const offset = Math.max(0, Number(searchParams.get('offset')) || 0);
   const limit = Math.max(1, Math.min(40, Number(searchParams.get('limit')) || 24));
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
+    const { supabase, userId } = await createRequestContext();
+    if (!userId) return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
 
     if (catalogSources.has(source)) {
       const external = await browseGamesWithIGDB({ query, sort: source as IGDBBrowseSort, genre, platform, year, offset, limit });
@@ -48,8 +47,8 @@ export async function GET(request: Request) {
 
     if (source === 'friends') {
       const [{ data: backlog, error: backlogError }, { data: favorites, error: favoritesError }] = await Promise.all([
-        supabase.from('backlogs').select('created_at, user_id, games (*)').neq('user_id', user.id).order('created_at', { ascending: false }).limit(300),
-        supabase.from('favorite_games').select('created_at, user_id, games (*)').neq('user_id', user.id).order('created_at', { ascending: false }).limit(300),
+        supabase.from('backlogs').select('created_at, user_id, games (*)').neq('user_id', userId).order('created_at', { ascending: false }).limit(300),
+        supabase.from('favorite_games').select('created_at, user_id, games (*)').neq('user_id', userId).order('created_at', { ascending: false }).limit(300),
       ]);
       if (backlogError) throw backlogError;
       if (favoritesError) throw favoritesError;

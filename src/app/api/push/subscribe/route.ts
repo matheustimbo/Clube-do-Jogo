@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createRequestContext } from '@/lib/supabase/server';
 
 type PushSubscriptionPayload = { endpoint?: unknown; keys?: { p256dh?: unknown; auth?: unknown } };
 
@@ -28,9 +28,8 @@ function isAllowedEndpoint(endpoint: string) {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Nao autorizado.' }, { status: 401 });
+  const { supabase, userId } = await createRequestContext();
+  if (!userId) return NextResponse.json({ error: 'Nao autorizado.' }, { status: 401 });
 
   let body: PushSubscriptionPayload;
   try {
@@ -46,7 +45,7 @@ export async function POST(request: Request) {
   if (!isAllowedEndpoint(endpoint)) return NextResponse.json({ error: 'Endpoint de push nao permitido.' }, { status: 400 });
 
   const { error } = await supabase.from('push_subscriptions').upsert(
-    { user_id: user.id, endpoint, p256dh, auth, updated_at: new Date().toISOString() },
+    { user_id: userId, endpoint, p256dh, auth, updated_at: new Date().toISOString() },
     { onConflict: 'endpoint' },
   );
   if (error) return NextResponse.json({ error: 'Nao foi possivel salvar a assinatura.' }, { status: 500 });
