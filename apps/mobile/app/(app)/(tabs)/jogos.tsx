@@ -7,6 +7,7 @@ import { AppHeader } from '@/components/AppHeader';
 import { Chip } from '@/components/Chip';
 import { Sheet } from '@/components/Sheet';
 import { GameListRow } from '@/components/GameListRow';
+import { CatalogAttribution } from '@/components/CatalogAttribution';
 import { EmptyState, ErrorState, LoadingState } from '@/components/StateViews';
 import { useBacklog, useLibrary } from '@/state/queries';
 import { useDiscoveryPages, type DiscoveryFilters } from '@/state/library-queries';
@@ -174,13 +175,16 @@ export default function DiscoverScreen() {
           )
         }
         ListFooterComponent={
-          items.length > 0 ? (
-            discoverQuery.isFetchingNextPage ? (
-              <LoadingState label="Carregando mais jogos…" />
-            ) : discoverQuery.isError ? (
-              <ErrorState message={discoverQuery.error.message} onRetry={retryNextPage} />
-            ) : null
-          ) : null
+          <>
+            {items.length > 0 ? (
+              discoverQuery.isFetchingNextPage ? (
+                <LoadingState label="Carregando mais jogos…" />
+              ) : discoverQuery.isError ? (
+                <ErrorState message={discoverQuery.error.message} onRetry={retryNextPage} />
+              ) : null
+            ) : null}
+            <CatalogAttribution />
+          </>
         }
       />
 

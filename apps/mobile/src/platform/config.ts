@@ -9,6 +9,7 @@ const expoApiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
 const expoApiUrl = process.env.EXPO_PUBLIC_API_URL;
 const expoSiteUrl = process.env.EXPO_PUBLIC_SITE_URL;
 const expoRankingFormula = process.env.EXPO_PUBLIC_RANKING_FORMULA;
+const expoCatalogProvider = process.env.EXPO_PUBLIC_GAME_CATALOG_PROVIDER;
 const expoAutoOpenProductUpdate = process.env.EXPO_PUBLIC_AUTO_OPEN_PRODUCT_UPDATE;
 
 export interface SupabaseConfig {
@@ -43,6 +44,12 @@ export function getApiBaseUrl() {
 
 export function getRankingFormula() {
   return environmentValue(expoRankingFormula) === 'legacy' ? 'legacy' as const : 'preference' as const;
+}
+
+// Espelha o GAME_CATALOG_PROVIDER do servidor; o aplicativo precisa saber a fonte
+// para exibir a atribuição que a licença da RAWG exige.
+export function getCatalogProvider() {
+  return environmentValue(expoCatalogProvider) === 'rawg' ? 'rawg' as const : 'igdb' as const;
 }
 
 export function isProductUpdateAutoOpenEnabled() {
