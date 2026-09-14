@@ -1,9 +1,10 @@
-// O catálogo offline responderia por todas as chamadas e o teste passaria sem
-// tocar na IGDB. Desligar antes de importar o módulo, que lê a flag na carga.
+// O catálogo offline, ou a RAWG escolhida no ambiente, responderia por todas as
+// chamadas e o teste passaria sem tocar na IGDB. Fixar a IGDB antes de importar.
 delete process.env.IGDB_OFFLINE_CATALOG;
+process.env.GAME_CATALOG_PROVIDER = 'igdb';
 
-const { browseGamesWithIGDB, getGameByIGDBId, getGameMugshotsByIGDBId, searchGamesWithIGDB, searchPlatformsWithIGDB } =
-  await import('../src/lib/igdb');
+const { browseGames, getGameById, getGameMugshots, searchGames, searchPlatforms } =
+  await import('../src/lib/game-catalog');
 
 const OUTER_WILDS = 26192;
 
@@ -26,7 +27,7 @@ const checks: Array<{ name: string; run: () => Promise<string> }> = [
   {
     name: 'busca de jogos',
     async run() {
-      const games = await searchGamesWithIGDB('outer wilds');
+      const games = await searchGames('outer wilds');
       if (!games.length) throw new Error('nenhum resultado');
       if (!games[0].image_url) throw new Error('primeiro resultado sem capa');
       return `${games.length} resultados, capa e ${games[0].platforms.length} plataformas no primeiro`;
@@ -35,7 +36,7 @@ const checks: Array<{ name: string; run: () => Promise<string> }> = [
   {
     name: 'descoberta por popularidade',
     async run() {
-      const games = await browseGamesWithIGDB({ sort: 'popular', limit: 12, offset: 0 });
+      const games = await browseGames({ sort: 'popular', limit: 12, offset: 0 });
       if (games.length < 12) throw new Error(`esperava 12, veio ${games.length}`);
       return `${games.length} jogos`;
     },
@@ -43,7 +44,7 @@ const checks: Array<{ name: string; run: () => Promise<string> }> = [
   {
     name: 'tempo para zerar',
     async run() {
-      const games = await browseGamesWithIGDB({ sort: 'popular', limit: 12, offset: 0 });
+      const games = await browseGames({ sort: 'popular', limit: 12, offset: 0 });
       const withDuration = games.filter(game => game.duration_hours > 0);
       if (!withDuration.length) throw new Error('nenhum jogo trouxe duração; o endpoint game_time_to_beats falhou em silêncio');
       return `${withDuration.length} de ${games.length} com duração`;
@@ -52,7 +53,7 @@ const checks: Array<{ name: string; run: () => Promise<string> }> = [
   {
     name: 'jogo por id',
     async run() {
-      const game = await getGameByIGDBId(OUTER_WILDS);
+      const game = await getGameById(OUTER_WILDS);
       if (!game) throw new Error(`id ${OUTER_WILDS} não encontrado`);
       return `${game.title}, ${game.screenshot_urls.length} screenshots`;
     },
@@ -60,14 +61,14 @@ const checks: Array<{ name: string; run: () => Promise<string> }> = [
   {
     name: 'retratos de personagem',
     async run() {
-      const mugshots = await getGameMugshotsByIGDBId(OUTER_WILDS);
+      const mugshots = await getGameMugshots(OUTER_WILDS);
       return mugshots.length ? `${mugshots.length} retratos` : 'nenhum retrato para este jogo, endpoint respondeu';
     },
   },
   {
     name: 'busca de plataformas',
     async run() {
-      const platforms = await searchPlatformsWithIGDB('playstation');
+      const platforms = await searchPlatforms('playstation');
       if (!platforms.length) throw new Error('nenhuma plataforma');
       return `${platforms.length} plataformas`;
     },

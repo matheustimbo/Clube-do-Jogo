@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { searchGamesWithIGDB } from '@/lib/igdb';
-import { cacheIGDBGames } from '@/lib/game-cache';
+import { searchGames } from '@/lib/game-catalog';
+import { cacheCatalogGames } from '@/lib/game-cache';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -47,11 +47,11 @@ export async function GET(request: Request) {
       return NextResponse.json(cachedGames);
     }
 
-    // 3. Buscar na IGDB
-    const igdbResults = await searchGamesWithIGDB(query);
+    // 3. Buscar no catálogo externo
+    const catalogResults = await searchGames(query);
 
     // 4. Persistir o catálogo externo para que qualquer card possa abrir a página do jogo.
-    const savedGames = await cacheIGDBGames(supabase, igdbResults);
+    const savedGames = await cacheCatalogGames(supabase, catalogResults);
 
     const finalResults = savedGames.length > 0 ? savedGames : (cachedGames || []);
     return NextResponse.json(finalResults);

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { getGameByIGDBId, searchGamesWithIGDB } from '@/lib/igdb';
+import { getGameById, searchGames } from '@/lib/game-catalog';
 
 function normalizedTitle(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
@@ -16,8 +16,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   if (error || !game) return NextResponse.json({ error: 'Jogo não encontrado.' }, { status: 404 });
   try {
     const metadata = game.igdb_id
-      ? await getGameByIGDBId(game.igdb_id)
-      : (await searchGamesWithIGDB(game.title)).find(candidate => normalizedTitle(candidate.title) === normalizedTitle(game.title)) ?? null;
+      ? await getGameById(game.igdb_id)
+      : (await searchGames(game.title)).find(candidate => normalizedTitle(candidate.title) === normalizedTitle(game.title)) ?? null;
     if (!metadata) return NextResponse.json(game);
     const patch = {
       igdb_id: game.igdb_id ?? metadata.id,

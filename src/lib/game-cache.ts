@@ -1,8 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Game } from './types';
-import type { IGDBGameResult } from './igdb';
+import type { CatalogGame } from './game-catalog';
 
-export async function cacheIGDBGames(supabase: SupabaseClient, games: IGDBGameResult[]): Promise<Game[]> {
+export async function cacheCatalogGames(supabase: SupabaseClient, games: CatalogGame[]): Promise<Game[]> {
   const saved: Game[] = [];
   for (const game of games) {
     const payload = {
@@ -52,7 +52,7 @@ export async function cacheIGDBGames(supabase: SupabaseClient, games: IGDBGameRe
       }
       continue;
     }
-    if (error) console.error('Erro ao armazenar jogo da IGDB:', error);
+    if (error) console.error('Erro ao armazenar jogo do catálogo:', error);
   }
   return saved;
 }
