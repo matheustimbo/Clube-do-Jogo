@@ -19,6 +19,7 @@ import {
 import { createInitialSessionGate, shouldHydrateAuthSession } from './auth-lifecycle';
 import { clearPushSession, preparePushSignOut } from './push-session';
 import { publishIdentity } from './identity-scope';
+import { authMessage } from './auth-messages';
 
 const SELECTED_MONTH_KEY = '@clube-do-jogo/selected-month';
 
@@ -63,16 +64,6 @@ function initialState(): SessionState {
     activeMonth: month,
     months: [month],
   };
-}
-
-function authMessage(error: unknown, fallback: string) {
-  if (!error || typeof error !== 'object') return fallback;
-  const message = 'message' in error ? String((error as { message: unknown }).message) : '';
-  if (/invalid login|invalid credentials/i.test(message)) return 'Email ou senha incorretos.';
-  if (/already registered|user already/i.test(message)) return 'Este email já está cadastrado.';
-  if (/password/i.test(message) && /short|weak|length/i.test(message)) return 'A senha precisa ser mais forte.';
-  if (/network|fetch|connect/i.test(message)) return 'Não foi possível conectar. Tente novamente.';
-  return fallback;
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }): React.ReactElement {
