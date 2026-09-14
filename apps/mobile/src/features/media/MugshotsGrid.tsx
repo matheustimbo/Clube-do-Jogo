@@ -17,7 +17,7 @@ export function MugshotsGrid({ mugshots, isLoading, avatarUrl, updatingAvatarUrl
   const colors = useThemeColors();
   const styles = useStyles();
   if (isLoading) return <LoadingState label="Carregando personagens…" />;
-  if (!mugshots.length) return <EmptyState icon="people-outline" title="Sem personagens" description="A IGDB ainda não tem personagens associados a esse jogo." />;
+  if (!mugshots.length) return <EmptyState icon="people-outline" title="Sem personagens" description="O catálogo de jogos não tem personagens associados a esse jogo." />;
 
   return (
     <View style={styles.grid}>
@@ -49,7 +49,7 @@ export function MugshotsGrid({ mugshots, isLoading, avatarUrl, updatingAvatarUrl
           </View>
         );
       })}
-      <Text style={styles.footnote}>Personagens associados a {title} pela IGDB.</Text>
+      <Text style={styles.footnote}>Personagens associados a {title} pelo catálogo de jogos.</Text>
     </View>
   );
 }
