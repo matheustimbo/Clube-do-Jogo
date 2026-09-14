@@ -3,7 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { radii, spacing, themedStyles, typography, useThemeColors } from '@/theme';
-import type { Game } from '@clube-do-jogo/domain';
+import { gameCoverUrl, type Game } from '@clube-do-jogo/domain';
 
 export function GameListRow({ game, onPress, action, subtitle }: {
   game: Game;
@@ -15,7 +15,7 @@ export function GameListRow({ game, onPress, action, subtitle }: {
   const styles = useStyles();
   const details = (
     <>
-      <Image source={{ uri: game.image_url }} style={styles.cover} contentFit="cover" accessibilityLabel={`Capa de ${game.title}`} />
+      <Image source={{ uri: gameCoverUrl(game.image_url) }} style={styles.cover} contentFit="cover" accessibilityLabel={`Capa de ${game.title}`} />
       <View style={styles.info}>
         <Text style={styles.title} numberOfLines={2}>{game.title}</Text>
         <View style={styles.metaRow}>

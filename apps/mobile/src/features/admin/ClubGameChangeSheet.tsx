@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import type { UseMutationResult } from '@tanstack/react-query';
 import type { ClubGameChangePreview, ClubGameChangeResult } from '@clube-do-jogo/data';
-import type { Game } from '@clube-do-jogo/domain';
+import { gameCoverUrl, type Game } from '@clube-do-jogo/domain';
 import { formatMonth } from '@/lib/format';
 import { Button } from '@/components/Button';
 import { Sheet } from '@/components/Sheet';
@@ -97,7 +97,7 @@ function GamePicker({ onSelect }: { onSelect: (game: Game) => void }) {
               testID={`admin-club-game-${item.id}`}
               style={({ pressed }) => [styles.gameRow, pressed && styles.gameRowPressed]}
             >
-              <Image source={{ uri: item.image_url }} style={styles.gameCover} contentFit="cover" />
+              <Image source={{ uri: gameCoverUrl(item.image_url) }} style={styles.gameCover} contentFit="cover" />
               <Text style={styles.gameTitle} numberOfLines={2}>{item.title}</Text>
               <Ionicons name="chevron-forward" size={18} color={colors.zinc600} />
             </Pressable>
@@ -120,7 +120,7 @@ function ModeChoice({ game, onBack, onPreviewed }: {
   return (
     <View style={styles.modeBody}>
       <View style={styles.selectedGameRow}>
-        <Image source={{ uri: game.image_url }} style={styles.gameCover} contentFit="cover" />
+        <Image source={{ uri: gameCoverUrl(game.image_url) }} style={styles.gameCover} contentFit="cover" />
         <Text style={styles.selectedGameTitle} numberOfLines={2}>{game.title}</Text>
       </View>
 
@@ -209,7 +209,7 @@ function ConfirmChange({ game, preview, setClubGame, onBack, onApplied }: {
   return (
     <ScrollView contentContainerStyle={styles.confirmBody} keyboardShouldPersistTaps="handled">
       <View style={styles.selectedGameRow}>
-        <Image source={{ uri: game.image_url }} style={styles.gameCover} contentFit="cover" />
+        <Image source={{ uri: gameCoverUrl(game.image_url) }} style={styles.gameCover} contentFit="cover" />
         <Text style={styles.selectedGameTitle} numberOfLines={2}>{game.title}</Text>
       </View>
 

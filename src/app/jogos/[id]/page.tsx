@@ -7,6 +7,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import * as Tabs from '@radix-ui/react-tabs';
 import { CalendarDays, CheckCircle2, Clock3, Gamepad2, Heart, ImageIcon, LayoutDashboard, ListChecks, NotebookPen, Share2, ThumbsDown, ThumbsUp, Trash2 } from 'lucide-react';
+import { gameCoverUrl } from '@clube-do-jogo/domain';
 import { createClient } from '@/lib/supabase/client';
 import { demoRanking } from '@/lib/demo-data';
 import { fetchGame, fetchUserPlatforms } from '@/lib/data';
@@ -169,7 +170,7 @@ export default function GamePage() {
 
   const trailer = youtubeEmbedUrl(game.trailer_url);
   const screenshots = game.screenshot_urls || [];
-  const galleryImages = Array.from(new Set([game.image_url, ...screenshots].filter(Boolean)));
+  const galleryImages = Array.from(new Set([game.image_url, ...screenshots].filter((url): url is string => Boolean(url))));
   const choiceCounts = { would_play: people.choiceProfiles.would_play.length, would_not_play: people.choiceProfiles.would_not_play.length };
   const totalPoints = rankingScore(ACTIVE_RANKING_FORMULA, game, choiceCounts, people.completed.length);
   const ratingValue = game.average_rating === null || game.average_rating === undefined ? null : Math.max(0, Math.min(10, game.average_rating / 10));
@@ -229,7 +230,7 @@ export default function GamePage() {
   return (
     <div className="game-detail-page animate-fade-in">
       <div className="game-detail-trailer-bleed -mx-4 mb-4 max-h-[34dvh] overflow-hidden bg-black sm:-mx-8 sm:mb-6 sm:max-h-none">
-        {trailer ? <FloatingTrailer src={trailer} title={`Trailer de ${game.title}`} /> : <div className="aspect-video"><img src={game.image_url} alt={`Capa de ${game.title}`} className="size-full object-cover" /></div>}
+        {trailer ? <FloatingTrailer src={trailer} title={`Trailer de ${game.title}`} /> : <div className="aspect-video"><img src={gameCoverUrl(game.image_url)} alt={`Capa de ${game.title}`} className="size-full object-cover" /></div>}
       </div>
       <div className="mx-auto max-w-4xl">
         <section className="game-detail-summary px-0 pb-6 sm:pb-7">
