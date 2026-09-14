@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { radii, spacing, themedStyles, typography, useNativeTheme } from '@/theme';
 
@@ -13,8 +14,13 @@ export function Sheet({ visible, title, onClose, children, avoidKeyboard = false
 }) {
   const theme = useNativeTheme();
   const styles = useStyles();
+  const insets = useSafeAreaInsets();
   const content = (
-    <Pressable style={styles.sheet} onPress={event => event.stopPropagation()} accessible={false}>
+    <Pressable
+      style={[styles.sheet, { paddingBottom: Math.max(spacing.xxl, insets.bottom + spacing.sm) }]}
+      onPress={event => event.stopPropagation()}
+      accessible={false}
+    >
       <View style={styles.header}>
         <Text style={styles.title} accessibilityRole="header">{title}</Text>
         <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Fechar" hitSlop={12}>
@@ -58,7 +64,6 @@ const useStyles = themedStyles(colors => ({
     borderColor: colors.hairline,
     maxHeight: '85%',
     overflow: 'hidden',
-    paddingBottom: spacing.xxl,
   },
   header: {
     flexDirection: 'row',
