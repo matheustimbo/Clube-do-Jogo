@@ -25,6 +25,8 @@ function resolveApiUrl(path: string, baseValue: string) {
   return url.toString();
 }
 
+const SESSION_EXPIRED = 'Sua sessão expirou. Entre novamente para continuar.';
+
 export function createMobileApiTransport(client: SupabaseClient | null, apiBaseUrlOverride?: string) {
   return {
     async request(path: string, init?: RequestInit) {
@@ -33,17 +35,31 @@ export function createMobileApiTransport(client: SupabaseClient | null, apiBaseU
       if (!client) throw new Error('Configure o Supabase para acessar a API.');
       const { data, error } = await client.auth.getSession();
       if (error) throw new Error('Não foi possível validar sua sessão.');
-      if (!data.session?.access_token) throw new Error('Sua sessão expirou. Entre novamente para continuar.');
-      const headers = new Headers(init?.headers);
-      headers.delete('Authorization');
-      headers.delete('Cookie');
-      headers.set('Authorization', `Bearer ${data.session.access_token}`);
-      return fetch(resolveApiUrl(path, base), {
-        ...init,
-        headers,
-        credentials: 'omit',
-        redirect: 'error',
-      });
+      if (!data.session?.access_token) throw new Error(SESSION_EXPIRED);
+
+      const url = resolveApiUrl(path, base);
+      const send = (token: string) => {
+        const headers = new Headers(init?.headers);
+        headers.delete('Authorization');
+        headers.delete('Cookie');
+        headers.set('Authorization', `Bearer ${token}`);
+        return fetch(url, { ...init, headers, credentials: 'omit', redirect: 'error' });
+      };
+
+      const response = await send(data.session.access_token);
+      if (response.status !== 401) return response;
+
+      const refreshed = await client.auth.refreshSession();
+      const token = refreshed.data.session?.access_token;
+      if (refreshed.error || !token) throw new Error(SESSION_EXPIRED);
+
+      // Repetir um POST costuma ser perigoso, mas um 401 é recusa antes de
+      // executar, então a primeira tentativa não deixou efeito para duplicar.
+      const retry = await send(token);
+      if (retry.status === 401) {
+        throw new Error('O servidor recusou o acesso mesmo com a sessão renovada. Avise quem cuida do clube.');
+      }
+      return retry;
     },
   };
 }
