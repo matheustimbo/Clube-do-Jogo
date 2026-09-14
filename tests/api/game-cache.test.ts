@@ -35,7 +35,9 @@ function fakeSupabase(payloads: UpsertPayload[], failFirstWith?: { code: string 
           const error = calls === 1 && failFirstWith ? failFirstWith : null;
           return {
             select: () => ({
-              single: async () => (error ? { data: null, error } : { data: { id: 'stored-row', ...payload }, error: null }),
+              single: async () => (error
+                ? { data: null, error }
+                : { data: { id: 'stored-row', image_url: 'https://images.igdb.com/igdb/image/upload/t_cover_big/stored.jpg', ...payload }, error: null }),
             }),
           };
         },
@@ -50,19 +52,19 @@ test('a game with no art is upserted without an image_url key at all', async () 
   await cacheIGDBGames(fakeSupabase(payloads), [igdbGame({ image_url: null })]);
   assert.equal(payloads.length, 1);
   assert.equal(Object.hasOwn(payloads[0], 'image_url'), false);
-  assert.deepEqual(Object.keys(payloads[0]), [
-    'igdb_id',
-    'title',
-    'duration_hours',
-    'average_rating',
-    'release_year',
-    'description',
-    'screenshot_urls',
-    'trailer_url',
-    'genres',
-    'platforms',
-    'platform_ids',
-  ]);
+  assert.deepEqual(payloads[0], {
+    igdb_id: 1942,
+    title: 'Tunic',
+    duration_hours: 12,
+    average_rating: 84,
+    release_year: 2022,
+    description: 'Uma raposinha explora um mundo cheio de segredos.',
+    screenshot_urls: ['https://images.igdb.com/shot-1.jpg'],
+    trailer_url: null,
+    genres: ['Aventura'],
+    platforms: ['PC'],
+    platform_ids: [6],
+  });
 });
 
 test('an empty cover string counts as no art', async () => {
@@ -91,4 +93,16 @@ test('the legacy-column retry keeps the same cover decision', async () => {
   ]);
   assert.deepEqual(Object.keys(withArt[1]), ['igdb_id', 'title', 'duration_hours', 'image_url', 'description']);
   assert.equal(withArt[1].image_url, 'https://images.igdb.com/igdb/image/upload/t_cover_big/co65ac.jpg');
+});
+
+test('a capa já gravada sobrevive e é o que a rota devolve ao cliente', async () => {
+  const payloads: UpsertPayload[] = [];
+  const saved = await cacheIGDBGames(fakeSupabase(payloads), [igdbGame({ image_url: null })]);
+  assert.equal(saved[0].image_url, 'https://images.igdb.com/igdb/image/upload/t_cover_big/stored.jpg');
+});
+
+test('capa nova da IGDB substitui a que estava lá', async () => {
+  const payloads: UpsertPayload[] = [];
+  const saved = await cacheIGDBGames(fakeSupabase(payloads), [igdbGame({ image_url: 'https://images.igdb.com/igdb/image/upload/t_cover_big/nova.jpg' })]);
+  assert.equal(saved[0].image_url, 'https://images.igdb.com/igdb/image/upload/t_cover_big/nova.jpg');
 });

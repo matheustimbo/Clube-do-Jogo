@@ -160,6 +160,7 @@ export default function GameDetailScreen() {
   }
 
   const mutationError = backlog.error || favorite.error || vote.error || setProgress.error;
+  const hasCover = Boolean(game.image_url);
   const galleryImages = [game.image_url, ...(game.screenshot_urls ?? [])].filter((url): url is string => Boolean(url));
   const mugshots = mugshotsQuery.data ?? [];
   const allGalleryImages = [...galleryImages, ...mugshots.map(mugshot => mugshot.image_url)];
@@ -201,7 +202,7 @@ export default function GameDetailScreen() {
         }
       />
 
-      <Pressable onPress={() => setGalleryIndex(0)} accessibilityRole="button" accessibilityLabel={`Ampliar capa de ${game.title}`}>
+      <Pressable onPress={hasCover ? () => setGalleryIndex(0) : undefined} disabled={!hasCover} accessibilityRole={hasCover ? 'button' : 'image'} accessibilityLabel={hasCover ? `Ampliar capa de ${game.title}` : `Capa de ${game.title}`}>
         <Image source={{ uri: gameCoverUrl(game.image_url) }} style={styles.cover} contentFit="cover" accessibilityLabel={`Capa de ${game.title}`} />
       </Pressable>
 
@@ -293,7 +294,7 @@ export default function GameDetailScreen() {
             images={game.screenshot_urls}
             avatarUrl={undefined}
             updatingAvatarUrl={updateProfile.isPending ? avatarSource?.url : null}
-            onOpen={index => setGalleryIndex(index + 1)}
+            onOpen={index => setGalleryIndex((hasCover ? 1 : 0) + index)}
             onChooseAvatar={chooseAvatarFromScreenshot}
           />
         </View>
