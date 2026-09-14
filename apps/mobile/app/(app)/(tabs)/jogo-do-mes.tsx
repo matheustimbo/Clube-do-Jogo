@@ -20,7 +20,7 @@ import { useGameOfMonth, useProgress, useSetProgress } from '@/state/queries';
 import { useSetRating } from '@/state/library-queries';
 import { formatMonth, formatShortDate } from '@/lib/format';
 import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
-import type { ProgressStatus, RatingDetails, RatingMode } from '@clube-do-jogo/domain';
+import { gameCoverUrl, type ProgressStatus, type RatingDetails, type RatingMode } from '@clube-do-jogo/domain';
 
 const statusOrder: ProgressStatus[] = ['not_started', 'started', 'finished'];
 
@@ -116,7 +116,7 @@ export default function GameOfMonthScreen() {
               <Ionicons name="ribbon" size={13} color={colors.amber300} />
               <Text style={styles.monthChipText}>Jogo de {formatMonth(selectedMonth, { includeYear: false })}</Text>
             </View>
-            <Image source={{ uri: game.image_url }} style={styles.cover} contentFit="cover" accessibilityLabel={`Capa de ${game.title}`} />
+            <Image source={{ uri: gameCoverUrl(game.image_url) }} style={styles.cover} contentFit="cover" accessibilityLabel={`Capa de ${game.title}`} />
             <Text style={styles.title}>{game.title}</Text>
             <View style={styles.metaRow}>
               <View style={styles.metaChip}>

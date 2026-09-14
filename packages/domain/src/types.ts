@@ -39,7 +39,7 @@ export interface Game {
   duration_hours: number;
   average_rating?: number | null;
   release_year?: number | null;
-  image_url: string;
+  image_url: string | null;
   description: string;
   screenshot_urls?: string[] | null;
   trailer_url?: string | null;

@@ -27,7 +27,7 @@ import { VoteParticipantsSheet } from '@/components/VoteParticipantsSheet';
 import { getCanonicalGameUrl } from '@/features/media/canonical-url';
 import { getRankingFormula } from '@/platform/config';
 import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
-import type { AvatarCrop, GameMugshot, ProgressStatus, RatingDetails, RatingMode, VoteChoice, VoteReason } from '@clube-do-jogo/domain';
+import { gameCoverUrl, type AvatarCrop, type GameMugshot, type ProgressStatus, type RatingDetails, type RatingMode, type VoteChoice, type VoteReason } from '@clube-do-jogo/domain';
 
 const rankingFormula = getRankingFormula();
 const DESCRIPTION_EXPAND_THRESHOLD = 180;
@@ -160,7 +160,8 @@ export default function GameDetailScreen() {
   }
 
   const mutationError = backlog.error || favorite.error || vote.error || setProgress.error;
-  const galleryImages = [game.image_url, ...(game.screenshot_urls ?? [])].filter(Boolean) as string[];
+  const hasCover = Boolean(game.image_url);
+  const galleryImages = [game.image_url, ...(game.screenshot_urls ?? [])].filter((url): url is string => Boolean(url));
   const mugshots = mugshotsQuery.data ?? [];
   const allGalleryImages = [...galleryImages, ...mugshots.map(mugshot => mugshot.image_url)];
 
@@ -201,8 +202,8 @@ export default function GameDetailScreen() {
         }
       />
 
-      <Pressable onPress={() => setGalleryIndex(0)} accessibilityRole="button" accessibilityLabel={`Ampliar capa de ${game.title}`}>
-        <Image source={{ uri: game.image_url }} style={styles.cover} contentFit="cover" accessibilityLabel={`Capa de ${game.title}`} />
+      <Pressable onPress={hasCover ? () => setGalleryIndex(0) : undefined} disabled={!hasCover} accessibilityRole={hasCover ? 'button' : 'image'} accessibilityLabel={hasCover ? `Ampliar capa de ${game.title}` : `Capa de ${game.title}`}>
+        <Image source={{ uri: gameCoverUrl(game.image_url) }} style={styles.cover} contentFit="cover" accessibilityLabel={`Capa de ${game.title}`} />
       </Pressable>
 
       {game.trailer_url ? (
@@ -293,7 +294,7 @@ export default function GameDetailScreen() {
             images={game.screenshot_urls}
             avatarUrl={undefined}
             updatingAvatarUrl={updateProfile.isPending ? avatarSource?.url : null}
-            onOpen={index => setGalleryIndex(index + 1)}
+            onOpen={index => setGalleryIndex((hasCover ? 1 : 0) + index)}
             onChooseAvatar={chooseAvatarFromScreenshot}
           />
         </View>

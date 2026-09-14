@@ -27,7 +27,7 @@ import {
   type RankingGroup,
   type RankingView as RankingViewMode,
 } from '@/features/ranking/ranking-view';
-import type { Game, RankingItem, VoteChoice, VoteReason } from '@clube-do-jogo/domain';
+import { gameCoverUrl, type Game, type RankingItem, type VoteChoice, type VoteReason } from '@clube-do-jogo/domain';
 
 const rankingViews: Array<{ value: RankingViewMode; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
   { value: 'ranking', label: 'Ranking atual', icon: 'reorder-four-outline' },
@@ -198,7 +198,7 @@ export default function RankingScreen() {
                 accessibilityLabel={`Ver detalhes de ${item.game.title}`}
                 style={styles.row}
               >
-                <Image source={{ uri: item.game.image_url }} style={styles.cover} contentFit="cover" accessibilityLabel={`Capa de ${item.game.title}`} />
+                <Image source={{ uri: gameCoverUrl(item.game.image_url) }} style={styles.cover} contentFit="cover" accessibilityLabel={`Capa de ${item.game.title}`} />
                 <View style={styles.info}>
                   <Text style={styles.title} numberOfLines={2}>{item.game.title}</Text>
                   <View style={styles.metaRow}>

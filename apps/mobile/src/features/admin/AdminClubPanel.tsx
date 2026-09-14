@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AppState, Image, Text, View } from 'react-native';
 import type { ClubGameUndoPreview } from '@clube-do-jogo/data';
+import { gameCoverUrl } from '@clube-do-jogo/domain';
 import { formatMonth, formatShortDate } from '@/lib/format';
 import { Button } from '@/components/Button';
 import { EmptyState, ErrorState, LoadingState } from '@/components/StateViews';
@@ -58,7 +59,7 @@ export function AdminClubPanel() {
           <ErrorState message={gameOfMonthQuery.error.message} onRetry={() => void gameOfMonthQuery.refetch()} />
         ) : gameOfMonthQuery.data ? (
           <View style={styles.currentGameRow}>
-            <Image source={{ uri: gameOfMonthQuery.data.image_url }} style={styles.currentGameCover} />
+            <Image source={{ uri: gameCoverUrl(gameOfMonthQuery.data.image_url) }} style={styles.currentGameCover} />
             <View style={styles.currentGameInfo}>
               <Text style={styles.currentGameTitle} numberOfLines={2}>{gameOfMonthQuery.data.title}</Text>
               <Text style={styles.currentGameMeta}>Ciclo de {formatMonth(activeMonth)}</Text>

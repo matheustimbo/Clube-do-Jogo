@@ -5,6 +5,7 @@ export * from './dates';
 export * from './ratings';
 export * from './library';
 export * from './demo';
+export * from './game-cover';
 export * from './avatar';
 export * from './product-updates';
 export { DEFAULT_THEME, getSelectableThemes, isThemeId, themes, THEME_STORAGE_KEY } from './themes';
