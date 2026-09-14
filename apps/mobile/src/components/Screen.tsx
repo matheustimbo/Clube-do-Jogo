@@ -28,7 +28,7 @@ export function Screen({ children, scroll = true, contentContainerStyle, onRefre
     <SafeAreaView style={safeArea} edges={edges ?? ['top']}>
       <KeyboardAvoidingView style={styles.keyboardArea} behavior="height" enabled={Platform.OS === 'android'}>
         <ScrollView
-          contentContainerStyle={[styles.content, contentContainerStyle as object]}
+          contentContainerStyle={[styles.content, styles.scrollContent, contentContainerStyle as object]}
           refreshControl={onRefresh ? <RefreshControl refreshing={Boolean(refreshing)} onRefresh={onRefresh} tintColor={theme.colors.violet400} /> : undefined}
           automaticallyAdjustKeyboardInsets
           keyboardShouldPersistTaps="handled"
@@ -44,5 +44,7 @@ const useStyles = themedStyles(colors => ({
   keyboardArea: { flex: 1 },
   safeArea: { flex: 1, backgroundColor: colors.background },
   safeAreaScenic: { backgroundColor: 'transparent' },
-  content: { padding: spacing.lg, paddingBottom: spacing.xxxl * 2, flexGrow: 1 },
+  content: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, flexGrow: 1 },
+  // Só no ramo rolável: em scroll={false} esta folga vira espaço morto fixo e corta a lista.
+  scrollContent: { paddingBottom: spacing.xxxl * 2 },
 }));
