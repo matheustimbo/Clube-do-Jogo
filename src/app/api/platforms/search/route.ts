@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createRequestContext } from '@/lib/supabase/server';
 import { searchPlatformsWithIGDB } from '@/lib/igdb';
 
 export async function GET(request: Request) {
   const query = new URL(request.url).searchParams.get('q')?.trim();
   if (!query) return NextResponse.json({ error: 'Parâmetro de busca "q" é obrigatório.' }, { status: 400 });
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
+  const { userId } = await createRequestContext();
+  if (!userId) return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
 
   try {
     return NextResponse.json(await searchPlatformsWithIGDB(query));

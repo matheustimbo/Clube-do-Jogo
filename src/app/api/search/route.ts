@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createRequestContext } from '@/lib/supabase/server';
 import { searchGamesWithIGDB } from '@/lib/igdb';
 import { cacheIGDBGames } from '@/lib/game-cache';
 
@@ -12,11 +12,10 @@ export async function GET(request: Request) {
   }
 
   try {
-    const supabase = await createClient();
+    const { supabase, userId } = await createRequestContext();
 
     // 1. Verificar se o usuário está autenticado
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
+    if (!userId) {
       return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
     }
 

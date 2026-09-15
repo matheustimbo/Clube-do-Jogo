@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createRequestContext } from '@/lib/supabase/server';
 import { getGameByIGDBId, searchGamesWithIGDB } from '@/lib/igdb';
 
 function normalizedTitle(value: string) {
@@ -8,9 +8,8 @@ function normalizedTitle(value: string) {
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
+  const { supabase, userId } = await createRequestContext();
+  if (!userId) return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
 
   const { data: game, error } = await supabase.from('games').select('*').eq('id', id).maybeSingle();
   if (error || !game) return NextResponse.json({ error: 'Jogo não encontrado.' }, { status: 404 });

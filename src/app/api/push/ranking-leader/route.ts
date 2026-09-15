@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { createClient } from '@/lib/supabase/server';
+import { createRequestContext } from '@/lib/supabase/server';
 import { dispatchPushNotification, isPushConfigured } from '@/lib/push';
 import { ACTIVE_RANKING_FORMULA, compareRankingItems, rankingScore } from '@/lib/ranking';
 import { byChoice } from '@clube-do-jogo/domain';
@@ -8,9 +8,8 @@ import { byChoice } from '@clube-do-jogo/domain';
 type RequestBody = { voteMonth?: unknown; previousLeaderId?: unknown; leaderId?: unknown };
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Nao autorizado.' }, { status: 401 });
+  const { userId } = await createRequestContext();
+  if (!userId) return NextResponse.json({ error: 'Nao autorizado.' }, { status: 401 });
 
   let body: RequestBody;
   try {
