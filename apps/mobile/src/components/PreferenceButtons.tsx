@@ -2,11 +2,7 @@ import { Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { radii, spacing, themedStyles, useThemeColors } from '@/theme';
 import type { VoteChoice } from '@clube-do-jogo/domain';
-
-const options: Array<{ value: VoteChoice; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
-  { value: 'would_not_play', label: 'Não', icon: 'thumbs-down' },
-  { value: 'would_play', label: 'Jogaria', icon: 'thumbs-up' },
-];
+import { preferenceOptions } from './preference-options';
 
 export function PreferenceButtons({ value, disabled, onChange }: {
   value: VoteChoice | null;
@@ -17,7 +13,7 @@ export function PreferenceButtons({ value, disabled, onChange }: {
   const styles = useStyles();
   return (
     <View style={styles.row}>
-      {options.map(option => {
+      {preferenceOptions.map(option => {
         const active = value === option.value;
         return (
           <Pressable

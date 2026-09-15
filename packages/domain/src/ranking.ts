@@ -1,6 +1,14 @@
 import type { Game, RankingFormula, RankingItem, VoteChoice } from './types';
 
+// Ordem canônica da votação, positivo primeiro. Os contadores e os botões leem
+// daqui porque quando cada tela mantinha a própria lista elas divergiram, e o
+// número verde acabou em cima do botão vermelho.
 export const voteChoices: VoteChoice[] = ['would_play', 'would_not_play'];
+
+export const voteChoiceLabels: Record<VoteChoice, string> = {
+  would_play: 'Jogaria',
+  would_not_play: 'Não',
+};
 
 export function legacyPlaytimePoints(hours: number): number {
   if (hours < 8) return 1;

@@ -8,6 +8,7 @@ import { AppHeader } from '@/components/AppHeader';
 import { AddGameToVoteSheet } from '@/components/AddGameToVoteSheet';
 import { Chip } from '@/components/Chip';
 import { PreferenceButtons } from '@/components/PreferenceButtons';
+import { preferenceOptions } from '@/components/preference-options';
 import { Sheet } from '@/components/Sheet';
 import { VoteParticipantsSheet } from '@/components/VoteParticipantsSheet';
 import { VoteReasonSheet, voteReasonLabel } from '@/components/VoteReasonSheet';
@@ -227,24 +228,22 @@ export default function RankingScreen() {
               </Pressable>
 
               <View style={styles.countsRow}>
-                <Pressable
-                  onPress={() => setParticipantsTarget({ item, choice: 'would_play' })}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Ver quem votou Jogaria em ${item.game.title}`}
-                  style={styles.countChip}
-                >
-                  <Ionicons name="thumbs-up" size={13} color={colors.emerald400} />
-                  <Text style={styles.countText}>{item.choiceCounts.would_play}</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => setParticipantsTarget({ item, choice: 'would_not_play' })}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Ver quem votou Não em ${item.game.title}`}
-                  style={styles.countChip}
-                >
-                  <Ionicons name="thumbs-down" size={13} color={colors.red400} />
-                  <Text style={styles.countText}>{item.choiceCounts.would_not_play}</Text>
-                </Pressable>
+                {preferenceOptions.map(option => (
+                  <Pressable
+                    key={option.value}
+                    onPress={() => setParticipantsTarget({ item, choice: option.value })}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Ver quem votou ${option.label} em ${item.game.title}`}
+                    style={styles.countChip}
+                  >
+                    <Ionicons
+                      name={option.icon}
+                      size={13}
+                      color={option.value === 'would_play' ? colors.emerald400 : colors.red400}
+                    />
+                    <Text style={styles.countText}>{item.choiceCounts[option.value]}</Text>
+                  </Pressable>
+                ))}
               </View>
 
               {item.myChoice === 'would_not_play' && item.myReason ? (

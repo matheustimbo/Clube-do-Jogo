@@ -8,7 +8,7 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useAutoAnimate } from '@formkit/auto-animate/react';
 import { motion, useMotionValue, useSpring, useTransform } from 'motion/react';
 import { CalendarPlus, Check, ChevronDown, ChevronUp, Clock3, Library, ListOrdered, MoreHorizontal, Plus, Search, ThumbsDown, ThumbsUp, Trophy } from 'lucide-react';
-import { gameCoverUrl } from '@clube-do-jogo/domain';
+import { gameCoverUrl, voteChoiceLabels, voteChoices } from '@clube-do-jogo/domain';
 import { createClient } from '@/lib/supabase/client';
 import { fetchRankingData } from '@/lib/data';
 import { ACTIVE_RANKING_FORMULA, compareRankingItems, legacyPlaytimePoints, legacyRankingScore, rankingScore } from '@/lib/ranking';
@@ -25,10 +25,13 @@ import { ClubGameAdminDialog } from '@/components/club-game-admin-dialog';
 import { VoteReasonDialog } from '@/components/vote-reason-dialog';
 import { usePersistentState } from '@/hooks/use-persistent-state';
 
-const preferenceOptions = [
-  { value: 'would_not_play', label: 'Não', shortLabel: 'Não', Icon: ThumbsDown },
-  { value: 'would_play', label: 'Jogaria', shortLabel: 'Jogaria', Icon: ThumbsUp },
-] as const;
+const preferenceIcons = { would_play: ThumbsUp, would_not_play: ThumbsDown } as const;
+const preferenceOptions = voteChoices.map(value => ({
+  value,
+  label: voteChoiceLabels[value],
+  shortLabel: voteChoiceLabels[value],
+  Icon: preferenceIcons[value],
+}));
 
 type RankingView = 'ranking' | 'recent';
 

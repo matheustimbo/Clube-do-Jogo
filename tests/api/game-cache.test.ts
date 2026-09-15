@@ -29,7 +29,6 @@ const STORED_COVER = 'https://images.igdb.com/igdb/image/upload/t_cover_big/stor
 // Devolve as linhas do lote fora de ordem, que é o que o PostgREST pode fazer:
 // se a rota passar a depender da ordem do retorno, o teste pega.
 function fakeSupabase(payloads: UpsertPayload[], failFirstWith?: { code: string }, roundTrips?: { count: number }): SupabaseClient {
-  let calls = 0;
   const stored = (payload: UpsertPayload) => ({ id: `stored-${payload.igdb_id}`, image_url: STORED_COVER, ...payload });
   const client = {
     from() {
@@ -37,7 +36,6 @@ function fakeSupabase(payloads: UpsertPayload[], failFirstWith?: { code: string 
         upsert(payload: UpsertPayload | UpsertPayload[]) {
           const batch = Array.isArray(payload) ? payload : [payload];
           batch.forEach(one => payloads.push(one));
-          calls += 1;
           if (roundTrips) roundTrips.count += 1;
           // Coluna que falta é problema de schema, não de sorte: recusa toda vez que
           // ela chega, senão o teste do retorno ao schema antigo passa por acidente.
