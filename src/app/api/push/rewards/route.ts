@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { createClient } from '@/lib/supabase/server';
+import { createRequestContext } from '@/lib/supabase/server';
 import { dispatchPushNotification, isAdminUser, isPushConfigured } from '@/lib/push';
 
 type RequestBody = { clubMonth?: unknown };
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Nao autorizado.' }, { status: 401 });
+  const { userId } = await createRequestContext();
+  if (!userId) return NextResponse.json({ error: 'Nao autorizado.' }, { status: 401 });
 
   let body: RequestBody;
   try {
@@ -21,7 +20,7 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
   if (!admin) return NextResponse.json({ sent: 0, configured: false });
-  if (!await isAdminUser(admin, user.id)) return NextResponse.json({ error: 'Nao autorizado.' }, { status: 403 });
+  if (!await isAdminUser(admin, userId)) return NextResponse.json({ error: 'Nao autorizado.' }, { status: 403 });
 
   const { data: rewards, error: rewardsError } = await admin.from('club_rewards').select('id').eq('club_month', clubMonth);
   if (rewardsError) return NextResponse.json({ error: 'Nao foi possivel carregar recompensas.' }, { status: 500 });

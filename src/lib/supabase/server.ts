@@ -1,13 +1,14 @@
 import { createServerClient } from '@supabase/ssr';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { cookies, headers } from 'next/headers';
 import { createBearerClient } from './bearer';
+import { authenticatedUserId } from './auth';
 
-export async function createClient() {
+async function clientFor(authorization: string | null): Promise<SupabaseClient> {
   // Evitar erros em tempo de build se as variáveis de ambiente não estiverem definidas
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key';
 
-  const authorization = (await headers()).get('authorization');
   if (authorization !== null) return createBearerClient(url, anonKey, authorization);
 
   const cookieStore = await cookies();
@@ -33,4 +34,15 @@ export async function createClient() {
       },
     }
   );
+}
+
+export async function createClient() {
+  return clientFor((await headers()).get('authorization'));
+}
+
+/** Cliente da requisição junto de quem é o membro, conferido sem ida ao Supabase. */
+export async function createRequestContext() {
+  const authorization = (await headers()).get('authorization');
+  const supabase = await clientFor(authorization);
+  return { supabase, userId: await authenticatedUserId(supabase, authorization) };
 }
