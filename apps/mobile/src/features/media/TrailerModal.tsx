@@ -4,7 +4,7 @@ import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { themedStyles, useThemeColors, radii, spacing } from '@/theme';
 import { getMobileSiteUrl } from '@/platform/config';
-import { isAllowedTrailerNavigation, youtubeEmbedHtml } from './youtube';
+import { isAllowedTrailerNavigation, trailerSource } from './youtube';
 
 // Let the request guard reject outside links; a whitelist rejection opens the system browser.
 const ORIGIN_WHITELIST = ['*'];
@@ -18,8 +18,7 @@ export function TrailerModal({ visible, url, title, onClose }: {
 }) {
   const colors = useThemeColors();
   const styles = useStyles();
-  const documentOrigin = getMobileSiteUrl() ?? FALLBACK_ORIGIN;
-  const embedHtml = youtubeEmbedHtml(url, documentOrigin);
+  const source = trailerSource(url, getMobileSiteUrl() ?? FALLBACK_ORIGIN);
 
   useEffect(() => {
     if (!visible) return undefined;
@@ -29,7 +28,7 @@ export function TrailerModal({ visible, url, title, onClose }: {
     return () => subscription.remove();
   }, [visible, onClose]);
 
-  if (!visible || !embedHtml) return null;
+  if (!visible || !source) return null;
 
   return (
     <Modal visible={visible} animationType="fade" transparent statusBarTranslucent onRequestClose={onClose}>
@@ -46,10 +45,10 @@ export function TrailerModal({ visible, url, title, onClose }: {
           </Pressable>
           <WebView
             key={url}
-            source={{ html: embedHtml, baseUrl: documentOrigin }}
+            source={source}
             style={styles.webview}
             originWhitelist={ORIGIN_WHITELIST}
-            onShouldStartLoadWithRequest={request => isAllowedTrailerNavigation(request.url, documentOrigin)}
+            onShouldStartLoadWithRequest={request => isAllowedTrailerNavigation(request.url)}
             javaScriptEnabled
             allowsFullscreenVideo
             allowsInlineMediaPlayback

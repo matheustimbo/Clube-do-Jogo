@@ -38,26 +38,17 @@ export function youtubeEmbedUrl(url: string | null | undefined, origin: string):
     + `&origin=${encodeURIComponent(origin)}`;
 }
 
-export function isAllowedTrailerNavigation(url: string, documentOrigin: string): boolean {
-  if (url === 'about:blank') return true;
-  if (isAllowedYoutubeOrigin(url)) return true;
-  try {
-    return new URL(url).origin === documentOrigin;
-  } catch {
-    return false;
-  }
+export function isAllowedTrailerNavigation(url: string): boolean {
+  return url === 'about:blank' || isAllowedYoutubeOrigin(url);
 }
 
-// O WKWebView não manda Referer ao navegar direto para a URL de embed, e desde
-// 2025 o YouTube recusa isso com o erro 153. Servir o iframe dentro de um
-// documento com baseUrl próprio dá ao player uma origem que ele aceita.
-export function youtubeEmbedHtml(url: string | null | undefined, origin: string): string | null {
-  const embed = youtubeEmbedUrl(url, origin);
-  if (!embed) return null;
-  return `<!DOCTYPE html><html><head>`
-    + `<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">`
-    + `<meta name="referrer" content="strict-origin-when-cross-origin">`
-    + `<style>html,body{margin:0;background:#000;height:100%}iframe{border:0;width:100%;height:100%}</style>`
-    + `</head><body><iframe src="${embed}" referrerpolicy="strict-origin-when-cross-origin" `
-    + `allow="accelerometer;autoplay;encrypted-media;gyroscope;picture-in-picture" allowfullscreen></iframe></body></html>`;
+// Desde 2025 o YouTube recusa o embed sem Referer e devolve o erro 153. Nem o
+// WKWebView nem o WebView do Android mandam um sozinhos: o iOS navega direto
+// para a URL e o Android carrega o documento com loadDataWithBaseURL, que não
+// gera referrer nenhum. Mandar o header na própria requisição resolve os dois.
+export function trailerSource(url: string | null | undefined, origin: string) {
+  const uri = youtubeEmbedUrl(url, origin);
+  if (!uri) return null;
+  return { uri, headers: { Referer: `${origin}/` } };
 }
+

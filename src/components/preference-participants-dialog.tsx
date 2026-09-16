@@ -4,15 +4,14 @@ import { useState } from 'react';
 import Link from 'next/link';
 import * as Tabs from '@radix-ui/react-tabs';
 import { ArrowUpRight, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { voteChoiceLabels, voteChoices } from '@clube-do-jogo/domain';
 import type { VoteChoice, VoteParticipant } from '@/lib/types';
 import { Dialog, DialogContent } from './ui/dialog';
 import { Avatar } from './ui/avatar';
 import { voteReasonLabel } from './vote-reason-dialog';
 
-const choices = [
-  { value: 'would_not_play', label: 'Não', Icon: ThumbsDown },
-  { value: 'would_play', label: 'Jogaria', Icon: ThumbsUp },
-] as const;
+const choiceIcons = { would_play: ThumbsUp, would_not_play: ThumbsDown } as const;
+const choices = voteChoices.map(value => ({ value, label: voteChoiceLabels[value], Icon: choiceIcons[value] }));
 
 function OtherReason({ text }: { text: string }) {
   const [expanded, setExpanded] = useState(false);
