@@ -26,3 +26,13 @@ export function avatarImageStyle(crop?: Partial<AvatarCrop> | null) {
     transformOrigin: `${next.x}% ${next.y}%`,
   };
 }
+
+// O recorte tem que viver inteiro no transform da view. Quando o arrasto mexia no
+// contentPosition do expo-image, cada quadro do gesto remontava a imagem e o
+// círculo ficava vazio até o dedo parar. Um transform não toca no pipeline da
+// imagem, então ela nunca some.
+export function avatarPanOffset(crop: Partial<AvatarCrop> | null | undefined, size: number) {
+  const next = normalizeAvatarCrop(crop);
+  const sobra = (valor: number) => Number((((50 - valor) / 100) * size * (1 - 1 / next.zoom)).toFixed(4));
+  return { x: sobra(next.x), y: sobra(next.y) };
+}

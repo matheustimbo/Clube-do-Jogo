@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { useSharedValue } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { DEFAULT_AVATAR_CROP, normalizeAvatarCrop, type AvatarCrop } from '@clube-do-jogo/domain';
+import { avatarPanOffset, DEFAULT_AVATAR_CROP, normalizeAvatarCrop, type AvatarCrop } from '@clube-do-jogo/domain';
 import { Sheet } from '@/components/Sheet';
 import { Button } from '@/components/Button';
 import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
@@ -12,6 +12,10 @@ import { themedStyles, useThemeColors, radii, spacing, typography } from '@/them
 export const DEFAULT_AVATAR_SELECTION_CROP: AvatarCrop = { ...DEFAULT_AVATAR_CROP, zoom: 1.1 };
 
 const PREVIEW_SIZE = 240;
+
+// Fixo de propósito. contentPosition é prop do expo-image, e mexer nela durante o
+// gesto remontava a imagem a cada quadro, deixando o círculo vazio até o dedo parar.
+const CONTENT_POSITION = { top: '50%', left: '50%' } as const;
 
 export function AvatarCropEditor({ visible, imageUrl, name, crop: initialCrop, saving, onClose, onSave }: {
   visible: boolean;
@@ -26,6 +30,7 @@ export function AvatarCropEditor({ visible, imageUrl, name, crop: initialCrop, s
   const styles = useStyles();
   const [crop, setCrop] = useState(initialCrop);
   const dragStart = useSharedValue(initialCrop);
+  const deslocamento = avatarPanOffset(crop, PREVIEW_SIZE);
 
 
 
@@ -58,9 +63,11 @@ export function AvatarCropEditor({ visible, imageUrl, name, crop: initialCrop, s
           <View style={styles.previewWrap} accessible={false}>
             <Image
               source={{ uri: imageUrl }}
-              style={[StyleSheet.absoluteFill, { transform: [{ scale: crop.zoom }], transformOrigin: `${crop.x}% ${crop.y}%` }]}
+              style={[StyleSheet.absoluteFill, {
+                transform: [{ scale: crop.zoom }, { translateX: deslocamento.x }, { translateY: deslocamento.y }],
+              }]}
               contentFit="cover"
-              contentPosition={{ top: `${crop.y}%`, left: `${crop.x}%` }}
+              contentPosition={CONTENT_POSITION}
               accessibilityLabel={name}
             />
             <View pointerEvents="none" style={styles.previewRing} />
