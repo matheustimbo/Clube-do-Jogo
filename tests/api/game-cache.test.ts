@@ -51,6 +51,10 @@ type FakeOptions = {
   updateError?: { code: string; message: string };
   // Roda antes de cada leitura e update; pode segurar o pedido, como um banco ocupado.
   beforeRequest?: (method: string) => void | Promise<void>;
+  // Linha que outro pedido insere junto com o n-ésimo upsert deste que traz o título: os
+  // dois inserem ao mesmo tempo, o Postgres confere games_title_key antes da unique da
+  // chave do catálogo, e este upsert volta 23505 mesmo quando a linha é do mesmo jogo.
+  insertedAlongside?: Map<string, { nth: number; row: StoredRow }>;
 };
 
 // Imita o postgrest-js: num upsert em lote, `columns` é a união das chaves das
@@ -59,10 +63,20 @@ type FakeOptions = {
 // Devolve as linhas do lote fora de ordem, que é o que o PostgREST pode fazer:
 // se a rota passar a depender da ordem do retorno, o teste pega.
 function fakeSupabase(payloads: UpsertPayload[], options: FakeOptions = {}): SupabaseClient {
-  const { calls, failFirstWith, roundTrips, existingByTitle = new Map(), missingColumns = [], updates, upsertError, racedByTitle, updateError, beforeRequest } = options;
+  const { calls, failFirstWith, roundTrips, existingByTitle = new Map(), missingColumns = [], updates, upsertError, racedByTitle, updateError, beforeRequest, insertedAlongside } = options;
   // Cada pedido ao PostgREST é uma ida ao banco: upsert, select e update.
   const trip = () => { if (roundTrips) roundTrips.count += 1; };
   const race = () => racedByTitle?.forEach((row, title) => existingByTitle.set(title, row));
+  const upsertsByTitle = new Map<string, number>();
+  const insertAlongside = (batch: UpsertPayload[]) => batch.some(one => {
+    const title = String(one.title);
+    const nth = (upsertsByTitle.get(title) ?? 0) + 1;
+    upsertsByTitle.set(title, nth);
+    const other = insertedAlongside?.get(title);
+    if (other?.nth !== nth) return false;
+    existingByTitle.set(title, other.row);
+    return true;
+  });
   // O ON CONFLICT na chave do catálogo atualiza a linha que já tem aquele id.
   const stored = (payload: UpsertPayload, columns: string[], key: string) => ({
     id: [...existingByTitle.values()].find(row => row[key] != null && row[key] === payload[key])?.id ?? `stored-${payload[key]}`,
@@ -89,13 +103,14 @@ function fakeSupabase(payloads: UpsertPayload[], options: FakeOptions = {}): Sup
           calls?.push({ rows: batch, columns, onConflict });
           trip();
           race();
+          const insertedNow = insertAlongside(batch);
           // O PostgREST de verdade (v12) responde assim a uma coluna que o schema não tem.
           const missing = [...columns, onConflict].find(column => missingColumns.includes(column));
           const missingError = missing ? { code: 'PGRST204', message: `Could not find the '${missing}' column of 'games' in the schema cache` } : null;
           // Coluna que falta é problema de schema, não de sorte: recusa toda vez que
           // ela chega, senão o teste do retorno ao schema antigo passa por acidente.
           const schemaError = failFirstWith && batch.some(one => Object.hasOwn(one, 'average_rating')) ? failFirstWith : null;
-          const error = upsertError ?? missingError ?? schemaError ?? (batch.some(one => titleConflict(one, onConflict)) ? { code: '23505' } : null);
+          const error = upsertError ?? missingError ?? schemaError ?? (insertedNow || batch.some(one => titleConflict(one, onConflict)) ? { code: '23505' } : null);
           const rows = batch.map(one => stored(one, columns, onConflict)).reverse();
           return {
             select: () => Object.assign(
@@ -521,4 +536,19 @@ test('an IGDB claim still lands before the migration that adds rawg_id', async (
   ], 'igdb_id');
   assert.equal(existingByTitle.get('Celeste')!.igdb_id, 26226);
   assert.deepEqual(saved.map(game => game.id), ['linha-manual']);
+});
+
+test('a game another request inserts while this one retries it alone still comes back', async () => {
+  // Antes cai na linha da IGDB e derruba o lote; Tunic volta sozinho, e outro pedido
+  // insere o mesmo Tunic da RAWG nesse instante.
+  const racedByTitle = new Map<string, StoredRow>([
+    ['Antes', { id: 'linha-igdb', igdb_id: 902, rawg_id: null, title: 'Antes', release_year: 2022, image_url: STORED_COVER }],
+  ]);
+  const twin: StoredRow = { id: 'linha-do-outro-pedido', igdb_id: null, rawg_id: 26192, title: 'Tunic', release_year: 2022, image_url: STORED_COVER };
+  const saved = await cacheCatalogGames(fakeSupabase([], { racedByTitle, insertedAlongside: new Map([['Tunic', { nth: 2, row: twin }]]) }), [
+    catalogGame({ id: 1, title: 'Antes' }),
+    catalogGame({ id: 26192, title: 'Tunic' }),
+  ], 'rawg_id');
+  assert.deepEqual(saved.map(game => game.title), ['Antes', 'Tunic']);
+  assert.equal(saved[1].id, 'linha-do-outro-pedido');
 });

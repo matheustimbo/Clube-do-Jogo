@@ -117,8 +117,10 @@ async function cacheOneByOne(supabase: SupabaseClient, games: CatalogGame[], key
       const { data: existing } = await supabase.from('games').select('*').eq('title', game.title).maybeSingle();
       if (!existing) continue;
       const clash = clashWith(existing as Game, game, key);
+      // A própria linha: outro pedido inseriu o mesmo jogo junto com este upsert, e o
+      // Postgres conferiu a unique de título antes da chave do catálogo.
+      if (clash.kind === 'own' || clash.kind === 'stand-in') saved.push([game, existing as Game]);
       if (clash.kind === 'other-release') warnOtherRelease(game, existing as Game, key);
-      if (clash.kind === 'stand-in') saved.push([game, clash.row]);
       if (clash.kind === 'claim') {
         const claimed = await claim(supabase, clash.row, game, key);
         if (claimed) saved.push([game, claimed]);
