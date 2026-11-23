@@ -21,7 +21,7 @@ export function PreferenceButtons({ value, disabled, onChange }: {
             disabled={disabled}
             onPress={() => onChange(option.value)}
             accessibilityRole="button"
-            accessibilityLabel={option.label}
+            accessibilityLabel={option.accessibilityName}
             accessibilityState={{ selected: active, disabled }}
             style={({ pressed }) => [
               styles.button,
