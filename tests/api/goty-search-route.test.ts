@@ -7,6 +7,8 @@ type Upsert = { rows: Array<Record<string, unknown>>; onConflict: string };
 const upserts: Upsert[] = [];
 
 const localQuery = {
+  // O cache consulta os títulos antes do upsert; o banco deste teste não tem nenhum.
+  in: async () => ({ data: [], error: null }),
   limit: () => localQuery,
   ilike: () => localQuery,
   eq: () => localQuery,

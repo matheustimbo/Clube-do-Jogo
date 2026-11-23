@@ -44,6 +44,8 @@ type FakeOptions = {
   updates?: Array<{ id: string; patch: UpsertPayload }>;
   // Erro que o banco devolve a todo upsert, como o Postgres por trás do PostgREST.
   upsertError?: { code: string; message: string };
+  // Linhas que outro pedido grava entre a consulta por título e o upsert deste.
+  racedByTitle?: Map<string, StoredRow>;
 };
 
 // Imita o postgrest-js: num upsert em lote, `columns` é a união das chaves das
@@ -52,9 +54,13 @@ type FakeOptions = {
 // Devolve as linhas do lote fora de ordem, que é o que o PostgREST pode fazer:
 // se a rota passar a depender da ordem do retorno, o teste pega.
 function fakeSupabase(payloads: UpsertPayload[], options: FakeOptions = {}): SupabaseClient {
-  const { calls, failFirstWith, roundTrips, existingByTitle = new Map(), missingColumns = [], updates, upsertError } = options;
+  const { calls, failFirstWith, roundTrips, existingByTitle = new Map(), missingColumns = [], updates, upsertError, racedByTitle } = options;
+  // Cada pedido ao PostgREST é uma ida ao banco: upsert, select e update.
+  const trip = () => { if (roundTrips) roundTrips.count += 1; };
+  const race = () => racedByTitle?.forEach((row, title) => existingByTitle.set(title, row));
+  // O ON CONFLICT na chave do catálogo atualiza a linha que já tem aquele id.
   const stored = (payload: UpsertPayload, columns: string[], key: string) => ({
-    id: `stored-${payload[key]}`,
+    id: [...existingByTitle.values()].find(row => row[key] != null && row[key] === payload[key])?.id ?? `stored-${payload[key]}`,
     image_url: STORED_COVER,
     description: STORED_DESCRIPTION,
     trailer_url: STORED_TRAILER,
@@ -72,7 +78,8 @@ function fakeSupabase(payloads: UpsertPayload[], options: FakeOptions = {}): Sup
           const columns = [...new Set(batch.flatMap(one => Object.keys(one)))];
           batch.forEach(one => payloads.push(one));
           calls?.push({ rows: batch, columns, onConflict });
-          if (roundTrips) roundTrips.count += 1;
+          trip();
+          race();
           // O PostgREST de verdade (v12) responde assim a uma coluna que o schema não tem.
           const missing = [...columns, onConflict].find(column => missingColumns.includes(column));
           const missingError = missing ? { code: 'PGRST204', message: `Could not find the '${missing}' column of 'games' in the schema cache` } : null;
@@ -91,8 +98,15 @@ function fakeSupabase(payloads: UpsertPayload[], options: FakeOptions = {}): Sup
         select() {
           return {
             eq: (_column: string, title: string) => ({
-              maybeSingle: async () => ({ data: existingByTitle.get(title) ?? null, error: null }),
+              maybeSingle: async () => {
+                trip();
+                return { data: existingByTitle.get(title) ?? null, error: null };
+              },
             }),
+            in: async (_column: string, titles: string[]) => {
+              trip();
+              return { data: titles.flatMap(title => (existingByTitle.has(title) ? [{ ...existingByTitle.get(title)! }] : [])), error: null };
+            },
           };
         },
         update(metadata: UpsertPayload) {
@@ -100,6 +114,7 @@ function fakeSupabase(payloads: UpsertPayload[], options: FakeOptions = {}): Sup
             eq: (_column: string, id: string) => ({
               select: () => ({
                 single: async () => {
+                  trip();
                   updates?.push({ id, patch: metadata });
                   const existing = [...existingByTitle.values()].find(row => row.id === id);
                   if (existing) Object.assign(existing, metadata);
@@ -189,16 +204,67 @@ test('capa nova da IGDB substitui a que estava lá', async () => {
   assert.equal(saved[0].image_url, 'https://images.igdb.com/igdb/image/upload/t_cover_big/nova.jpg');
 });
 
-test('uma página inteira não vira uma ida ao banco por jogo', async () => {
-  const roundTrips = { count: 0 };
-  const page = Array.from({ length: 24 }, (_, index) => catalogGame({
-    id: 1000 + index,
+function pageOf24(firstId: number) {
+  return Array.from({ length: 24 }, (_, index) => catalogGame({
+    id: firstId + index,
     title: `Jogo ${index}`,
     image_url: index % 2 === 0 ? `https://images.igdb.com/igdb/image/upload/t_cover_big/capa${index}.jpg` : null,
   }));
-  const saved = await cacheCatalogGames(fakeSupabase([], { roundTrips }), page, 'igdb_id');
+}
+
+test('uma página inteira não vira uma ida ao banco por jogo', async () => {
+  const roundTrips = { count: 0 };
+  const saved = await cacheCatalogGames(fakeSupabase([], { roundTrips }), pageOf24(1000), 'igdb_id');
   assert.equal(saved.length, 24);
-  assert.ok(roundTrips.count <= 2, `esperava no máximo 2 idas ao banco, foram ${roundTrips.count}`);
+  // A consulta pelos títulos e um upsert por conjunto de campos (com e sem capa).
+  assert.ok(roundTrips.count <= 3, `esperava no máximo 3 idas ao banco, foram ${roundTrips.count}`);
+});
+
+test('a RAWG page that hits rows other catalogs own still takes at most 3 round trips, every time', async () => {
+  // Linhas que nunca mudam de dono: toda listagem da RAWG passa de novo por elas.
+  const existingByTitle = new Map<string, StoredRow>([
+    ['Jogo 3', { id: 'linha-igdb-3', igdb_id: 503, rawg_id: null, title: 'Jogo 3', release_year: 2022, image_url: STORED_COVER }],
+    ['Jogo 10', { id: 'linha-igdb-10', igdb_id: 510, rawg_id: null, title: 'Jogo 10', release_year: 2022, image_url: STORED_COVER }],
+    ['Jogo 17', { id: 'linha-igdb-17', igdb_id: 517, rawg_id: null, title: 'Jogo 17', release_year: 1999, image_url: STORED_COVER }],
+  ]);
+  for (const listing of [1, 2]) {
+    const roundTrips = { count: 0 };
+    const updates: Array<{ id: string; patch: UpsertPayload }> = [];
+    const saved = await cacheCatalogGames(fakeSupabase([], { roundTrips, existingByTitle, updates }), pageOf24(5000), 'rawg_id');
+    assert.ok(roundTrips.count <= 3, `listagem ${listing}: esperava no máximo 3 idas ao banco, foram ${roundTrips.count}`);
+    assert.deepEqual(updates, []);
+    // O Jogo 17 de 1999 é outro jogo: sai. Os outros dois ficam com a linha da IGDB, na ordem.
+    const expected = Array.from({ length: 24 }, (_, index) => `Jogo ${index}`).filter(title => title !== 'Jogo 17');
+    assert.deepEqual(saved.map(game => game.title), expected);
+    assert.equal(saved[3].id, 'linha-igdb-3');
+    assert.equal(saved[10].id, 'linha-igdb-10');
+  }
+});
+
+test('a row no catalog owns is claimed once, and the next listing goes back to the batch', async () => {
+  const existingByTitle = new Map<string, StoredRow>([
+    ['Jogo 5', { id: 'linha-manual', igdb_id: null, rawg_id: null, title: 'Jogo 5', release_year: 2022, image_url: STORED_COVER }],
+  ]);
+  const trips: number[] = [];
+  for (const listing of [1, 2]) {
+    const roundTrips = { count: 0 };
+    const saved = await cacheCatalogGames(fakeSupabase([], { roundTrips, existingByTitle }), pageOf24(6000), 'rawg_id');
+    trips.push(roundTrips.count);
+    assert.equal(saved.length, 24, `listagem ${listing}`);
+    assert.equal(saved[5].id, 'linha-manual', `listagem ${listing}`);
+  }
+  assert.equal(existingByTitle.get('Jogo 5')!.rawg_id, 6005);
+  // A primeira paga um update pela linha reivindicada; a segunda já acha a linha pelo rawg_id.
+  assert.ok(trips[0] <= 4 && trips[1] <= 3, `idas ao banco por listagem: ${trips.join(', ')}`);
+});
+
+test('a same-title row another request writes between the lookup and the upsert still lands the game', async () => {
+  const racedByTitle = new Map<string, StoredRow>([
+    ['Jogo 2', { id: 'linha-da-corrida', igdb_id: 902, rawg_id: null, title: 'Jogo 2', release_year: 2022, image_url: STORED_COVER }],
+  ]);
+  const saved = await cacheCatalogGames(fakeSupabase([], { racedByTitle }), pageOf24(7000).slice(0, 4), 'rawg_id');
+  assert.deepEqual(saved.map(game => game.title), ['Jogo 0', 'Jogo 1', 'Jogo 2', 'Jogo 3']);
+  assert.equal(saved[2].id, 'linha-da-corrida');
 });
 
 test('a ordem que a IGDB devolveu é a ordem que o cliente recebe', async () => {
