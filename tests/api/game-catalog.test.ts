@@ -243,8 +243,9 @@ test('rawg platform search walks every page and answers with IGDB platform ids',
   assert.deepEqual(await searchPlatforms('SWITCH'), [
     { igdb_platform_id: 130, name: 'Nintendo Switch', abbreviation: null, logo_url: 'https://media.rawg.io/media/platforms/switch.png' },
   ]);
-  // O 3DS existe na RAWG mas ainda não tem id da IGDB conferido, então não pode ir para user_platforms.
+  // O 3DS (RAWG 8) vai para user_platforms com o id da IGDB, 37.
   assert.deepEqual(await searchPlatforms('nintendo'), [
+    { igdb_platform_id: 37, name: 'Nintendo 3DS', abbreviation: null, logo_url: null },
     { igdb_platform_id: 130, name: 'Nintendo Switch', abbreviation: null, logo_url: 'https://media.rawg.io/media/platforms/switch.png' },
   ]);
   assert.deepEqual(await searchPlatforms('  '), []);
@@ -257,16 +258,18 @@ test('the discover filters arrive as IGDB ids and reach RAWG as RAWG ids', async
 
   await browseGames({ sort: 'popular', genre: 12, platform: 167, limit: 24, offset: 0 });
   await browseGames({ sort: 'popular', genre: 8, platform: 169, limit: 24, offset: 0 });
+  await browseGames({ sort: 'popular', platform: 37, limit: 24, offset: 0 });
 
   const params = urls.map(url => new URL(url).searchParams);
-  assert.deepEqual(params.map(entry => [entry.get('genres'), entry.get('platforms')]), [['5', '187'], ['83', '186']]);
+  assert.deepEqual(params.map(entry => [entry.get('genres'), entry.get('platforms')]), [['5', '187'], ['83', '186'], [null, '8']]);
 });
 
 test('a filter id with no RAWG translation returns no games and sends no request', async () => {
   useRAWG();
   failingFetch();
   assert.deepEqual(await browseGames({ sort: 'popular', genre: 13, limit: 24, offset: 0 }), []);
-  assert.deepEqual(await browseGames({ sort: 'popular', platform: 37, limit: 24, offset: 0 }), []);
+  // 20 não tem par em rawg-ids.ts.
+  assert.deepEqual(await browseGames({ sort: 'popular', platform: 20, limit: 24, offset: 0 }), []);
 });
 
 test('rawg platforms are stored with IGDB ids first and the untranslated ones keep only their name', async () => {
@@ -275,14 +278,14 @@ test('rawg platforms are stored with IGDB ids first and the untranslated ones ke
     '/api/games': {
       results: [{
         ...TUNIC,
-        platforms: [{ platform: { id: 8, name: 'Nintendo 3DS' } }, { platform: { id: 4, name: 'PC' } }, { platform: { id: 187, name: 'PlayStation 5' } }],
+        platforms: [{ platform: { id: 9, name: 'Nintendo DS' } }, { platform: { id: 4, name: 'PC' } }, { platform: { id: 8, name: 'Nintendo 3DS' } }],
       }],
     },
   });
 
   const [game] = await searchGames('tunic');
-  assert.deepEqual(game.platforms, ['PC', 'PlayStation 5', 'Nintendo 3DS']);
-  assert.deepEqual(game.platform_ids, [6, 167]);
+  assert.deepEqual(game.platforms, ['PC', 'Nintendo 3DS', 'Nintendo DS']);
+  assert.deepEqual(game.platform_ids, [6, 37]);
 });
 
 test('a RAWG id that does not exist comes back as null, like the IGDB contract', async () => {
