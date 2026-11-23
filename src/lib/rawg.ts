@@ -1,4 +1,5 @@
 import type { CatalogBrowseOptions, CatalogCharacterMugshot, CatalogGame, CatalogPlatform } from './game-catalog';
+import { igdbPlatformFor, rawgGenreFor, rawgPlatformFor } from './rawg-ids';
 
 interface RAWGGame {
   id: number;
@@ -22,6 +23,7 @@ interface RAWGPlatform {
 }
 
 interface RAWGPage<T> {
+  next?: string | null;
   results?: T[];
 }
 
@@ -51,17 +53,21 @@ function normalize(text: string) {
   return text.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 }
 
+// As telas do jogo casam platforms[i] com platform_ids[i]. As plataformas com id da
+// IGDB vêm primeiro, cada uma com o seu; as sem tradução ficam só com o nome, no fim.
 function platformMetadata(platforms: RAWGGame['platforms']) {
   const seen = new Set<number>();
   const entries = (platforms || []).flatMap(entry => {
     const platform = entry.platform;
     if (!platform?.id || !platform.name || seen.has(platform.id)) return [];
     seen.add(platform.id);
-    return [{ id: platform.id, name: platform.name }];
+    return [{ igdbId: igdbPlatformFor(platform.id), name: platform.name }];
   });
+  const translated = entries.filter(entry => entry.igdbId !== undefined);
+  const untranslated = entries.filter(entry => entry.igdbId === undefined);
   return {
-    platforms: entries.map(entry => entry.name),
-    platform_ids: entries.map(entry => entry.id),
+    platforms: [...translated, ...untranslated].map(entry => entry.name),
+    platform_ids: translated.map(entry => entry.igdbId!),
   };
 }
 
@@ -128,8 +134,18 @@ export async function browseGamesWithRAWG(options: CatalogBrowseOptions): Promis
     to = to && to < yearEnd ? to : yearEnd;
   }
   if (from && to) params.set('dates', `${from},${to}`);
-  if (options.genre) params.set('genres', String(Math.trunc(options.genre)));
-  if (options.platform) params.set('platforms', String(Math.trunc(options.platform)));
+  // Os filtros chegam com ids da IGDB. Sem tradução conferida, nenhum jogo é a resposta
+  // certa; mandar o número cru filtraria por outro gênero ou plataforma da RAWG.
+  if (options.genre) {
+    const genre = rawgGenreFor(Math.trunc(options.genre));
+    if (genre === undefined) return [];
+    params.set('genres', String(genre));
+  }
+  if (options.platform) {
+    const platform = rawgPlatformFor(Math.trunc(options.platform));
+    if (platform === undefined) return [];
+    params.set('platforms', String(platform));
+  }
 
   const query = options.query?.trim();
   if (query) params.set('search', query);
@@ -155,17 +171,40 @@ export async function getGameMugshotsByRAWGId(): Promise<CatalogCharacterMugshot
   return [];
 }
 
+// A RAWG lista 50 plataformas, e a doc dela não diz até quanto page_size vai, então a
+// busca segue `next`. Cinco páginas de 40 cobrem a lista com folga; se ela passar de
+// 200, as plataformas além disso ficam de fora da busca.
+const PLATFORM_PAGE_SIZE = 40;
+const MAX_PLATFORM_PAGES = 5;
+
+async function listRAWGPlatforms(): Promise<RAWGPlatform[]> {
+  const platforms: RAWGPlatform[] = [];
+  for (let page = 1; page <= MAX_PLATFORM_PAGES; page++) {
+    const body = await rawgFetch<RAWGPage<RAWGPlatform>>('/api/platforms', new URLSearchParams({
+      page: String(page),
+      page_size: String(PLATFORM_PAGE_SIZE),
+    }), 'na busca de plataformas');
+    platforms.push(...(body.results || []));
+    if (!body.next) break;
+  }
+  return platforms;
+}
+
 export async function searchPlatformsWithRAWG(query: string): Promise<CatalogPlatform[]> {
   const needle = normalize(query.trim());
   if (!needle) return [];
-  const page = await rawgFetch<RAWGPage<RAWGPlatform>>('/api/platforms', new URLSearchParams({ page_size: '50' }), 'na busca de plataformas');
-  return (page.results || [])
+  // O console escolhido vai para user_platforms.igdb_platform_id, então só entra
+  // plataforma com id da IGDB conferido em rawg-ids.ts.
+  return (await listRAWGPlatforms())
     .filter(platform => normalize(platform.name).includes(needle) || normalize(platform.slug ?? '').includes(needle))
-    .slice(0, 12)
-    .map(platform => ({
-      igdb_platform_id: platform.id,
-      name: platform.name,
-      abbreviation: null,
-      logo_url: platform.image ?? null,
-    }));
+    .flatMap(platform => {
+      const igdbId = igdbPlatformFor(platform.id);
+      return igdbId === undefined ? [] : [{
+        igdb_platform_id: igdbId,
+        name: platform.name,
+        abbreviation: null,
+        logo_url: platform.image ?? null,
+      }];
+    })
+    .slice(0, 12);
 }

@@ -83,7 +83,8 @@ const TUNIC_MAPPED = {
   trailer_url: null,
   genres: ['Adventure', 'Puzzle'],
   platforms: ['PC', 'Xbox One'],
-  platform_ids: [4, 1],
+  // PC e Xbox One da RAWG (4 e 1) gravados com os ids da IGDB, que o resto do app usa.
+  platform_ids: [6, 49],
 };
 
 test('the offline flag wins over the chosen provider and never reaches the network', async () => {
@@ -194,21 +195,71 @@ test('each discovery sort becomes the rawg ordering and date window it maps to',
   assert.ok(params.every(entry => entry.get('exclude_additions') === 'true' && entry.get('page_size') === '24'));
 });
 
-test('rawg platform search filters the platform list without accents or case', async () => {
+test('rawg platform search walks every page and answers with IGDB platform ids', async () => {
   useRAWG();
-  recordFetch({
-    '/api/platforms': {
+  const pages: Record<string, unknown> = {
+    '1': {
+      next: 'https://api.rawg.io/api/platforms?page=2',
       results: [
         { id: 187, name: 'PlayStation 5', slug: 'playstation5', image: null },
-        { id: 7, name: 'Nintendo Switch', slug: 'nintendo-switch', image: 'https://media.rawg.io/media/platforms/switch.png' },
+        { id: 8, name: 'Nintendo 3DS', slug: 'nintendo-3ds', image: null },
       ],
+    },
+    '2': {
+      next: null,
+      results: [{ id: 7, name: 'Nintendo Switch', slug: 'nintendo-switch', image: 'https://media.rawg.io/media/platforms/switch.png' }],
+    },
+  };
+  const urls: string[] = [];
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = new URL(String(input));
+    urls.push(url.toString());
+    return Response.json(pages[url.searchParams.get('page') ?? '1']);
+  }) as typeof fetch;
+
+  assert.deepEqual(await searchPlatforms('SWITCH'), [
+    { igdb_platform_id: 130, name: 'Nintendo Switch', abbreviation: null, logo_url: 'https://media.rawg.io/media/platforms/switch.png' },
+  ]);
+  // O 3DS existe na RAWG mas ainda não tem id da IGDB conferido, então não pode ir para user_platforms.
+  assert.deepEqual(await searchPlatforms('nintendo'), [
+    { igdb_platform_id: 130, name: 'Nintendo Switch', abbreviation: null, logo_url: 'https://media.rawg.io/media/platforms/switch.png' },
+  ]);
+  assert.deepEqual(await searchPlatforms('  '), []);
+  assert.deepEqual(urls.map(url => new URL(url).searchParams.get('page')), ['1', '2', '1', '2']);
+});
+
+test('the discover filters arrive as IGDB ids and reach RAWG as RAWG ids', async () => {
+  useRAWG();
+  const urls = recordFetch({ '/api/games': { results: [] } });
+
+  await browseGames({ sort: 'popular', genre: 12, platform: 167, limit: 24, offset: 0 });
+  await browseGames({ sort: 'popular', genre: 8, platform: 169, limit: 24, offset: 0 });
+
+  const params = urls.map(url => new URL(url).searchParams);
+  assert.deepEqual(params.map(entry => [entry.get('genres'), entry.get('platforms')]), [['5', '187'], ['83', '186']]);
+});
+
+test('a filter id with no RAWG translation returns no games and sends no request', async () => {
+  useRAWG();
+  failingFetch();
+  assert.deepEqual(await browseGames({ sort: 'popular', genre: 13, limit: 24, offset: 0 }), []);
+  assert.deepEqual(await browseGames({ sort: 'popular', platform: 37, limit: 24, offset: 0 }), []);
+});
+
+test('rawg platforms are stored with IGDB ids first and the untranslated ones keep only their name', async () => {
+  useRAWG();
+  recordFetch({
+    '/api/games': {
+      results: [{
+        ...TUNIC,
+        platforms: [{ platform: { id: 8, name: 'Nintendo 3DS' } }, { platform: { id: 4, name: 'PC' } }, { platform: { id: 187, name: 'PlayStation 5' } }],
+      }],
     },
   });
 
-  assert.deepEqual(await searchPlatforms('SWITCH'), [
-    { igdb_platform_id: 7, name: 'Nintendo Switch', abbreviation: null, logo_url: 'https://media.rawg.io/media/platforms/switch.png' },
-  ]);
-  assert.deepEqual(await searchPlatforms('  '), []);
+  const [game] = await searchGames('tunic');
+  assert.deepEqual(game.platforms, ['PC', 'PlayStation 5', 'Nintendo 3DS']);
+  assert.deepEqual(game.platform_ids, [6, 167]);
 });
 
 test('rawg refuses to call the API without a key', async () => {
