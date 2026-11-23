@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createRequestContext } from '@/lib/supabase/server';
-import { catalogLookupFor, findGameByTitle, getGameMugshots } from '@/lib/game-catalog';
+import { CatalogSchemaError, catalogLookupFor, findGameByTitle, getGameMugshots } from '@/lib/game-catalog';
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -20,6 +20,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ mugshots: await getGameMugshots(catalogId) });
   } catch (value) {
     console.error('Erro ao buscar mugshots do jogo:', value);
+    // O banco sem a coluna do catálogo ativo é erro de deploy, não um jogo sem mídia.
+    if (value instanceof CatalogSchemaError) return NextResponse.json({ error: value.message }, { status: 500 });
     return NextResponse.json({ mugshots: [] });
   }
 }

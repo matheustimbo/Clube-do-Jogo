@@ -80,15 +80,18 @@ function useRAWG(bodies: Record<string, unknown> = {}) {
 
 const params = (id: string) => ({ params: Promise.resolve({ id }) });
 
-async function enrich(id = 'jogo') {
+async function enrichResponse(id = 'jogo') {
   const { POST } = await mediaRoute;
-  return (await POST(new Request('http://localhost/api/games/jogo/media', { method: 'POST' }), params(id))).json();
+  return POST(new Request('http://localhost/api/games/jogo/media', { method: 'POST' }), params(id));
 }
 
-async function mugshots(id = 'jogo') {
+async function mugshotsResponse(id = 'jogo') {
   const { GET } = await mugshotsRoute;
-  return (await GET(new Request('http://localhost/api/games/jogo/mugshots'), params(id))).json();
+  return GET(new Request('http://localhost/api/games/jogo/mugshots'), params(id));
 }
+
+const enrich = async (id = 'jogo') => (await enrichResponse(id)).json();
+const mugshots = async (id = 'jogo') => (await mugshotsResponse(id)).json();
 
 test('a row with only igdb_id 26192 never reaches rawg.io/api/games/26192', async () => {
   useRAWG({ '/api/games/26192': { ...TUNIC, id: 26192, name: 'Outro jogo da RAWG' } });
@@ -137,12 +140,16 @@ test('a row no catalog owns is matched by exact title and gets the rawg_id, not 
   assert.equal(Object.hasOwn(database.updates[0], 'igdb_id'), false);
 });
 
-test('before the rawg_id migration the media route reaches neither RAWG nor the database', async () => {
+test('before the rawg_id migration both routes answer 500 and reach neither RAWG nor the database', async () => {
   useRAWG({ '/api/games': { results: [TUNIC] } });
   // select('*') num banco sem a coluna devolve a linha sem a chave rawg_id.
   database.row = { id: 'jogo', title: 'Tunic', igdb_id: null, trailer_url: null };
 
-  assert.deepEqual(await enrich(), database.row);
+  // Como discover e search: o schema faltando é erro do servidor, não um jogo sem mídia.
+  for (const response of [await enrichResponse(), await mugshotsResponse()]) {
+    assert.equal(response.status, 500);
+    assert.match((await response.json()).error, /rawg_id/);
+  }
   assert.deepEqual(requested, []);
   assert.deepEqual(database.updates, []);
 });

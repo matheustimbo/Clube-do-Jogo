@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createRequestContext } from '@/lib/supabase/server';
-import { activeCatalogKey, catalogLookupFor, findGameByTitle, getGameById } from '@/lib/game-catalog';
+import { activeCatalogKey, CatalogSchemaError, catalogLookupFor, findGameByTitle, getGameById } from '@/lib/game-catalog';
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -37,6 +37,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     return NextResponse.json(updated);
   } catch (value) {
     console.error('Erro ao enriquecer mídia do jogo:', value);
+    // O banco sem a coluna do catálogo ativo é erro de deploy, não um jogo sem mídia.
+    if (value instanceof CatalogSchemaError) return NextResponse.json({ error: value.message }, { status: 500 });
     return NextResponse.json(game);
   }
 }
