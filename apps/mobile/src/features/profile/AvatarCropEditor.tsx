@@ -12,6 +12,9 @@ import { createAvatarCropGesture } from './avatar-crop-gesture';
 export const DEFAULT_AVATAR_SELECTION_CROP: AvatarCrop = { ...DEFAULT_AVATAR_CROP, zoom: 1.1 };
 
 const PREVIEW_SIZE = 240;
+const PREVIEW_BORDER = 2;
+// A borda fica dentro do quadro, então a imagem ocupa só o miolo dele.
+const IMAGE_FRAME = PREVIEW_SIZE - PREVIEW_BORDER * 2;
 
 // Fixo de propósito. contentPosition é prop do expo-image, e mexer nela durante o
 // gesto remontava a imagem a cada quadro, deixando o círculo vazio até o dedo parar.
@@ -30,11 +33,11 @@ export function AvatarCropEditor({ visible, imageUrl, name, crop: initialCrop, s
   const colors = useThemeColors();
   const styles = useStyles();
   const [crop, setCrop] = useState(initialCrop);
-  const [gesture] = useState(() => createAvatarCropGesture(PREVIEW_SIZE));
+  const [gesture] = useState(() => createAvatarCropGesture(IMAGE_FRAME));
   // Tamanho natural da imagem aberta. Até o onLoad dela, a prévia trata como quadrada.
   const [loaded, setLoaded] = useState<{ uri: string; size: AvatarImageSize } | null>(null);
   const imageSize = loaded && loaded.uri === imageUrl ? loaded.size : null;
-  const offset = avatarPreviewOffset(PREVIEW_SIZE, imageSize, crop);
+  const offset = avatarPreviewOffset(IMAGE_FRAME, imageSize, crop);
 
   const pan = Gesture.Pan()
     .runOnJS(true)
@@ -133,7 +136,7 @@ const useStyles = themedStyles(colors => ({
     borderRadius: PREVIEW_SIZE / 2,
     overflow: 'hidden',
     backgroundColor: colors.zinc900,
-    borderWidth: 2,
+    borderWidth: PREVIEW_BORDER,
     borderColor: 'rgba(139,92,246,0.35)',
   },
   previewRing: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: PREVIEW_SIZE / 2, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },

@@ -37,3 +37,19 @@ test('o arrasto usa o zoom de agora e o tamanho da imagem', () => {
   assert.deepEqual(gesture.pan(start, { x: 30, y: 30 }, LANDSCAPE), { x: 25, y: 50, zoom: 1 });
   assert.deepEqual(gesture.pan(start, { x: 30, y: 30 }, SQUARE), start);
 });
+
+test('o arrasto começa de onde o recorte estava, não do centro', () => {
+  const gesture = createAvatarCropGesture(FRAME);
+  const start = { x: 20, y: 70, zoom: 2 };
+  gesture.startPan(start);
+  assert.deepEqual(gesture.pan(start, { x: 0, y: 0 }, SQUARE), start);
+});
+
+test('o arrasto acompanha o zoom que a pinça mudou no meio dele', () => {
+  const gesture = createAvatarCropGesture(FRAME);
+  const start = { x: 50, y: 50, zoom: 1.2 };
+  gesture.startPan(start);
+  gesture.startPinch(start);
+  const pinched = gesture.pinch(start, 1.5);
+  assert.equal(gesture.pan(pinched, { x: 0, y: 0 }, LANDSCAPE).zoom, pinched.zoom);
+});
