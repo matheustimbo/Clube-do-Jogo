@@ -40,3 +40,29 @@ test('na página do jogo, contador, botão e abas seguem a ordem do placar', asy
   await expect(page.getByRole('heading', { name: 'Cocoon', level: 1 })).toBeVisible();
   await expectScoreboardOrder(page.locator('.preference-summary'), page.locator('.preference-picker'));
 });
+
+// O botão mostra o rótulo curto ("Não"); o leitor de tela precisa da escolha inteira.
+const choiceNames = ['Não jogaria', 'Neutro', 'Jogaria'];
+
+async function expectFullChoiceNames(summary: Locator, picker: Locator) {
+  const counters = summary.locator('[data-choice]');
+  const buttons = picker.locator('[data-choice]');
+  for (const [index, name] of choiceNames.entries()) {
+    await expect(buttons.nth(index)).toHaveAccessibleName(name);
+    await expect(counters.nth(index)).toHaveAccessibleName(new RegExp(`^Ver quem votou ${name} \\(\\d+\\)$`));
+  }
+}
+
+test('no ranking, botões e contadores dizem o nome inteiro da escolha', async ({ page }) => {
+  await page.goto('/ranking');
+  await closeQuickVoting(page);
+  const card = page.locator('article.ranking-card', { hasText: 'Cocoon' });
+  await expectFullChoiceNames(card.locator('.preference-summary'), card.locator('.preference-picker'));
+});
+
+test('na página do jogo, botões e contadores dizem o nome inteiro da escolha', async ({ page }) => {
+  await page.goto('/jogos/cocoon');
+  await closeQuickVoting(page);
+  await expect(page.getByRole('heading', { name: 'Cocoon', level: 1 })).toBeVisible();
+  await expectFullChoiceNames(page.locator('.preference-summary'), page.locator('.preference-picker'));
+});
