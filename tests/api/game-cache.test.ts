@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { cacheCatalogGames } from '../../src/lib/game-cache';
+import { cacheCatalogGameRows, cacheCatalogGames } from '../../src/lib/game-cache';
 import { CatalogSchemaError, type CatalogGame } from '../../src/lib/game-catalog';
 import { gamesRest, type GamesRow } from './fake-games-rest';
 
@@ -622,6 +622,47 @@ test('a listing refreshes the cover and the rating of the row the game already o
   assert.equal(saved[0].average_rating, 91);
 });
 
+test('two requests of one catalog that claim one row at once both show it', async () => {
+  const manual: StoredRow = { id: 'linha-manual', igdb_id: null, rawg_id: null, title: 'Celeste', release_year: 2018, image_url: STORED_COVER };
+  const existingByTitle = new Map([['Celeste', manual]]);
+  const beforeRequest = readTogether(2);
+  // Duas páginas da RAWG com o mesmo jogo: uma reivindica a linha, a outra relê e acha o
+  // próprio rawg_id nela.
+  const pages = await Promise.all([1, 2].map(() => cacheCatalogGames(fakeSupabase([], { existingByTitle, beforeRequest }), [
+    catalogGame({ id: 9600, title: 'Celeste', release_year: 2018 }),
+  ], 'rawg_id')));
+  const row = existingByTitle.get('Celeste')!;
+  assert.equal(row.rawg_id, 9600);
+  assert.deepEqual(pages, [[row], [row]]);
+});
+
+test('a yearless row two catalogs claim at once never stands in for the loser of another year', async () => {
+  const manual: StoredRow = { id: 'linha-manual', igdb_id: null, rawg_id: null, title: 'Doom', release_year: null, image_url: STORED_COVER };
+  const existingByTitle = new Map([['Doom', manual]]);
+  const beforeRequest = readTogether(2);
+  const [fromRawg, fromIgdb] = await Promise.all([
+    cacheCatalogGames(fakeSupabase([], { existingByTitle, beforeRequest }), [catalogGame({ id: 2454, title: 'Doom', release_year: 2016 })], 'rawg_id'),
+    cacheCatalogGames(fakeSupabase([], { existingByTitle, beforeRequest }), [catalogGame({ id: 673, title: 'Doom', release_year: 1993 })], 'igdb_id'),
+  ]);
+  const row = existingByTitle.get('Doom')!;
+  // O vencedor grava o ano dele; a linha agora é desse Doom, não do outro.
+  const winner = row.rawg_id === 2454 ? fromRawg : fromIgdb;
+  const loser = row.rawg_id === 2454 ? fromIgdb : fromRawg;
+  assert.deepEqual(winner, [row]);
+  assert.deepEqual(loser, []);
+});
+
+test('a row deleted between the title lookup and the claim only takes its game off the page', async () => {
+  const manual: StoredRow = { id: 'linha-manual', igdb_id: null, rawg_id: null, title: 'Celeste', release_year: 2018, image_url: STORED_COVER };
+  const existingByTitle = new Map([['Celeste', manual]]);
+  const beforeRequest = (method: string) => { if (method === 'PATCH') existingByTitle.delete('Celeste'); };
+  const saved = await cacheCatalogGames(fakeSupabase([], { existingByTitle, beforeRequest }), [
+    catalogGame({ id: 1, title: 'Antes' }),
+    catalogGame({ id: 9600, title: 'Celeste', release_year: 2018 }),
+  ], 'rawg_id');
+  assert.deepEqual(saved.map(game => game.title), ['Antes']);
+});
+
 test('a claim whose game id sits on a row with another spelling of its title shows that row', async () => {
   const manual: StoredRow = { id: 'linha-manual', igdb_id: null, rawg_id: null, title: 'Okami HD', release_year: 2017, image_url: STORED_COVER };
   // O jogo já foi gravado com o macron; a unique do igdb_id recusa o claim (23505).
@@ -641,6 +682,15 @@ test('a claim whose game id sits on a row of another year shows nothing', async 
     catalogGame({ id: 26592, title: 'Okami HD', release_year: 2017 }),
   ], 'igdb_id');
   assert.deepEqual(saved, []);
+});
+
+test('a claim that fails on the slow path leaves its game out of the rows the cache returns', async () => {
+  // A linha sem dono aparece depois da consulta por título e o banco recusa o claim.
+  const manual: StoredRow = { id: 'linha-manual', igdb_id: null, rawg_id: null, title: 'Jogo 2', release_year: 2022, image_url: STORED_COVER };
+  const page = pageOf24(7000).slice(0, 4);
+  const updateError = { code: '42501', message: 'permission denied for table games' };
+  const rows = await cacheCatalogGameRows(fakeSupabase([], { racedByTitle: new Map([['Jogo 2', manual]]), updateError }), page, 'rawg_id');
+  assert.deepEqual([...rows.keys()].map(game => game.title), ['Jogo 0', 'Jogo 1', 'Jogo 3']);
 });
 
 test('a database without rawg_id stops every path to a claim with a schema error before writing', async () => {

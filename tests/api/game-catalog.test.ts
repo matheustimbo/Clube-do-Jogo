@@ -446,3 +446,14 @@ test('a title with no letter or digit matches no catalog game', async () => {
 
   assert.equal(await findGameByTitle({ title: '!!!', releaseYear: 2022 }), null);
 });
+
+test('a title lookup tells apart titles that differ only by a dakuten, in NFC or NFD', async () => {
+  useRAWG();
+  // ゼルダ e ゼルタ só diferem pelo dakuten do último kana; o pedido pode chegar decomposto.
+  recordFetch({ '/api/games': { results: [{ ...TUNIC, id: 1, name: 'ゼルタ' }, { ...TUNIC, id: 2, name: 'ゼルダ' }] } });
+
+  for (const title of ['ゼルダ', 'ゼルダ'.normalize('NFD')]) {
+    assert.equal((await findGameByTitle({ title, releaseYear: 2022 }))?.id, 2, JSON.stringify(title));
+  }
+  assert.equal((await findGameByTitle({ title: 'ゼルタ'.normalize('NFD'), releaseYear: 2022 }))?.id, 1);
+});

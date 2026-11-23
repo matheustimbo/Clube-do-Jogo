@@ -41,16 +41,16 @@ afterEach(() => {
 });
 
 /** O markup depois que a resposta de /api/catalog chega e o componente renderiza de novo. */
-async function renderCredit(demo: boolean, attribution: unknown = { name: 'RAWG', url: 'https://rawg.io' }) {
+async function renderCredit(demo: boolean, attribution: unknown = { name: 'RAWG', url: 'https://rawg.io' }, props: { className?: string } = {}) {
   isDemo = demo;
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     requested.push(String(input));
     return Response.json({ attribution });
   }) as typeof fetch;
   const { CatalogAttribution } = await import('../../src/components/catalog-attribution');
-  renderToStaticMarkup(React.createElement(CatalogAttribution));
+  renderToStaticMarkup(React.createElement(CatalogAttribution, props));
   await new Promise(resolve => setImmediate(resolve));
-  return renderToStaticMarkup(React.createElement(CatalogAttribution));
+  return renderToStaticMarkup(React.createElement(CatalogAttribution, props));
 }
 
 test('the web credit never asks the server in the demo and renders nothing', async () => {
@@ -66,4 +66,8 @@ test('the web credit renders an active link to the catalog the server names', as
 
 test('a catalog that asks for no credit renders nothing', async () => {
   assert.equal(await renderCredit(false, null), '');
+});
+
+test('the credit takes the spacing of the place that shows it', async () => {
+  assert.match(await renderCredit(false, undefined, { className: 'px-4 py-3' }), /^<p class="px-4 py-3 /);
 });
