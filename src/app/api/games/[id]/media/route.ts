@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { gameDescription } from '@clube-do-jogo/domain';
 import { createRequestContext } from '@/lib/supabase/server';
 import { activeCatalogKey, CatalogSchemaError, catalogLookupFor, findGameByTitle, getGameById } from '@/lib/game-catalog';
+import { updateUnownedRow } from '@/lib/game-cache';
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -33,9 +34,15 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       release_year: metadata.release_year ?? game.release_year,
       duration_hours: metadata.duration_hours || game.duration_hours,
     };
-    const { data: updated, error: updateError } = await supabase.from('games').update(patch).eq('id', id).select().single();
+    // Achada pelo título, a linha não tem dono: grava só enquanto continua sem, como o
+    // cache faz. Uma busca concorrente pode ter dado a linha a outro catálogo.
+    const { data: updated, error: updateError } = await (lookup.by === 'title'
+      ? updateUnownedRow(supabase, game, patch)
+      : supabase.from('games').update(patch).eq('id', id).select());
     if (updateError) throw updateError;
-    return NextResponse.json(updated);
+    if (updated[0]) return NextResponse.json(updated[0]);
+    const { data: stored } = await supabase.from('games').select('*').eq('id', id).maybeSingle();
+    return NextResponse.json(stored ?? game);
   } catch (value) {
     console.error('Erro ao enriquecer mídia do jogo:', value);
     // O banco sem a coluna do catálogo ativo é erro de deploy, não um jogo sem mídia.

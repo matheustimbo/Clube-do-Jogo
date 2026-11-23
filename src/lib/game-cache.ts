@@ -58,9 +58,20 @@ function warnOtherRelease(game: CatalogGame, row: Game, key: CatalogKey) {
 }
 
 /**
- * Dá à linha sem dono o id do jogo. O UPDATE só acha a linha enquanto ela não tem dono,
- * então dois pedidos, de um catálogo ou de dois, nunca reivindicam a mesma linha. Quem
- * chega depois relê a linha e fica com o que o banco tem; null tira o jogo do resultado.
+ * Grava `patch` na linha só enquanto nenhum catálogo é dono dela, então dois pedidos, de
+ * um catálogo ou de dois, nunca dão dono à mesma linha. Quem chega depois não acha a
+ * linha e recebe [], ou 23505 quando o id do jogo já está noutra linha.
+ */
+export function updateUnownedRow(supabase: SupabaseClient, row: Game, patch: Record<string, unknown>) {
+  let update = supabase.from('games').update(patch).eq('id', row.id);
+  // Só as colunas que o banco tem: antes da migration não existe rawg_id.
+  for (const catalogKey of CATALOG_KEYS) if (catalogKey in row) update = update.is(catalogKey, null);
+  return update.select();
+}
+
+/**
+ * Dá à linha sem dono o id do jogo. Quem chega depois relê a linha e fica com o que o
+ * banco tem; null tira o jogo do resultado.
  */
 async function claim(supabase: SupabaseClient, row: Game, game: CatalogGame, key: CatalogKey): Promise<Game | null> {
   const metadata = {
@@ -73,10 +84,7 @@ async function claim(supabase: SupabaseClient, row: Game, game: CatalogGame, key
     platforms: row.platforms?.length ? row.platforms : game.platforms,
     platform_ids: row.platform_ids?.length ? row.platform_ids : game.platform_ids,
   };
-  let update = supabase.from('games').update(metadata).eq('id', row.id);
-  // Só as colunas que o banco tem: antes da migration não existe rawg_id.
-  for (const catalogKey of CATALOG_KEYS) if (catalogKey in row) update = update.is(catalogKey, null);
-  const { data, error } = await update.select();
+  const { data, error } = await updateUnownedRow(supabase, row, metadata);
   throwIfKeyMissing(error, key);
   const [claimed] = (data ?? []) as Game[];
   if (claimed) return claimed;

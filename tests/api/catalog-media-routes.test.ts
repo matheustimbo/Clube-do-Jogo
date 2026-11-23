@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, mock, test } from 'node:test';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { gamesRest, type GamesRow } from './fake-games-rest';
 
 // Caminho real das rotas e do catálogo. Só a borda é falsa: o banco (uma linha de
 // games) e a rede (fetch), que grava cada URL pedida.
 type Row = Record<string, unknown> & { id: string; title: string };
-const database: { row: Row | null; updates: Array<Record<string, unknown>> } = { row: null, updates: [] };
+// `client` troca o banco de uma linha por um supabase-js de verdade sobre o PostgREST falso.
+const database: { row: Row | null; updates: Array<Record<string, unknown>>; client?: SupabaseClient } = { row: null, updates: [] };
 
 const supabase = {
   from() {
@@ -14,14 +17,15 @@ const supabase = {
       },
       update(patch: Record<string, unknown>) {
         database.updates.push(patch);
-        return { eq: () => ({ select: () => ({ single: async () => ({ data: { ...database.row, ...patch }, error: null }) }) }) };
+        const filtered = { eq: () => filtered, is: () => filtered, select: async () => ({ data: [{ ...database.row, ...patch }], error: null }) };
+        return filtered;
       },
     };
   },
 };
 
 mock.module('../../src/lib/supabase/server', {
-  exports: { createRequestContext: async () => ({ supabase, userId: 'membro' }) },
+  exports: { createRequestContext: async () => ({ supabase: database.client ?? supabase, userId: 'membro' }) },
 });
 
 const mediaRoute = import('../../src/app/api/games/[id]/media/route');
@@ -43,6 +47,7 @@ function restore(variable: string, value: string | undefined) {
 beforeEach(() => {
   database.row = null;
   database.updates = [];
+  database.client = undefined;
   requested = [];
 });
 
@@ -292,4 +297,23 @@ test('a row without a year still takes the first same-title game, dated or not',
   database.updates = [];
   await enrich();
   assert.deepEqual(database.updates.map(update => update.rawg_id), [3000]);
+});
+
+test('a row the GOTY search claims while the media route reads the catalog keeps a single owner', async () => {
+  useRAWG({ '/api/games': { results: [TUNIC_LISTED] }, '/api/games/23027': TUNIC, '/api/games/23027/screenshots': { results: [] } });
+  const tunic: GamesRow = { id: 'jogo', title: 'Tunic', igdb_id: null, rawg_id: null, release_year: 2022, description: null, trailer_url: null };
+  database.client = gamesRest({ rows: new Map([['Tunic', tunic]]) });
+  // Enquanto a rota espera o detalhe da RAWG, a busca GOTY dá a linha ao jogo da IGDB.
+  const rawg = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (new URL(String(input)).pathname === '/api/games/23027') Object.assign(tunic, { igdb_id: 26192, description: 'Gravado pela busca GOTY.' });
+    return rawg(input, init);
+  }) as typeof fetch;
+
+  const answered = await enrich();
+
+  assert.deepEqual([tunic.igdb_id, tunic.rawg_id], [26192, null]);
+  assert.equal(tunic.description, 'Gravado pela busca GOTY.');
+  // Quem perdeu devolve o que o banco tem, não o que tentou gravar.
+  assert.deepEqual(answered, tunic);
 });
