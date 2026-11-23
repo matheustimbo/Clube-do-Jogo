@@ -210,6 +210,15 @@ test('a year outside the recent or upcoming window returns no games and sends no
   assert.deepEqual(await browseGames({ sort: 'anticipated', year: 2030, limit: 24, offset: 0 }), []);
 });
 
+test('a year that is not four digits returns no games and sends no request', async () => {
+  useRAWG();
+  failingFetch();
+  // A RAWG lê dates como AAAA-MM-DD; 999-01-01 não é uma data dela.
+  for (const year of [999, 10000, 2020.5]) {
+    assert.deepEqual(await browseGames({ sort: 'popular', year, limit: 24, offset: 0 }), [], String(year));
+  }
+});
+
 test('a year that overlaps the window narrows it to the overlap', async () => {
   useRAWG();
   const urls = recordFetch({ '/api/games': { results: [] } });

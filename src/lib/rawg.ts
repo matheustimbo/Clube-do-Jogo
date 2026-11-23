@@ -137,6 +137,8 @@ export async function browseGamesWithRAWG(options: CatalogBrowseOptions): Promis
     to = daysFromNow(730);
   }
   if (options.year) {
+    // dates vai como AAAA-MM-DD, então só um ano de quatro dígitos vira uma janela.
+    if (!Number.isInteger(options.year) || options.year < 1000 || options.year > 9999) return [];
     const yearStart = `${options.year}-01-01`;
     const yearEnd = `${options.year}-12-31`;
     from = from && from > yearStart ? from : yearStart;
