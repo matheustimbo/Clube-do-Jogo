@@ -306,6 +306,15 @@ test('a discover page past the end of RAWG is the end of the list, not an error'
   await assert.rejects(browseGames({ sort: 'popular', limit: 24, offset: 0 }), /404/);
 });
 
+test('any other 404 past the first page is RAWG failing, not the end of the list', async () => {
+  useRAWG();
+  // Uma rota que sumiu, um proxy na frente da RAWG: nada disso diz que a lista acabou.
+  for (const body of ['{"detail":"Not found."}', '<html><body>Not Found</body></html>', '']) {
+    globalThis.fetch = (async () => new Response(body, { status: 404 })) as typeof fetch;
+    await assert.rejects(browseGames({ sort: 'popular', limit: 24, offset: 480 }), /404/, JSON.stringify(body));
+  }
+});
+
 test('a RAWG id that does not exist comes back as null, like the IGDB contract', async () => {
   useRAWG();
   globalThis.fetch = (async () => new Response('{"detail":"Not found."}', { status: 404 })) as typeof fetch;

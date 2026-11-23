@@ -166,8 +166,9 @@ export async function browseGamesWithRAWG(options: CatalogBrowseOptions): Promis
   else params.set('ordering', ordering);
 
   const body = await rawgFetch<RAWGPage<RAWGGame>>('/api/games', params, 'ao explorar jogos').catch(error => {
-    // Depois da última página a RAWG responde 404 "Invalid page.": a lista acabou.
-    if (error instanceof RAWGRequestError && error.status === 404 && page > 1) return { results: [] };
+    // Depois da última página a RAWG responde 404 {"detail":"Invalid page."}: a lista
+    // acabou. Outro 404 (rota que mudou, proxy na frente) continua sendo falha.
+    if (error instanceof RAWGRequestError && error.status === 404 && page > 1 && String(error.cause).includes('Invalid page')) return { results: [] };
     throw error;
   });
   return (body.results || []).map(game => mapRAWGGame(game));
