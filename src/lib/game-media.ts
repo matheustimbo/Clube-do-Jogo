@@ -1,3 +1,4 @@
+import { gameDescription } from '@clube-do-jogo/domain';
 import type { Game } from './types';
 
 /**
@@ -5,7 +6,7 @@ import type { Game } from './types';
  * traz. A listagem da RAWG não tem descrição, então o jogo que ela gravou cai aqui.
  */
 export function needsMediaEnrichment(game: Game) {
-  return !game.description
+  return !gameDescription(game)
     || (game.screenshot_urls?.length || 0) < 3
     || !game.genres?.length
     || !game.platforms?.length

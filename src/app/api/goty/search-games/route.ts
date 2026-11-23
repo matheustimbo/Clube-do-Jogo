@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { GOTY_2026_CURATED_CATALOG, type GotySearchGameResult } from '@clube-do-jogo/domain';
+import { GOTY_2026_CURATED_CATALOG, gameDescription, type GotySearchGameResult } from '@clube-do-jogo/domain';
 import { createClient } from '@/lib/supabase/server';
 import { searchGoty2026GamesWithIGDB } from '@/lib/igdb';
 import { cacheCatalogGameRows } from '@/lib/game-cache';
@@ -74,7 +74,7 @@ export async function GET(request: Request) {
             average_rating: persisted?.average_rating ?? igdbGame.average_rating,
             release_year: igdbGame.effective_release_year ?? persisted?.release_year ?? igdbGame.release_year,
             image_url: persisted?.image_url ?? igdbGame.image_url,
-            description: persisted?.description || igdbGame.description,
+            description: (persisted && gameDescription(persisted)) || igdbGame.description,
             screenshot_urls: persisted?.screenshot_urls ?? igdbGame.screenshot_urls,
             trailer_url: persisted?.trailer_url ?? igdbGame.trailer_url,
             genres: persisted?.genres ?? igdbGame.genres,

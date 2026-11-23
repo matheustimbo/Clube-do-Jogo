@@ -21,7 +21,8 @@ const supabase = {
         const rows = Array.isArray(payload) ? payload : [payload];
         upserts.push({ rows, onConflict });
         const error = titleConflict(rows, onConflict) ? { code: '23505', message: 'duplicate key value violates unique constraint "games_title_key"' } : null;
-        const saved = rows.map(row => ({ id: `linha-${String(row[onConflict])}`, ...row }));
+        // O ON CONFLICT DO UPDATE só troca as colunas do payload; as outras ficam como estavam.
+        const saved = rows.map(row => ({ id: `linha-${String(row[onConflict])}`, ...stored.get(String(row.title)), ...row }));
         const result = error ? { data: null, error } : { data: saved, error: null };
         return { select: () => Object.assign(Promise.resolve(result), { single: async () => (error ? result : { data: saved[0], error: null }) }) };
       },
@@ -83,13 +84,13 @@ afterEach(() => {
   stored.clear();
 });
 
-function useIGDB() {
+function useIGDB(game: Record<string, unknown> = IGDB_GAME_2026) {
   process.env.IGDB_CLIENT_ID = 'cliente';
   process.env.IGDB_CLIENT_SECRET = 'segredo';
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = new URL(String(input));
     if (url.hostname === 'id.twitch.tv') return Response.json({ access_token: 'token', expires_in: 3600 });
-    if (url.pathname === '/v4/games') return Response.json([IGDB_GAME_2026]);
+    if (url.pathname === '/v4/games') return Response.json([game]);
     if (url.pathname === '/v4/game_time_to_beats') return Response.json([]);
     throw new Error(`fetch inesperado: ${url}`);
   }) as typeof fetch;
@@ -123,4 +124,18 @@ test('under RAWG an IGDB game that lands on a RAWG row comes back once, with tha
 
   assert.deepEqual(body.items.map((item: { id: string }) => item.id), ['linha-rawg']);
   assert.equal(body.items[0].igdb_id, 119171);
+});
+
+test('the placeholder an older row saved never becomes the description of a GOTY result', async () => {
+  delete process.env.IGDB_OFFLINE_CATALOG;
+  delete process.env.GAME_CATALOG_PROVIDER;
+  // A IGDB não tem resumo deste jogo, e a linha dele guarda o placeholder antigo.
+  useIGDB({ ...IGDB_GAME_2026, summary: undefined });
+  stored.set('Jogo de 2026', { id: 'linha-119171', title: 'Jogo de 2026', igdb_id: 119171, release_year: 2026, description: 'Sem descrição disponível.' });
+  const { GET } = await import('../../src/app/api/goty/search-games/route');
+
+  const body = await (await GET(new Request('http://localhost/api/goty/search-games?q=jogo'))).json();
+
+  assert.equal(body.items[0].id, 'linha-119171');
+  assert.equal(body.items[0].description, null);
 });

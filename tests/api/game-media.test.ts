@@ -30,3 +30,7 @@ test('a game short of screenshots, genres or platforms asks for the detail', () 
   assert.equal(needsMediaEnrichment({ ...complete, platforms: null }), true);
   assert.equal(needsMediaEnrichment({ ...complete, platform_ids: [] }), true);
 });
+
+test('the placeholder older rows saved counts as no description', () => {
+  assert.equal(needsMediaEnrichment({ ...complete, description: 'Sem descrição disponível.' }), true);
+});
