@@ -1,72 +1,126 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import { after, beforeEach, mock, test } from 'node:test';
 import { webcrypto } from 'node:crypto';
-import { createClient } from '@supabase/supabase-js';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { authenticatedUserId } from '../../src/lib/supabase/auth';
 
+// Caminho real: createRequestContext lê header e cookies do Next, monta o cliente
+// do Supabase de verdade e confere o token. Só a borda é falsa: o pedido (o módulo
+// next/headers) e a rede (fetch), que serve o JWKS do Auth.
+const SUPABASE_URL = 'https://projeto.supabase.co';
 const MEMBER = '8f14e45f-ceea-467a-9e2f-4c0bd5a6a111';
+const savedEnvironment = {
+  url: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+};
+process.env.NEXT_PUBLIC_SUPABASE_URL = SUPABASE_URL;
+process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'sb_publishable_teste';
 
-function fakeClient(reply: unknown, seen?: { jwt?: string | undefined }): SupabaseClient {
-  return {
-    auth: {
-      async getClaims(jwt?: string) {
-        if (seen) seen.jwt = jwt;
-        return reply;
-      },
-    },
-  } as unknown as SupabaseClient;
+const request: { headers: Headers; cookies: Array<{ name: string; value: string }> } = { headers: new Headers(), cookies: [] };
+mock.module('next/headers', {
+  exports: {
+    headers: async () => request.headers,
+    cookies: async () => ({ getAll: () => request.cookies, set() {} }),
+  },
+});
+
+const serverModule = import('../../src/lib/supabase/server');
+
+const encode = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url');
+const keyPair = webcrypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+const publicJwk = keyPair.then(async pair => ({ ...(await webcrypto.subtle.exportKey('jwk', pair.publicKey)), kid: 'chave-do-teste', alg: 'ES256', use: 'sig', key_ops: ['verify'] }));
+
+async function sign(claims: Record<string, unknown>) {
+  const pair = await keyPair;
+  const body = `${encode({ alg: 'ES256', kid: 'chave-do-teste', typ: 'JWT' })}.${encode(claims)}`;
+  const signature = await webcrypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, pair.privateKey, new TextEncoder().encode(body));
+  return `${body}.${Buffer.from(signature).toString('base64url')}`;
 }
 
-test('o token do header é o que vai para a conferência', async () => {
-  const seen: { jwt?: string } = {};
-  const id = await authenticatedUserId(fakeClient({ data: { claims: { sub: MEMBER } }, error: null }, seen), 'Bearer abc.def.ghi');
-  assert.equal(seen.jwt, 'abc.def.ghi');
-  assert.equal(id, MEMBER);
+const inOneHour = () => Math.floor(Date.now() / 1000) + 3600;
+const memberToken = (overrides: Record<string, unknown> = {}) =>
+  sign({ sub: MEMBER, role: 'authenticated', aud: 'authenticated', exp: inOneHour(), ...overrides });
+
+const originalFetch = globalThis.fetch;
+globalThis.fetch = (async (input: RequestInfo | URL) => {
+  const url = new URL(input instanceof Request ? input.url : String(input));
+  if (url.origin === SUPABASE_URL && url.pathname === '/auth/v1/.well-known/jwks.json') {
+    return Response.json({ keys: [await publicJwk] });
+  }
+  throw new Error(`rede inesperada no teste: ${url}`);
+}) as typeof fetch;
+
+after(() => {
+  globalThis.fetch = originalFetch;
+  if (savedEnvironment.url === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+  else process.env.NEXT_PUBLIC_SUPABASE_URL = savedEnvironment.url;
+  if (savedEnvironment.anonKey === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  else process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = savedEnvironment.anonKey;
+});
+
+beforeEach(() => {
+  request.headers = new Headers();
+  request.cookies = [];
+});
+
+function sendBearer(token: string) {
+  request.headers = new Headers({ authorization: `Bearer ${token}` });
+}
+
+function sendSessionCookie(accessToken: string) {
+  const session = {
+    access_token: accessToken,
+    refresh_token: 'refresh-do-teste',
+    token_type: 'bearer',
+    expires_in: 3600,
+    expires_at: inOneHour(),
+    user: { id: MEMBER, aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {}, created_at: '2026-01-01T00:00:00Z' },
+  };
+  request.cookies = [{ name: 'sb-projeto-auth-token', value: JSON.stringify(session) }];
+}
+
+async function memberId() {
+  const { createRequestContext } = await serverModule;
+  return (await createRequestContext()).userId;
+}
+
+test('Bearer válido chega ao userId', async () => {
+  sendBearer(await memberToken());
+  assert.equal(await memberId(), MEMBER);
 });
 
 test('sem header o cookie da sessão continua valendo', async () => {
-  const seen: { jwt?: string } = {};
-  await authenticatedUserId(fakeClient({ data: { claims: { sub: MEMBER } }, error: null }, seen), null);
-  assert.equal(seen.jwt, undefined);
+  sendSessionCookie(await memberToken());
+  assert.equal(await memberId(), MEMBER);
 });
 
-test('token recusado não vira membro', async () => {
-  assert.equal(await authenticatedUserId(fakeClient({ data: null, error: new Error('jwt expired') }), 'Bearer x.y.z'), null);
-  assert.equal(await authenticatedUserId(fakeClient({ data: { claims: {} }, error: null }), 'Bearer x.y.z'), null);
-  assert.equal(await authenticatedUserId(fakeClient({ data: { claims: { sub: '' } }, error: null }), 'Bearer x.y.z'), null);
+test('token vencido é recusado, mesmo com assinatura certa', async () => {
+  sendBearer(await memberToken({ exp: Math.floor(Date.now() / 1000) - 60 }));
+  assert.equal(await memberId(), null);
 });
 
-test('header malformado não passa como token', async () => {
-  const seen: { jwt?: string } = {};
-  await authenticatedUserId(fakeClient({ data: null, error: new Error('no jwt') }, seen), 'Basic abc');
-  assert.equal(seen.jwt, undefined);
+test('token assinado com outro role não vira membro', async () => {
+  for (const role of ['anon', 'service_role', undefined]) {
+    sendBearer(await memberToken({ role }));
+    assert.equal(await memberId(), null, `role ${role} passou`);
+  }
 });
 
-// A troca só se sustenta se a conferência local de fato recusar token vencido e
-// assinatura errada. Assina de verdade com ES256 e entrega o JWKS na mão, sem rede.
-test('a conferência local recusa token vencido e assinatura trocada', async () => {
-  const encode = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url');
-  const pair = await webcrypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
-  const jwk = { ...(await webcrypto.subtle.exportKey('jwk', pair.publicKey)), kid: 'chave-do-teste', alg: 'ES256', use: 'sig', key_ops: ['verify'] };
+test('token sem sub não vira membro', async () => {
+  sendBearer(await memberToken({ sub: '' }));
+  assert.equal(await memberId(), null);
+  sendBearer(await memberToken({ sub: undefined }));
+  assert.equal(await memberId(), null);
+});
 
-  const sign = async (exp: number) => {
-    const body = `${encode({ alg: 'ES256', kid: 'chave-do-teste', typ: 'JWT' })}.${encode({ sub: MEMBER, exp })}`;
-    const signature = await webcrypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, pair.privateKey, new TextEncoder().encode(body));
-    return `${body}.${Buffer.from(signature).toString('base64url')}`;
-  };
+test('assinatura trocada é recusada', async () => {
+  const token = await memberToken();
+  sendBearer(`${token.slice(0, -4)}${token.slice(-4) === 'AAAA' ? 'BBBB' : 'AAAA'}`);
+  assert.equal(await memberId(), null);
+});
 
-  const supabase = createClient('https://projeto.supabase.co', 'sb_publishable_teste');
-  const check = (token: string) => supabase.auth.getClaims(token, { keys: [jwk as never] });
-
-  const valido = await check(await sign(Math.floor(Date.now() / 1000) + 3600));
-  assert.equal(valido.error, null);
-  assert.equal(valido.data?.claims.sub, MEMBER);
-
-  const vencido = await check(await sign(Math.floor(Date.now() / 1000) - 60));
-  assert.ok(vencido.error, 'token vencido tem que ser recusado');
-
-  const fresco = await sign(Math.floor(Date.now() / 1000) + 3600);
-  const adulterado = `${fresco.slice(0, -4)}${fresco.slice(-4) === 'AAAA' ? 'BBBB' : 'AAAA'}`;
-  assert.ok((await check(adulterado)).error, 'assinatura trocada tem que ser recusada');
+test('Bearer inválido com cookie válido não herda o cookie', async () => {
+  for (const authorization of ['Bearer lixo', 'Bearer a.b.c', 'Basic abc', 'Bearer ']) {
+    sendSessionCookie(await memberToken());
+    request.headers = new Headers({ authorization });
+    assert.equal(await memberId(), null, `${authorization} herdou o cookie`);
+  }
 });

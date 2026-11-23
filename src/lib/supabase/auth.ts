@@ -5,13 +5,14 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  * o JWKS em cache sem sair da máquina, enquanto getUser custava uma ida e volta ao
  * Supabase em toda rota. A troca tem preço: um token continua válido até expirar
  * mesmo depois de sair da conta, porque ninguém mais pergunta ao servidor. Se o
- * projeto voltar a assinar com chave simétrica, o próprio getClaims cai de novo no
- * getUser, então a checagem nunca fica frouxa por acidente.
+ * projeto voltar a assinar com chave simétrica, o próprio getClaims
+ * cai de novo no getUser, então a checagem nunca fica frouxa por acidente.
  */
 export async function authenticatedUserId(supabase: SupabaseClient, authorization: string | null): Promise<string | null> {
   const bearer = /^Bearer\s+(\S+)$/i.exec(authorization ?? '')?.[1];
   const { data, error } = await supabase.auth.getClaims(bearer);
   if (error || !data) return null;
-  const sub = data.claims.sub;
-  return typeof sub === 'string' && sub ? sub : null;
+  const { sub, role } = data.claims;
+  // A chave anon e a service role também são JWTs assinados pelo projeto.
+  return role === 'authenticated' && typeof sub === 'string' && sub ? sub : null;
 }
