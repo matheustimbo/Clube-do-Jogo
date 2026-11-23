@@ -123,8 +123,11 @@ test('a catalog without trailers keeps the trailer the row already has', async (
   assert.equal(updated.trailer_url, 'https://www.youtube.com/watch?v=tunic');
 });
 
+// A listagem da RAWG não traz description_raw; só o detalhe por id traz.
+const TUNIC_LISTED = { ...TUNIC, description_raw: undefined };
+
 test('a row no catalog owns is matched by exact title and gets the rawg_id, not the igdb_id', async () => {
-  useRAWG({ '/api/games': { results: [{ ...TUNIC, id: 999, name: 'Tunic Remix' }, TUNIC] } });
+  useRAWG({ '/api/games': { results: [{ ...TUNIC_LISTED, id: 999, name: 'Tunic Remix' }, TUNIC_LISTED] }, '/api/games/23027': TUNIC, '/api/games/23027/screenshots': { results: [] } });
   database.row = { id: 'jogo', title: 'Tunic', igdb_id: null, rawg_id: null, trailer_url: null };
 
   await enrich();
@@ -157,4 +160,23 @@ test('the IGDB-numbered catalog still enriches a row by its igdb_id', async () =
   assert.equal(database.updates[0].igdb_id, 900003);
   assert.equal(Object.hasOwn(database.updates[0], 'rawg_id'), false);
   assert.equal(portraits.length, 2);
+});
+
+test('a title match reads the detail by id, so the row gets the full description', async () => {
+  useRAWG({ '/api/games': { results: [TUNIC_LISTED] }, '/api/games/23027': TUNIC, '/api/games/23027/screenshots': { results: [] } });
+  database.row = { id: 'jogo', title: 'Tunic', igdb_id: null, rawg_id: null, description: null, trailer_url: null };
+
+  await enrich();
+
+  assert.ok(requested.includes('https://api.rawg.io/api/games/23027'), JSON.stringify(requested));
+  assert.equal(database.updates[0].description, 'Uma raposinha e um manual indecifrável.');
+});
+
+test('a catalog with no description keeps the one the row already has', async () => {
+  useRAWG({ '/api/games': { results: [TUNIC_LISTED] }, '/api/games/23027': TUNIC_LISTED, '/api/games/23027/screenshots': { results: [] } });
+  database.row = { id: 'jogo', title: 'Tunic', igdb_id: null, rawg_id: null, description: 'Descrição escrita à mão.', trailer_url: null };
+
+  await enrich();
+
+  assert.equal(database.updates[0].description, 'Descrição escrita à mão.');
 });

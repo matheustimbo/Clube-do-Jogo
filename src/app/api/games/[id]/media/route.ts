@@ -11,9 +11,11 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   if (error || !game) return NextResponse.json({ error: 'Jogo não encontrado.' }, { status: 404 });
   try {
     const lookup = catalogLookupFor(game);
-    const metadata = lookup.by === 'id' ? await getGameById(lookup.id)
-      : lookup.by === 'title' ? await findGameByExactTitle(lookup.title)
-        : null;
+    // A busca por título devolve o jogo da listagem, que na RAWG vem sem descrição.
+    const catalogId = lookup.by === 'id' ? lookup.id
+      : lookup.by === 'title' ? (await findGameByExactTitle(lookup.title))?.id
+        : undefined;
+    const metadata = catalogId ? await getGameById(catalogId) : null;
     if (!metadata) return NextResponse.json(game);
     const key = activeCatalogKey();
     const patch = {
