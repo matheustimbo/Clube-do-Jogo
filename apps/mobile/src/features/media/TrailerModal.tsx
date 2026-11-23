@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { AppState, Modal, Pressable, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +8,8 @@ import { isAllowedTrailerNavigation, trailerSource } from './youtube';
 
 // Let the request guard reject outside links; a whitelist rejection opens the system browser.
 const ORIGIN_WHITELIST = ['*'];
+// O YouTube recusa o embed sem origem, então um build sem EXPO_PUBLIC_SITE_URL
+// (dev local, por exemplo) usa a de produção, que é a que o app publica.
 const FALLBACK_ORIGIN = 'https://clube-do-jogo-coral.vercel.app';
 
 export function TrailerModal({ visible, url, title, onClose }: {
@@ -18,7 +20,8 @@ export function TrailerModal({ visible, url, title, onClose }: {
 }) {
   const colors = useThemeColors();
   const styles = useStyles();
-  const source = trailerSource(url, getMobileSiteUrl() ?? FALLBACK_ORIGIN);
+  const origin = getMobileSiteUrl() ?? FALLBACK_ORIGIN;
+  const source = useMemo(() => trailerSource(url, origin), [url, origin]);
 
   useEffect(() => {
     if (!visible) return undefined;
