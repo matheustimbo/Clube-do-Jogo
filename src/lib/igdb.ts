@@ -349,33 +349,7 @@ export async function getGameByIGDBId(igdbId: number): Promise<CatalogGame | nul
     // Se falhar, mantem o valor padrao
   }
 
-  const imageUrl = game.cover?.image_id
-    ? `https://images.igdb.com/igdb/image/upload/t_cover_big/${game.cover.image_id}.jpg`
-    : null;
-  const averageRating = game.total_rating ?? game.rating ?? game.aggregated_rating ?? null;
-  const releaseYear = game.first_release_date
-    ? new Date(game.first_release_date * 1000).getFullYear()
-    : null;
-  const screenshotUrls = (game.screenshots || []).slice(0, 6).flatMap(screenshot => screenshot.image_id
-    ? [`https://images.igdb.com/igdb/image/upload/t_screenshot_big/${screenshot.image_id}.jpg`]
-    : []);
-  const trailerUrl = game.videos?.[0]?.video_id ? `https://www.youtube.com/watch?v=${game.videos[0].video_id}` : null;
-  const genres = Array.from(new Set((game.genres || []).flatMap(genre => genre.name ? [genre.name] : [])));
-  const platformData = platformMetadata(game.platforms);
-
-  return {
-    id: game.id,
-    title: game.name,
-    duration_hours: durationHours,
-    average_rating: averageRating === null ? null : Math.round(averageRating),
-    release_year: releaseYear,
-    image_url: imageUrl,
-    description: game.summary ?? 'Sem descrição disponível.',
-    screenshot_urls: screenshotUrls,
-    trailer_url: trailerUrl,
-    genres,
-    ...platformData,
-  };
+  return mapIGDBGame(game, durationHours);
 }
 
 function mapIGDBGotyGame(game: IGDBGame, durationHours = 10, targetYear = 2026): IGDBGotyGameResult {
