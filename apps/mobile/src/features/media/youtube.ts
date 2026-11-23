@@ -47,8 +47,9 @@ export function isAllowedTrailerNavigation(url: string): boolean {
 // para a URL e o Android carrega o documento com loadDataWithBaseURL, que não
 // gera referrer nenhum. Mandar o header na própria requisição resolve os dois.
 export function trailerSource(url: string | null | undefined, origin: string) {
-  const uri = youtubeEmbedUrl(url, origin);
+  const siteOrigin = origin.replace(/\/+$/, '');
+  const uri = youtubeEmbedUrl(url, siteOrigin);
   if (!uri) return null;
-  return { uri, headers: { Referer: `${origin}/` } };
+  return { uri, headers: { Referer: `${siteOrigin}/` } };
 }
 
