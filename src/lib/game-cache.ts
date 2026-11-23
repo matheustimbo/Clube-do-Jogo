@@ -21,8 +21,12 @@ function payloadFor(game: IGDBGameResult) {
   };
 }
 
-async function cacheOneByOne(supabase: SupabaseClient, games: IGDBGameResult[]): Promise<Game[]> {
-  const saved: Game[] = [];
+// Cada jogo de entrada junto da linha que o representa no banco. A linha pode ter
+// outro igdb_id (título repetido no fallback 23505), então ninguém casa pelo id dela.
+type CachedGame = [IGDBGameResult, Game];
+
+async function cacheOneByOne(supabase: SupabaseClient, games: IGDBGameResult[]): Promise<CachedGame[]> {
+  const saved: CachedGame[] = [];
   for (const game of games) {
     const payload = payloadFor(game);
     let { data, error } = await supabase.from('games').upsert(payload, { onConflict: 'igdb_id' }).select().single();
@@ -33,7 +37,7 @@ async function cacheOneByOne(supabase: SupabaseClient, games: IGDBGameResult[]):
       error = retry.error;
     }
     if (!error && data) {
-      saved.push(data as Game);
+      saved.push([game, data as Game]);
       continue;
     }
     if (error?.code === '23505') {
@@ -50,7 +54,7 @@ async function cacheOneByOne(supabase: SupabaseClient, games: IGDBGameResult[]):
           platform_ids: existing.platform_ids?.length ? existing.platform_ids : game.platform_ids,
         };
         const { data: updated } = await supabase.from('games').update(metadata).eq('id', existing.id).select().single();
-        saved.push((updated || { ...existing, ...metadata }) as Game);
+        saved.push([game, (updated || { ...existing, ...metadata }) as Game]);
       }
       continue;
     }
@@ -59,13 +63,19 @@ async function cacheOneByOne(supabase: SupabaseClient, games: IGDBGameResult[]):
   return saved;
 }
 
-async function cacheBatch(supabase: SupabaseClient, games: IGDBGameResult[]): Promise<Game[]> {
+async function cacheBatch(supabase: SupabaseClient, games: IGDBGameResult[]): Promise<CachedGame[]> {
   if (!games.length) return [];
   const { data, error } = await supabase.from('games').upsert(games.map(payloadFor), { onConflict: 'igdb_id' }).select();
   // Um lote é tudo ou nada, e as recuperações por linha (schema antigo, título
   // duplicado) só existem uma linha por vez, então a falha cai no caminho lento.
   if (error || !data) return cacheOneByOne(supabase, games);
-  return data as Game[];
+  // O lote volta fora de ordem, mas o ON CONFLICT (igdb_id) garante que cada linha
+  // carrega o igdb_id do jogo que a gravou.
+  const rows = new Map((data as Game[]).map(row => [row.igdb_id, row]));
+  return games.flatMap(game => {
+    const row = rows.get(game.id);
+    return row ? [[game, row] satisfies CachedGame] : [];
+  });
 }
 
 export async function cacheIGDBGames(supabase: SupabaseClient, games: IGDBGameResult[]): Promise<Game[]> {
@@ -77,6 +87,6 @@ export async function cacheIGDBGames(supabase: SupabaseClient, games: IGDBGameRe
     cacheBatch(supabase, games.filter(game => game.image_url)),
     cacheBatch(supabase, games.filter(game => !game.image_url)),
   ]);
-  const byIgdbId = new Map([...withCover, ...withoutCover].map(row => [row.igdb_id, row]));
-  return games.map(game => byIgdbId.get(game.id)).filter((row): row is Game => Boolean(row));
+  const saved = new Map([...withCover, ...withoutCover]);
+  return games.flatMap(game => saved.get(game) ?? []);
 }

@@ -5,6 +5,7 @@ import { cacheIGDBGames } from '../../src/lib/game-cache';
 import type { IGDBGameResult } from '../../src/lib/igdb';
 
 type UpsertPayload = Record<string, unknown>;
+type StoredRow = UpsertPayload & { id: string };
 type UpsertCall = { rows: UpsertPayload[]; columns: string[] };
 
 function igdbGame(overrides: Partial<IGDBGameResult> = {}): IGDBGameResult {
@@ -31,6 +32,9 @@ type FakeOptions = {
   calls?: UpsertCall[];
   failFirstWith?: { code: string };
   roundTrips?: { count: number };
+  // Linhas que já estão no banco, por título. Upsert de um jogo com esse título e
+  // outro igdb_id bate na unique de título (23505), como no banco de verdade.
+  existingByTitle?: Map<string, StoredRow>;
 };
 
 // Imita o postgrest-js: num upsert em lote, `columns` é a união das chaves das
@@ -39,12 +43,16 @@ type FakeOptions = {
 // Devolve as linhas do lote fora de ordem, que é o que o PostgREST pode fazer:
 // se a rota passar a depender da ordem do retorno, o teste pega.
 function fakeSupabase(payloads: UpsertPayload[], options: FakeOptions = {}): SupabaseClient {
-  const { calls, failFirstWith, roundTrips } = options;
+  const { calls, failFirstWith, roundTrips, existingByTitle = new Map() } = options;
   const stored = (payload: UpsertPayload, columns: string[]) => ({
     id: `stored-${payload.igdb_id}`,
     image_url: STORED_COVER,
     ...Object.fromEntries(columns.map(column => [column, Object.hasOwn(payload, column) ? payload[column] : null])),
   });
+  const titleConflict = (payload: UpsertPayload) => {
+    const existing = existingByTitle.get(String(payload.title));
+    return Boolean(existing && existing.igdb_id !== payload.igdb_id);
+  };
   const client = {
     from() {
       return {
@@ -56,13 +64,33 @@ function fakeSupabase(payloads: UpsertPayload[], options: FakeOptions = {}): Sup
           if (roundTrips) roundTrips.count += 1;
           // Coluna que falta é problema de schema, não de sorte: recusa toda vez que
           // ela chega, senão o teste do retorno ao schema antigo passa por acidente.
-          const error = failFirstWith && batch.some(one => Object.hasOwn(one, 'average_rating')) ? failFirstWith : null;
+          const schemaError = failFirstWith && batch.some(one => Object.hasOwn(one, 'average_rating')) ? failFirstWith : null;
+          const error = schemaError ?? (batch.some(titleConflict) ? { code: '23505' } : null);
           const rows = batch.map(one => stored(one, columns)).reverse();
           return {
             select: () => Object.assign(
               Promise.resolve(error ? { data: null, error } : { data: rows, error: null }),
               { single: async () => (error ? { data: null, error } : { data: rows[0], error: null }) },
             ),
+          };
+        },
+        select() {
+          return {
+            eq: (_column: string, title: string) => ({
+              maybeSingle: async () => ({ data: existingByTitle.get(title) ?? null, error: null }),
+            }),
+          };
+        },
+        update(metadata: UpsertPayload) {
+          return {
+            eq: (_column: string, id: string) => ({
+              select: () => ({
+                single: async () => {
+                  const existing = [...existingByTitle.values()].find(row => row.id === id);
+                  return { data: existing ? { ...existing, ...metadata } : null, error: null };
+                },
+              }),
+            }),
           };
         },
       };
@@ -159,4 +187,15 @@ test('jogo com capa e jogo sem capa não viajam no mesmo lote', async () => {
     assert.ok(withCover === 0 || withCover === call.rows.length, `um upsert misturou linhas com e sem image_url: ${JSON.stringify(call.columns)}`);
   }
   assert.equal(saved.find(game => game.title === 'Sem capa')?.image_url, STORED_COVER);
+});
+
+test('jogo que cai na linha de mesmo título com outro igdb_id continua no resultado, na ordem', async () => {
+  const existing: StoredRow = { id: 'stored-legado', igdb_id: 777, title: 'Celeste', image_url: STORED_COVER };
+  const saved = await cacheIGDBGames(fakeSupabase([], { existingByTitle: new Map([['Celeste', existing]]) }), [
+    igdbGame({ id: 10, title: 'Antes' }),
+    igdbGame({ id: 11, title: 'Celeste' }),
+    igdbGame({ id: 12, title: 'Depois' }),
+  ]);
+  assert.deepEqual(saved.map(game => game.title), ['Antes', 'Celeste', 'Depois']);
+  assert.equal(saved[1].id, 'stored-legado');
 });
