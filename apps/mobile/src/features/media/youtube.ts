@@ -42,10 +42,10 @@ export function isAllowedTrailerNavigation(url: string): boolean {
   return url === 'about:blank' || isAllowedYoutubeOrigin(url);
 }
 
-// Desde 2025 o YouTube recusa o embed sem Referer e devolve o erro 153. Nem o
-// WKWebView nem o WebView do Android mandam um sozinhos: o iOS navega direto
-// para a URL e o Android carrega o documento com loadDataWithBaseURL, que não
-// gera referrer nenhum. Mandar o header na própria requisição resolve os dois.
+// Desde 2025 o YouTube recusa o embed sem Referer e devolve o erro 153. Um
+// WebView que abre a URL direto não manda Referer nenhum, nem no iOS nem no
+// Android, então o header vai na própria requisição (loadUrl com headers no
+// Android, a URLRequest no iOS).
 export function trailerSource(url: string | null | undefined, origin: string) {
   const siteOrigin = origin.replace(/\/+$/, '');
   const uri = youtubeEmbedUrl(url, siteOrigin);
