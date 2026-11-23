@@ -28,7 +28,13 @@ test('a game short of screenshots, genres or platforms asks for the detail', () 
   assert.equal(needsMediaEnrichment({ ...complete, screenshot_urls: ['1.jpg'] }), true);
   assert.equal(needsMediaEnrichment({ ...complete, genres: [] }), true);
   assert.equal(needsMediaEnrichment({ ...complete, platforms: null }), true);
-  assert.equal(needsMediaEnrichment({ ...complete, platform_ids: [] }), true);
+});
+
+test('a game whose platforms have no IGDB id stops asking once it has their names', () => {
+  // O detalhe da RAWG traz o nome de toda plataforma e o id só das que rawg-ids.ts
+  // traduz. Pedir de novo nunca traria o id que falta.
+  assert.equal(needsMediaEnrichment({ ...complete, platforms: ['Atari 2600'], platform_ids: [] }), false);
+  assert.equal(needsMediaEnrichment({ ...complete, platforms: ['Atari 2600'], platform_ids: null }), false);
 });
 
 test('the placeholder older rows saved counts as no description', () => {
