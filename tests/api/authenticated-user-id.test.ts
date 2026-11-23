@@ -161,6 +161,12 @@ test('a conferência no servidor também vale para o cookie da sessão', async (
 
 // Toda rota que usa a service role em nome do membro tem que perceber a sessão
 // encerrada. A lista sai do código, então uma rota nova entra sozinha.
+// Rotas que não agem por membro nenhum e se autenticam de outro jeito.
+const NOT_MEMBER_ROUTES = new Set([
+  // O worker do push nativo entra com o CRON_SECRET.
+  'src/app/api/push/worker/route.ts',
+]);
+
 async function routesActingWithServiceRole() {
   const { readdir, readFile } = await import('node:fs/promises');
   const files = (await readdir('src/app/api', { recursive: true })).filter(file => file.endsWith('route.ts')).map(file => `src/app/api/${file}`);
@@ -168,8 +174,7 @@ async function routesActingWithServiceRole() {
   for (const file of files) {
     const source = await readFile(file, 'utf8');
     if (!source.includes('createAdminClient') && !file.startsWith('src/app/api/push/')) continue;
-    // O worker do push nativo não age por membro nenhum: entra com o CRON_SECRET.
-    if (!source.includes('createRequestContext')) continue;
+    if (NOT_MEMBER_ROUTES.has(file)) continue;
     routes.push(file);
   }
   return routes;

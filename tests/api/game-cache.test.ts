@@ -176,6 +176,13 @@ test('a ordem que a IGDB devolveu é a ordem que o cliente recebe', async () => 
   assert.deepEqual(saved.map(game => game.title), ['Jogo 0', 'Jogo 1', 'Jogo 2', 'Jogo 3', 'Jogo 4', 'Jogo 5']);
 });
 
+test('capas intercaladas voltam na ordem da IGDB, não na ordem dos lotes', async () => {
+  const cover = 'https://images.igdb.com/igdb/image/upload/t_cover_big/co65ac.jpg';
+  const page = Array.from({ length: 4 }, (_, index) => igdbGame({ id: 3000 + index, title: `Jogo ${index}`, image_url: index % 2 ? null : cover }));
+  const saved = await cacheIGDBGames(fakeSupabase([]), page);
+  assert.deepEqual(saved.map(game => game.title), ['Jogo 0', 'Jogo 1', 'Jogo 2', 'Jogo 3']);
+});
+
 test('jogo com capa e jogo sem capa não viajam no mesmo lote', async () => {
   const calls: UpsertCall[] = [];
   const saved = await cacheIGDBGames(fakeSupabase([], { calls }), [
