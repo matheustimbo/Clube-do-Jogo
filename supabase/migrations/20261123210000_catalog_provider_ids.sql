@@ -1,6 +1,11 @@
 -- Gives games a RAWG id of its own, next to igdb_id, so the two catalogs never
 -- share a numbering. Additive and idempotent: no existing column changes meaning
 -- and no existing row is touched. igdb_id keeps holding IGDB ids only.
+
+-- games is read on every page. Give up after 5s instead of queueing every reader
+-- behind this ALTER while it waits for a long transaction to finish.
+SET lock_timeout = '5s';
+
 ALTER TABLE public.games
   ADD COLUMN IF NOT EXISTS rawg_id INTEGER;
 

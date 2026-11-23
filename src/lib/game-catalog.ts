@@ -115,7 +115,7 @@ export function activeCatalogAttribution(): CatalogAttribution | null {
 /** O banco ainda não tem a coluna (ou a unique) do id do catálogo ativo. */
 export class CatalogSchemaError extends Error {
   constructor(readonly column: CatalogKey) {
-    super(`games.${column} não existe ou não é única neste banco. Aplique supabase/migrations/20261123120000_catalog_provider_ids.sql antes de usar este catálogo.`);
+    super(`games.${column} não existe ou não é única neste banco. Aplique supabase/migrations/20261123210000_catalog_provider_ids.sql antes de usar este catálogo.`);
     this.name = 'CatalogSchemaError';
   }
 }
