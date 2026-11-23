@@ -297,6 +297,15 @@ test('rawg platforms are stored with IGDB ids first and the untranslated ones ke
   assert.deepEqual(game.platform_ids, [6, 37]);
 });
 
+test('a discover page past the end of RAWG is the end of the list, not an error', async () => {
+  useRAWG();
+  // O Django REST Framework da RAWG responde assim a uma página que não existe.
+  globalThis.fetch = (async () => new Response('{"detail":"Invalid page."}', { status: 404 })) as typeof fetch;
+  assert.deepEqual(await browseGames({ sort: 'popular', limit: 24, offset: 480 }), []);
+  // Na primeira página o 404 não é fim de lista: é a RAWG falhando.
+  await assert.rejects(browseGames({ sort: 'popular', limit: 24, offset: 0 }), /404/);
+});
+
 test('a RAWG id that does not exist comes back as null, like the IGDB contract', async () => {
   useRAWG();
   globalThis.fetch = (async () => new Response('{"detail":"Not found."}', { status: 404 })) as typeof fetch;

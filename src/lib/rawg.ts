@@ -114,10 +114,11 @@ export async function browseGamesWithRAWG(options: CatalogBrowseOptions): Promis
   const sort = options.sort || 'popular';
   const limit = Math.max(1, Math.min(40, options.limit || 24));
   const offset = Math.max(0, options.offset || 0);
+  const page = Math.floor(offset / limit) + 1;
   const params = new URLSearchParams({
     exclude_additions: 'true',
     page_size: String(limit),
-    page: String(Math.floor(offset / limit) + 1),
+    page: String(page),
   });
 
   let ordering = '-added';
@@ -164,8 +165,12 @@ export async function browseGamesWithRAWG(options: CatalogBrowseOptions): Promis
   if (query) params.set('search', query);
   else params.set('ordering', ordering);
 
-  const page = await rawgFetch<RAWGPage<RAWGGame>>('/api/games', params, 'ao explorar jogos');
-  return (page.results || []).map(game => mapRAWGGame(game));
+  const body = await rawgFetch<RAWGPage<RAWGGame>>('/api/games', params, 'ao explorar jogos').catch(error => {
+    // Depois da última página a RAWG responde 404 "Invalid page.": a lista acabou.
+    if (error instanceof RAWGRequestError && error.status === 404 && page > 1) return { results: [] };
+    throw error;
+  });
+  return (body.results || []).map(game => mapRAWGGame(game));
 }
 
 export async function getGameByRAWGId(id: number): Promise<CatalogGame | null> {
