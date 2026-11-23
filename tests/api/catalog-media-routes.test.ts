@@ -238,3 +238,48 @@ test('under the IGDB-numbered catalog mugshots skip a row only RAWG owns and loo
   database.row = { id: 'jogo', title: 'Celeste', release_year: 2018, igdb_id: null, rawg_id: null };
   assert.equal((await mugshots()).mugshots.length, 2);
 });
+
+const RESIDENT_EVIL_UNDATED = { ...TUNIC_LISTED, id: 3000, name: 'Resident Evil', released: null };
+
+test('a row with a year never takes a catalog game without one', async () => {
+  useRAWG({ '/api/games': { results: [RESIDENT_EVIL_UNDATED, RESIDENT_EVIL_2002] }, '/api/games/3000': RESIDENT_EVIL_UNDATED });
+  database.row = { id: 'jogo', title: 'Resident Evil', release_year: 1996, igdb_id: null, rawg_id: null, trailer_url: null };
+
+  assert.deepEqual(await enrich(), database.row);
+  assert.deepEqual(database.updates, []);
+  assert.deepEqual(requested, ['https://api.rawg.io/api/games']);
+});
+
+test('a row with a year takes the candidate of its year even after one without a year', async () => {
+  useRAWG({
+    '/api/games': { results: [RESIDENT_EVIL_UNDATED, RESIDENT_EVIL_1996] },
+    '/api/games/1996': RESIDENT_EVIL_1996,
+    '/api/games/1996/screenshots': { results: [] },
+  });
+  database.row = { id: 'jogo', title: 'Resident Evil', release_year: 1996, igdb_id: null, rawg_id: null, trailer_url: null };
+
+  await enrich();
+
+  assert.equal(database.updates[0].rawg_id, 1996);
+});
+
+test('a row without a year still takes the first same-title game, dated or not', async () => {
+  useRAWG({
+    '/api/games': { results: [RESIDENT_EVIL_2002, RESIDENT_EVIL_UNDATED] },
+    '/api/games/2002': RESIDENT_EVIL_2002,
+    '/api/games/2002/screenshots': { results: [] },
+  });
+  database.row = { id: 'jogo', title: 'Resident Evil', release_year: null, igdb_id: null, rawg_id: null, trailer_url: null };
+  await enrich();
+  // A busca vem por relevância: sem ano na linha, o primeiro de mesmo título é o jogo.
+  assert.deepEqual(database.updates.map(update => update.rawg_id), [2002]);
+
+  useRAWG({
+    '/api/games': { results: [RESIDENT_EVIL_UNDATED] },
+    '/api/games/3000': RESIDENT_EVIL_UNDATED,
+    '/api/games/3000/screenshots': { results: [] },
+  });
+  database.updates = [];
+  await enrich();
+  assert.deepEqual(database.updates.map(update => update.rawg_id), [3000]);
+});

@@ -129,10 +129,11 @@ export function hasNoCatalogId(row: CatalogIds) {
 
 /**
  * Uma linha de mesmo título só é este jogo quando o ano não desmente: o mesmo ano, ou
- * um dos dois sem ano. Doom de 1993 e Doom de 2016 dividem o título, não o jogo.
+ * uma linha sem ano. Doom de 1993 e Doom de 2016 dividem o título, não o jogo. Um jogo
+ * do catálogo sem ano não prova que é o da linha datada, então não casa com ela.
  */
 export function isSameRelease(row: { release_year?: number | null }, game: { release_year?: number | null }) {
-  return row.release_year == null || game.release_year == null || row.release_year === game.release_year;
+  return row.release_year == null || row.release_year === game.release_year;
 }
 
 /** Como o catálogo ativo pode achar uma linha de games já gravada. */
@@ -155,12 +156,14 @@ function normalizedTitle(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
-/** O jogo do catálogo com o título da linha e um ano que não desminta o dela. */
+/**
+ * O primeiro jogo do catálogo com o título da linha e um ano que não desminta o dela.
+ * Linha datada só aceita o jogo do mesmo ano; linha sem ano fica com o mais relevante.
+ */
 export async function findGameByTitle(lookup: { title: string; releaseYear: number | null }): Promise<CatalogGame | null> {
-  const sameTitle = (await searchGames(lookup.title)).filter(candidate => normalizedTitle(candidate.title) === normalizedTitle(lookup.title));
-  return sameTitle.find(candidate => candidate.release_year === lookup.releaseYear)
-    ?? sameTitle.find(candidate => isSameRelease({ release_year: lookup.releaseYear }, candidate))
-    ?? null;
+  const row = { release_year: lookup.releaseYear };
+  return (await searchGames(lookup.title))
+    .find(candidate => normalizedTitle(candidate.title) === normalizedTitle(lookup.title) && isSameRelease(row, candidate)) ?? null;
 }
 
 export function searchGames(query: string): Promise<CatalogGame[]> {

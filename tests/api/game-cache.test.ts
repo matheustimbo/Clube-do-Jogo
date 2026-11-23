@@ -322,6 +322,29 @@ test('a row another catalog owns from another year never stands in for the game'
   assert.deepEqual(saved.map(game => game.title), ['Antes']);
 });
 
+test('a catalog game without a year never lands on a row that has one', async () => {
+  const updates: Array<{ id: string; patch: UpsertPayload }> = [];
+  const owned: StoredRow = { id: 'linha-igdb', igdb_id: 12517, rawg_id: null, title: 'Outer Wilds', release_year: 2019, image_url: STORED_COVER };
+  const manual: StoredRow = { id: 'linha-manual', igdb_id: null, rawg_id: null, title: 'Celeste', release_year: 2018, image_url: STORED_COVER };
+  const saved = await cacheCatalogGames(fakeSupabase([], { existingByTitle: new Map([['Outer Wilds', owned], ['Celeste', manual]]), updates }), [
+    catalogGame({ id: 1, title: 'Antes', release_year: 2020 }),
+    catalogGame({ id: 26192, title: 'Outer Wilds', release_year: null }),
+    catalogGame({ id: 9600, title: 'Celeste', release_year: null }),
+  ], 'rawg_id');
+  assert.deepEqual(updates, []);
+  assert.deepEqual(saved.map(game => game.title), ['Antes']);
+});
+
+test('a row without a year still takes a catalog game without one', async () => {
+  const updates: Array<{ id: string; patch: UpsertPayload }> = [];
+  const manual: StoredRow = { id: 'linha-manual', igdb_id: null, rawg_id: null, title: 'Celeste', release_year: null, image_url: STORED_COVER };
+  const saved = await cacheCatalogGames(fakeSupabase([], { existingByTitle: new Map([['Celeste', manual]]), updates }), [
+    catalogGame({ id: 9600, title: 'Celeste', release_year: null }),
+  ], 'rawg_id');
+  assert.deepEqual(updates.map(update => update.patch.rawg_id), [9600]);
+  assert.deepEqual(saved.map(game => game.id), ['linha-manual']);
+});
+
 test('two games of one page that land on the same row come back once', async () => {
   const doom: StoredRow = { id: 'linha-doom', igdb_id: 673, rawg_id: null, title: 'Doom', release_year: null, image_url: STORED_COVER };
   const saved = await cacheCatalogGames(fakeSupabase([], { existingByTitle: new Map([['Doom', doom]]) }), [
