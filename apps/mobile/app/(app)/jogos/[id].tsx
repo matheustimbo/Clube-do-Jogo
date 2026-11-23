@@ -457,6 +457,7 @@ export default function GameDetailScreen() {
         activeIndex={galleryIndex ?? 0}
         onActiveIndexChange={setGalleryIndex}
         onClose={() => setGalleryIndex(null)}
+        footer={<CatalogAttribution />}
       />}
 
       <TrailerModal

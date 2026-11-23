@@ -3,6 +3,7 @@ import { ScrollView, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { GameListRow } from './GameListRow';
 import { PreferenceButtons } from './PreferenceButtons';
+import { CatalogAttribution } from './CatalogAttribution';
 import { Sheet } from './Sheet';
 import { ErrorState, LoadingState } from './StateViews';
 import { useDiscoveryPages } from '@/state/library-queries';
@@ -69,6 +70,7 @@ export function AddGameToVoteSheet({ visible, onClose, ranking, onChoose }: {
               );
             })
           )}
+          {games.length > 0 ? <CatalogAttribution /> : null}
         </ScrollView>
       </View>
     </Sheet>

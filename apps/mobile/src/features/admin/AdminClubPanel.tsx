@@ -4,6 +4,7 @@ import type { ClubGameUndoPreview } from '@clube-do-jogo/data';
 import { gameCoverUrl } from '@clube-do-jogo/domain';
 import { formatMonth, formatShortDate } from '@/lib/format';
 import { Button } from '@/components/Button';
+import { CatalogAttribution } from '@/components/CatalogAttribution';
 import { EmptyState, ErrorState, LoadingState } from '@/components/StateViews';
 import { useGameOfMonth } from '@/state/queries';
 import { usePreviewClubGameUndo, useRedoClubGameChange } from '@/state/admin-queries';
@@ -125,6 +126,8 @@ export function AdminClubPanel() {
           setUndoTarget(null);
         }}
       />
+
+      <CatalogAttribution />
     </View>
   );
 }

@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-nativ
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import type { UserPlatform } from '@clube-do-jogo/domain';
+import { CatalogAttribution } from '@/components/CatalogAttribution';
 import { Sheet } from '@/components/Sheet';
 import { EmptyState } from '@/components/StateViews';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
@@ -99,6 +100,7 @@ export function PlatformPicker({ visible, onClose }: { visible: boolean; onClose
 
         {addPlatform.error ? <Text style={styles.error}>{addPlatform.error.message}</Text> : null}
         {removePlatform.error ? <Text style={styles.error}>{removePlatform.error.message}</Text> : null}
+        <CatalogAttribution />
       </View>
     </Sheet>
   );

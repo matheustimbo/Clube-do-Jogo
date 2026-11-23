@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Dimensions, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,13 +10,15 @@ import { themedStyles, useThemeColors, radii, spacing } from '@/theme';
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 3;
 
-export function ImageGalleryModal({ visible, title, images, activeIndex, onActiveIndexChange, onClose }: {
+export function ImageGalleryModal({ visible, title, images, activeIndex, onActiveIndexChange, onClose, footer }: {
   visible: boolean;
   title: string;
   images: string[];
   activeIndex: number;
   onActiveIndexChange: (index: number) => void;
   onClose: () => void;
+  /** Fica sob as miniaturas; a galeria cobre a tela e esconde o crédito da página. */
+  footer?: ReactNode;
 }) {
   const colors = useThemeColors();
   const styles = useStyles();
@@ -130,6 +132,7 @@ export function ImageGalleryModal({ visible, title, images, activeIndex, onActiv
             ))}
           </ScrollView>
         ) : null}
+        {footer}
       </GestureHandlerRootView>
     </Modal>
   );

@@ -7,6 +7,7 @@ import type { ClubGameChangePreview, ClubGameChangeResult } from '@clube-do-jogo
 import { gameCoverUrl, type Game } from '@clube-do-jogo/domain';
 import { formatMonth } from '@/lib/format';
 import { Button } from '@/components/Button';
+import { CatalogAttribution } from '@/components/CatalogAttribution';
 import { Sheet } from '@/components/Sheet';
 import { EmptyState } from '@/components/StateViews';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
@@ -56,6 +57,7 @@ export function ClubGameChangeSheet({ visible, initialGame, onClose, onApplied }
           }}
         />
       )}
+      <CatalogAttribution />
     </Sheet>
   );
 }
