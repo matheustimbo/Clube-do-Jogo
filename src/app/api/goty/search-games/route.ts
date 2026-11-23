@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { GOTY_2026_CURATED_CATALOG, type GotySearchGameResult } from '@clube-do-jogo/domain';
 import { createClient } from '@/lib/supabase/server';
 import { searchGoty2026GamesWithIGDB } from '@/lib/igdb';
-import { cacheCatalogGames } from '@/lib/game-cache';
+import { cacheCatalogGameRows } from '@/lib/game-cache';
 import type { Game } from '@/lib/types';
 
 function normalize(value: string): string {
@@ -19,13 +19,15 @@ function searchCurated2026(query: string): GotySearchGameResult[] {
   );
 }
 
+// Um jogo da IGDB que caiu numa linha da RAWG leva o igdb_id dele, e a mesma linha
+// vinda da busca local não leva nenhum. O id da linha é o que os dois têm em comum.
 function deduplicateGames(items: GotySearchGameResult[]): GotySearchGameResult[] {
   const seen = new Set<string>();
   const result: GotySearchGameResult[] = [];
   for (const item of items) {
-    const key = item.igdb_id ? `igdb:${item.igdb_id}` : `title:${normalize(item.title)}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
+    const keys = [`id:${item.id}`, item.igdb_id ? `igdb:${item.igdb_id}` : `title:${normalize(item.title)}`];
+    if (keys.some(key => seen.has(key))) continue;
+    keys.forEach(key => seen.add(key));
     result.push(item);
   }
   return result;
@@ -58,13 +60,12 @@ export async function GET(request: Request) {
 
       if (igdbGames.length > 0) {
         source = 'igdb';
-        const cached = await cacheCatalogGames(supabase, igdbGames, 'igdb_id');
-        const byIgdbId = new Map<number, Game>(
-          cached.flatMap(item => (item.igdb_id ? [[item.igdb_id, item] as const] : [])),
-        );
+        // A linha pode ser de outro dono (a RAWG gravou o mesmo jogo pelo título), então o
+        // jogo casa com a linha em que caiu, não com a que tem o igdb_id dele.
+        const cached = await cacheCatalogGameRows(supabase, igdbGames, 'igdb_id');
 
         for (const igdbGame of igdbGames) {
-          const persisted = byIgdbId.get(igdbGame.id);
+          const persisted = cached.get(igdbGame);
           merged.push({
             id: persisted?.id || `igdb-${igdbGame.id}`,
             igdb_id: igdbGame.id,

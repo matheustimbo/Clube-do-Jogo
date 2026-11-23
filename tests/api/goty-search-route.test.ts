@@ -4,16 +4,14 @@ import { afterEach, mock, test } from 'node:test';
 // Caminho real da rota GOTY e do cache. Só a borda é falsa: o banco, que grava cada
 // upsert, e a rede, que responde como a Twitch e a IGDB.
 type Upsert = { rows: Array<Record<string, unknown>>; onConflict: string };
+type Row = Record<string, unknown> & { id: string; title: string };
 const upserts: Upsert[] = [];
+// Linhas que já estão em games, por título. A unique de título vale como no banco: o
+// upsert de outro jogo com esse título responde 23505.
+const stored = new Map<string, Row>();
 
-const localQuery = {
-  // O cache consulta os títulos antes do upsert; o banco deste teste não tem nenhum.
-  in: async () => ({ data: [], error: null }),
-  limit: () => localQuery,
-  ilike: () => localQuery,
-  eq: () => localQuery,
-  order: async () => ({ data: [], error: null }),
-};
+const titleConflict = (rows: Array<Record<string, unknown>>, key: string) =>
+  rows.some(row => stored.has(String(row.title)) && stored.get(String(row.title))![key] !== row[key]);
 
 const supabase = {
   auth: { getUser: async () => ({ data: { user: { id: 'membro' } }, error: null }) },
@@ -22,10 +20,28 @@ const supabase = {
       upsert(payload: Record<string, unknown> | Array<Record<string, unknown>>, { onConflict }: { onConflict: string }) {
         const rows = Array.isArray(payload) ? payload : [payload];
         upserts.push({ rows, onConflict });
+        const error = titleConflict(rows, onConflict) ? { code: '23505', message: 'duplicate key value violates unique constraint "games_title_key"' } : null;
         const saved = rows.map(row => ({ id: `linha-${String(row[onConflict])}`, ...row }));
-        return { select: async () => ({ data: saved, error: null }) };
+        const result = error ? { data: null, error } : { data: saved, error: null };
+        return { select: () => Object.assign(Promise.resolve(result), { single: async () => (error ? result : { data: saved[0], error: null }) }) };
       },
-      select: () => localQuery,
+      select() {
+        // A busca local da rota: título parecido, 2026, por nota.
+        const local = {
+          limit: () => local,
+          ilike: () => local,
+          eq: () => local,
+          order: async () => ({ data: [...stored.values()].filter(row => row.release_year === 2026), error: null }),
+        };
+        return {
+          ...local,
+          in: async (_column: string, titles: string[]) => ({ data: titles.flatMap(title => (stored.has(title) ? [stored.get(title)!] : [])), error: null }),
+          eq: (_column: string, title: string) => ({ ...local, maybeSingle: async () => ({ data: stored.get(title) ?? null, error: null }) }),
+        };
+      },
+      update() {
+        throw new Error('a busca GOTY não reivindica linha neste teste');
+      },
     };
   },
 };
@@ -64,6 +80,7 @@ afterEach(() => {
   restore('IGDB_CLIENT_SECRET', savedEnvironment.clientSecret);
   globalThis.fetch = realFetch;
   upserts.length = 0;
+  stored.clear();
 });
 
 function useIGDB() {
@@ -92,4 +109,18 @@ test('under the RAWG catalog the GOTY search still stores its IGDB games by igdb
   assert.equal(Object.hasOwn(row, 'rawg_id'), false, JSON.stringify(row));
   // A rota casa o jogo da IGDB com a linha salva, então o item leva o id do banco.
   assert.equal(body.items[0].id, 'linha-119171');
+});
+
+test('under RAWG an IGDB game that lands on a RAWG row comes back once, with that row id', async () => {
+  delete process.env.IGDB_OFFLINE_CATALOG;
+  process.env.GAME_CATALOG_PROVIDER = 'rawg';
+  useIGDB();
+  // A listagem da RAWG já gravou o jogo: a linha tem rawg_id e nenhum igdb_id.
+  stored.set('Jogo de 2026', { id: 'linha-rawg', title: 'Jogo de 2026', igdb_id: null, rawg_id: 58550, release_year: 2026, duration_hours: 30 });
+  const { GET } = await import('../../src/app/api/goty/search-games/route');
+
+  const body = await (await GET(new Request('http://localhost/api/goty/search-games?q=jogo'))).json();
+
+  assert.deepEqual(body.items.map((item: { id: string }) => item.id), ['linha-rawg']);
+  assert.equal(body.items[0].igdb_id, 119171);
 });
