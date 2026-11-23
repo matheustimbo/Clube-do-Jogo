@@ -12,11 +12,10 @@
  *   IGDB: os filtros de descoberta (src/app/jogos/page.tsx,
  *   apps/mobile/app/(app)/(tabs)/jogos.tsx), os nomes de gênero da rota de descoberta
  *   e a fixture offline. O 3DS (37) foi conferido na revisão da integração.
- *
- * A doc da IGDB não publica a tabela de plataformas e as páginas de igdb.com não
- * abrem sem navegador, então Wii U, Wii, PS3, PS2, PS Vita, Xbox 360, iOS, Android,
- * macOS e Linux ainda não entram. Os ids da RAWG deles já estão conferidos em
- * https://rawg.io/games/pc: 10, 11, 16, 15, 19, 14, 3, 21, 5 e 6.
+ * - Ids da IGDB de Wii U em diante na lista de plataformas: IGDB_PLATFORM_LIST do RomM
+ *   (https://github.com/rommapp/romm/blob/master/backend/adapters/services/igdb.py),
+ *   que guarda o id de cada plataforma da IGDB. Os ids da RAWG deles vêm da mesma
+ *   página do rawg.io acima.
  *
  * Só acrescente uma linha depois de conferir os dois ids numa fonte. Linha que falta é
  * segura: filtro sem tradução não devolve jogos, e plataforma da RAWG sem tradução
@@ -40,6 +39,16 @@ const PLATFORMS: ReadonlyArray<readonly [igdb: number, rawg: number]> = [
   [169, 186], // Xbox Series X|S → Xbox Series S/X
   [130, 7], // Nintendo Switch
   [37, 8], // Nintendo 3DS
+  [41, 10], // Wii U
+  [5, 11], // Wii
+  [9, 16], // PlayStation 3
+  [8, 15], // PlayStation 2
+  [46, 19], // PlayStation Vita → PS Vita
+  [12, 14], // Xbox 360
+  [39, 3], // iOS
+  [34, 21], // Android
+  [14, 5], // Mac → macOS
+  [3, 6], // Linux
 ];
 
 const RAWG_GENRE_BY_IGDB = new Map(GENRES);

@@ -385,3 +385,36 @@ test('an IGDB failure reaches the caller with its status, and the raw body only 
     });
   }
 });
+
+// IGDB: IGDB_PLATFORM_LIST do RomM. RAWG: a lista de plataformas de rawg.io/games/pc.
+const OLDER_AND_MOBILE_PLATFORMS: Array<[name: string, igdb: number, rawg: number]> = [
+  ['Wii U', 41, 10],
+  ['Wii', 5, 11],
+  ['PlayStation 3', 9, 16],
+  ['PlayStation 2', 8, 15],
+  ['PlayStation Vita', 46, 19],
+  ['Xbox 360', 12, 14],
+  ['iOS', 39, 3],
+  ['Android', 34, 21],
+  ['Mac', 14, 5],
+  ['Linux', 3, 6],
+];
+
+test('older consoles, phones, Mac and Linux translate both ways between IGDB and RAWG', async () => {
+  const { igdbPlatformFor, rawgPlatformFor } = await import('../../src/lib/rawg-ids');
+  for (const [name, igdb, rawg] of OLDER_AND_MOBILE_PLATFORMS) {
+    assert.equal(rawgPlatformFor(igdb), rawg, `${name}: IGDB ${igdb} → RAWG`);
+    assert.equal(igdbPlatformFor(rawg), igdb, `${name}: RAWG ${rawg} → IGDB`);
+  }
+});
+
+test('a RAWG game on those platforms is stored with their IGDB ids', async () => {
+  useRAWG();
+  recordFetch({
+    '/api/games': {
+      results: [{ ...TUNIC, platforms: OLDER_AND_MOBILE_PLATFORMS.map(([name, , rawg]) => ({ platform: { id: rawg, name } })) }],
+    },
+  });
+  const [game] = await searchGames('tunic');
+  assert.deepEqual(game.platform_ids, OLDER_AND_MOBILE_PLATFORMS.map(([, igdb]) => igdb));
+});
