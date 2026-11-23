@@ -27,6 +27,9 @@ function catalogGame(overrides: Partial<CatalogGame> = {}): CatalogGame {
 }
 
 const STORED_COVER = 'https://images.igdb.com/igdb/image/upload/t_cover_big/stored.jpg';
+// O que a rota de mídia já tinha gravado na linha antes da listagem passar por ela.
+const STORED_DESCRIPTION = 'Descrição completa que a rota de mídia salvou.';
+const STORED_TRAILER = 'https://www.youtube.com/watch?v=salvo';
 
 type FakeOptions = {
   calls?: UpsertCall[];
@@ -51,6 +54,8 @@ function fakeSupabase(payloads: UpsertPayload[], options: FakeOptions = {}): Sup
   const stored = (payload: UpsertPayload, columns: string[], key: string) => ({
     id: `stored-${payload[key]}`,
     image_url: STORED_COVER,
+    description: STORED_DESCRIPTION,
+    trailer_url: STORED_TRAILER,
     ...Object.fromEntries(columns.map(column => [column, Object.hasOwn(payload, column) ? payload[column] : null])),
   });
   const titleConflict = (payload: UpsertPayload, key: string) => {
@@ -120,11 +125,26 @@ test('a game with no art is upserted without an image_url key at all', async () 
     release_year: 2022,
     description: 'Uma raposinha explora um mundo cheio de segredos.',
     screenshot_urls: ['https://images.igdb.com/shot-1.jpg'],
-    trailer_url: null,
     genres: ['Aventura'],
     platforms: ['PC'],
     platform_ids: [6],
   });
+});
+
+test('a listing without description or trailer keeps the ones the media route saved', async () => {
+  const payloads: UpsertPayload[] = [];
+  const saved = await cacheCatalogGames(fakeSupabase(payloads), [catalogGame({ description: null, trailer_url: null })], 'rawg_id');
+  assert.equal(Object.hasOwn(payloads[0], 'description'), false, JSON.stringify(payloads[0]));
+  assert.equal(Object.hasOwn(payloads[0], 'trailer_url'), false, JSON.stringify(payloads[0]));
+  assert.equal(saved[0].description, STORED_DESCRIPTION);
+  assert.equal(saved[0].trailer_url, STORED_TRAILER);
+});
+
+test('a listing that brings a description and a trailer writes them', async () => {
+  const payloads: UpsertPayload[] = [];
+  const saved = await cacheCatalogGames(fakeSupabase(payloads), [catalogGame({ description: 'Nova.', trailer_url: 'https://www.youtube.com/watch?v=novo' })], 'igdb_id');
+  assert.equal(saved[0].description, 'Nova.');
+  assert.equal(saved[0].trailer_url, 'https://www.youtube.com/watch?v=novo');
 });
 
 test('an empty cover string counts as no art', async () => {
@@ -191,17 +211,26 @@ test('capas intercaladas voltam na ordem da IGDB, não na ordem dos lotes', asyn
   assert.deepEqual(saved.map(game => game.title), ['Jogo 0', 'Jogo 1', 'Jogo 2', 'Jogo 3']);
 });
 
-test('jogo com capa e jogo sem capa não viajam no mesmo lote', async () => {
+test('a batch never mixes games that bring different fields', async () => {
   const calls: UpsertCall[] = [];
+  const cover = 'https://images.igdb.com/igdb/image/upload/t_cover_big/co65ac.jpg';
+  const trailer = 'https://www.youtube.com/watch?v=novo';
   const saved = await cacheCatalogGames(fakeSupabase([], { calls }), [
-    catalogGame({ id: 1, title: 'Com capa', image_url: 'https://images.igdb.com/igdb/image/upload/t_cover_big/co65ac.jpg' }),
-    catalogGame({ id: 2, title: 'Sem capa', image_url: null }),
+    catalogGame({ id: 1, title: 'Tudo', image_url: cover, description: 'Descrição.', trailer_url: trailer }),
+    catalogGame({ id: 2, title: 'Sem capa', image_url: null, description: 'Descrição.', trailer_url: trailer }),
+    catalogGame({ id: 3, title: 'Sem descrição', image_url: cover, description: null, trailer_url: trailer }),
+    catalogGame({ id: 4, title: 'Sem trailer', image_url: cover, description: 'Descrição.', trailer_url: null }),
+    catalogGame({ id: 5, title: 'Também tudo', image_url: cover, description: 'Descrição.', trailer_url: trailer }),
   ], 'igdb_id');
   for (const call of calls) {
-    const withCover = call.rows.filter(row => Object.hasOwn(row, 'image_url')).length;
-    assert.ok(withCover === 0 || withCover === call.rows.length, `um upsert misturou linhas com e sem image_url: ${JSON.stringify(call.columns)}`);
+    const keySets = new Set(call.rows.map(row => Object.keys(row).sort().join(',')));
+    assert.equal(keySets.size, 1, `um upsert misturou linhas com chaves diferentes: ${[...keySets].join(' | ')}`);
   }
-  assert.equal(saved.find(game => game.title === 'Sem capa')?.image_url, STORED_COVER);
+  const byTitle = new Map(saved.map(game => [game.title, game]));
+  assert.equal(byTitle.get('Sem capa')?.image_url, STORED_COVER);
+  assert.equal(byTitle.get('Sem descrição')?.description, STORED_DESCRIPTION);
+  assert.equal(byTitle.get('Sem trailer')?.trailer_url, STORED_TRAILER);
+  assert.deepEqual(saved.map(game => game.title), ['Tudo', 'Sem capa', 'Sem descrição', 'Sem trailer', 'Também tudo']);
 });
 
 test('jogo que cai na linha de mesmo título com outro igdb_id continua no resultado, na ordem', async () => {

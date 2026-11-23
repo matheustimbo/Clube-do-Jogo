@@ -10,11 +10,12 @@ function payloadFor(game: CatalogGame, key: CatalogKey) {
     average_rating: game.average_rating,
     release_year: game.release_year,
     // O PostgREST monta o ON CONFLICT DO UPDATE SET a partir das chaves do payload,
-    // então omitir image_url preserva a capa já salva em vez de sobrescrevê-la.
+    // então o campo que o catálogo não trouxe fica de fora e o valor salvo (a capa, a
+    // descrição e o trailer que a rota de mídia gravou) sobrevive à listagem.
     ...(game.image_url ? { image_url: game.image_url } : {}),
-    description: game.description,
+    ...(game.description ? { description: game.description } : {}),
     screenshot_urls: game.screenshot_urls,
-    trailer_url: game.trailer_url,
+    ...(game.trailer_url ? { trailer_url: game.trailer_url } : {}),
     genres: game.genres,
     platforms: game.platforms,
     platform_ids: game.platform_ids,
@@ -107,13 +108,14 @@ async function cacheBatch(supabase: SupabaseClient, games: CatalogGame[], key: C
  */
 export async function cacheCatalogGames(supabase: SupabaseClient, games: CatalogGame[], key: CatalogKey): Promise<Game[]> {
   if (!games.length) return [];
-  // Um lote só para quem tem capa e outro para quem não tem: o postgrest-js manda
-  // `columns` com a união das chaves do lote, então misturar os dois faria a capa
-  // ausente de um apagar a capa gravada do outro.
-  const [withCover, withoutCover] = await Promise.all([
-    cacheBatch(supabase, games.filter(game => game.image_url), key),
-    cacheBatch(supabase, games.filter(game => !game.image_url), key),
-  ]);
-  const saved = new Map([...withCover, ...withoutCover]);
+  // Um lote por conjunto de chaves: o postgrest-js manda `columns` com a união das
+  // chaves do lote, e a chave que falta numa linha vira NULL. Misturar um jogo sem
+  // descrição com um que tem apagaria a descrição gravada do primeiro.
+  const batches = new Map<string, CatalogGame[]>();
+  for (const game of games) {
+    const keys = Object.keys(payloadFor(game, key)).join(',');
+    batches.set(keys, [...(batches.get(keys) ?? []), game]);
+  }
+  const saved = new Map((await Promise.all([...batches.values()].map(batch => cacheBatch(supabase, batch, key)))).flat());
   return games.flatMap(game => saved.get(game) ?? []);
 }

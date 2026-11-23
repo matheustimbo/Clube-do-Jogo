@@ -248,7 +248,7 @@ export default function GameDetailScreen() {
         </View>
       ) : null}
 
-      <Text style={styles.description} numberOfLines={descriptionExpanded ? undefined : 3}>{game.description}</Text>
+      <Text style={styles.description} numberOfLines={descriptionExpanded ? undefined : 3}>{game.description || 'Sem descrição disponível.'}</Text>
       {game.description && game.description.length > DESCRIPTION_EXPAND_THRESHOLD ? (
         <Pressable onPress={() => setDescriptionExpanded(value => !value)} accessibilityRole="button" style={styles.descriptionToggle}>
           <Text style={styles.descriptionToggleLabel}>{descriptionExpanded ? 'Ver menos' : 'Ver mais'}</Text>

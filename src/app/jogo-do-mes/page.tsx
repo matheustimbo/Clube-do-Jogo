@@ -28,7 +28,7 @@ export default function GameOfMonthPage() {
     <div className="mx-auto grid min-h-[65dvh] max-w-xl place-items-center text-center"><div><CalendarClock className="mx-auto size-10 text-zinc-700" /><h1 className="mt-4 text-xl font-black">Jogo ainda não definido</h1><p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-zinc-500">Um administrador ainda não definiu o jogo de {formatMonth(selectedMonth)}.</p></div></div>
   );
 
-  const hasMoreDescription = game.description.length > 150;
+  const hasMoreDescription = (game.description?.length ?? 0) > 150;
 
   return (
     <div className="mx-auto max-w-3xl animate-fade-in">

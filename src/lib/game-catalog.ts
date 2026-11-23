@@ -10,7 +10,7 @@ export interface CatalogGame {
   average_rating: number | null;
   release_year: number | null;
   image_url: string | null;
-  description: string;
+  description: string | null;
   screenshot_urls: string[];
   trailer_url: string | null;
   genres: string[];

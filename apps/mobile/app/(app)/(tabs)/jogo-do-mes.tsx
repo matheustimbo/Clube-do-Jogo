@@ -132,7 +132,7 @@ export default function GameOfMonthScreen() {
               ) : null}
             </View>
             <Text style={styles.description} numberOfLines={2}>{game.description}</Text>
-            {game.description.length > 150 ? <Text style={styles.moreLink}>Ver mais</Text> : null}
+            {(game.description?.length ?? 0) > 150 ? <Text style={styles.moreLink}>Ver mais</Text> : null}
             <View style={styles.detailLink}>
               <Text style={styles.detailLinkText}>Ver detalhes</Text>
               <Ionicons name="chevron-forward" size={14} color={colors.violet300} />

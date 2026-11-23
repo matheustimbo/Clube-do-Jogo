@@ -148,7 +148,7 @@ function mapIGDBGame(game: IGDBGame, durationHours = 10): CatalogGame {
     average_rating: averageRating === null ? null : Math.round(averageRating),
     release_year: releaseYear,
     image_url: imageUrl,
-    description: game.summary ?? 'Sem descrição disponível.',
+    description: game.summary || null,
     screenshot_urls: screenshotUrls,
     trailer_url: trailerUrl,
     genres,

@@ -92,7 +92,7 @@ function mapRAWGGame(game: RAWGGame, screenshotUrls?: string[]): CatalogGame {
     average_rating: typeof game.metacritic === 'number' && game.metacritic > 0 ? game.metacritic : communityRating,
     release_year: releaseYear,
     image_url: imageUrl,
-    description: game.description_raw?.trim() || 'Sem descrição disponível.',
+    description: game.description_raw?.trim() || null,
     screenshot_urls: candidates.filter(url => url !== imageUrl).slice(0, 6),
     // A RAWG entrega trailers como arquivos mp4 e a página do jogo só embute YouTube.
     trailer_url: null,

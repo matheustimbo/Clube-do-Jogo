@@ -8,6 +8,8 @@ const savedEnvironment = {
   offline: process.env.IGDB_OFFLINE_CATALOG,
   provider: process.env.GAME_CATALOG_PROVIDER,
   key: process.env.RAWG_API_KEY,
+  igdbId: process.env.IGDB_CLIENT_ID,
+  igdbSecret: process.env.IGDB_CLIENT_SECRET,
 };
 const realFetch = globalThis.fetch;
 const realNow = Date.now;
@@ -22,6 +24,8 @@ afterEach(() => {
   restore('offline', 'IGDB_OFFLINE_CATALOG');
   restore('provider', 'GAME_CATALOG_PROVIDER');
   restore('key', 'RAWG_API_KEY');
+  restore('igdbId', 'IGDB_CLIENT_ID');
+  restore('igdbSecret', 'IGDB_CLIENT_SECRET');
   globalThis.fetch = realFetch;
   Date.now = realNow;
 });
@@ -75,7 +79,9 @@ const TUNIC_MAPPED = {
   average_rating: 85,
   release_year: 2022,
   image_url: 'https://media.rawg.io/media/games/tunic.jpg',
-  description: 'Sem descrição disponível.',
+  // A listagem da RAWG não traz description_raw. Sem descrição não é uma descrição:
+  // o cache deixa a coluna como está.
+  description: null,
   screenshot_urls: [
     'https://media.rawg.io/media/screenshots/tunic-1.jpg',
     'https://media.rawg.io/media/screenshots/tunic-2.jpg',
@@ -132,7 +138,7 @@ test('rawg falls back to ten hours and to a null rating, cover and year', async 
     average_rating: null,
     release_year: null,
     image_url: null,
-    description: 'Sem descrição disponível.',
+    description: null,
     screenshot_urls: [],
     trailer_url: null,
     genres: [],
@@ -307,4 +313,29 @@ test('rawg refuses to call the API without a key', async () => {
   delete process.env.RAWG_API_KEY;
   failingFetch();
   await assert.rejects(() => searchGames('tunic'), /RAWG_API_KEY não configurado/);
+});
+
+function useIGDB(games: unknown[]) {
+  delete process.env.IGDB_OFFLINE_CATALOG;
+  delete process.env.GAME_CATALOG_PROVIDER;
+  process.env.IGDB_CLIENT_ID = 'cliente';
+  process.env.IGDB_CLIENT_SECRET = 'segredo';
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = new URL(String(input));
+    if (url.hostname === 'id.twitch.tv') return Response.json({ access_token: 'token', expires_in: 3600 });
+    if (url.pathname === '/v4/games') return Response.json(games);
+    if (url.pathname === '/v4/game_time_to_beats') return Response.json([]);
+    throw new Error(`fetch inesperado: ${url}`);
+  }) as typeof fetch;
+}
+
+test('an IGDB game without a summary has no description instead of a placeholder', async () => {
+  useIGDB([{ id: 7346, name: 'Sem resumo' }]);
+  assert.equal((await searchGames('sem resumo'))[0].description, null);
+  assert.equal((await getGameById(7346))?.description, null);
+});
+
+test('an IGDB summary is the description', async () => {
+  useIGDB([{ id: 7346, name: 'Com resumo', summary: 'Um resumo de verdade.' }]);
+  assert.equal((await searchGames('com resumo'))[0].description, 'Um resumo de verdade.');
 });
