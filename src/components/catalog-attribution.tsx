@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { catalogAttributionFromPayload } from '@clube-do-jogo/data';
-import { apiFetch } from '@/lib/api-client';
+import { useApp } from '@/components/app-provider';
+import { fetchCatalogAttribution } from '@/lib/catalog-attribution';
 import type { CatalogAttribution as Attribution } from '@/lib/types';
 
 /**
@@ -11,15 +11,15 @@ import type { CatalogAttribution as Attribution } from '@/lib/types';
  * servidor responde em /api/catalog a cada pedido.
  */
 export function CatalogAttribution() {
+  const { isDemo } = useApp();
   const [attribution, setAttribution] = useState<Attribution | null>(null);
   useEffect(() => {
     let current = true;
-    apiFetch('/api/catalog')
-      .then(response => (response.ok ? response.json() : null))
-      .then(payload => { if (current) setAttribution(catalogAttributionFromPayload(payload)); })
+    fetchCatalogAttribution(isDemo)
+      .then(next => { if (current) setAttribution(next); })
       .catch(() => {});
     return () => { current = false; };
-  }, []);
+  }, [isDemo]);
   if (!attribution) return null;
   return (
     <p className="mt-10 text-center text-[10px] font-medium text-zinc-500">
