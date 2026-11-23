@@ -137,8 +137,9 @@ export function GotyGamePickerDialog({
         title={category ? `Escolher jogo · ${category.name}` : 'Escolher jogo de 2026'}
         description={subtitle}
         className="goty-dialog max-w-2xl border-[#dfc06c]/25 bg-[#0b0a0f] text-[#f9f4e4]"
+        footer={<CatalogAttribution className="px-4 py-3" />}
       >
-        <div className="flex max-h-[calc(min(88dvh,760px)-88px)] flex-col">
+        <div className="flex min-h-0 flex-1 flex-col">
           <div className="space-y-3 border-b border-[#dfc06c]/15 px-5 py-4">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[#b8a574]" />
@@ -259,7 +260,6 @@ export function GotyGamePickerDialog({
             )}
           </div>
         </div>
-        <CatalogAttribution className="px-4 pb-4" />
       </DialogContent>
     </Dialog>
   );

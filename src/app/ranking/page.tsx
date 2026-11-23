@@ -238,13 +238,12 @@ export default function RankingPage() {
         <h1 className="min-w-0 text-2xl font-black tracking-tight sm:text-3xl">Votação para {formatMonth(voteMonth, { includeYear: isHistorical })}</h1>
         {!isHistorical && <Dialog open={voteDialog.open} onOpenChange={open => open ? voteDialog.show() : voteDialog.close()}>
           <DialogTrigger asChild><button aria-label="Adicionar jogo à votação" className="grid size-11 shrink-0 place-items-center rounded-xl bg-violet-600 transition active:scale-95 sm:flex sm:w-auto sm:px-4"><Plus className="size-4" /><span className="hidden text-xs font-extrabold sm:inline">Adicionar jogo</span></button></DialogTrigger>
-          <DialogContent title="Adicionar jogo à votação">
+          <DialogContent title="Adicionar jogo à votação" footer={<CatalogAttribution className="px-4 py-3" />}>
             <form onSubmit={searchGames} className="flex gap-2 border-b border-white/8 p-4"><label className="relative min-w-0 flex-1"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-600" /><input autoFocus value={searchQuery} onChange={event => setSearchQuery(event.target.value)} placeholder="Nome do jogo" className="h-11 w-full rounded-xl border border-white/10 bg-black/30 pl-10 pr-3 text-sm outline-none focus:border-violet-500" /></label><button disabled={searching} className="h-11 rounded-xl bg-violet-600 px-4 text-xs font-bold disabled:opacity-50">Buscar</button></form>
             <div className="max-h-[62dvh] space-y-2 overflow-y-auto p-4">{searching ? Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className="h-32 w-full" />) : searchError ? <p className="p-8 text-center text-sm text-red-300">{searchError}</p> : results.length ? results.map(game => {
               const existing = ranking.find(item => item.game.id === game.id);
               return <article key={game.id} className="rounded-2xl border border-white/8 bg-white/[0.025] p-3"><div className="mb-3 flex min-w-0 items-center gap-3"><img src={gameCoverUrl(game.image_url)} alt="" className="h-16 w-12 shrink-0 rounded-lg object-cover" /><div className="min-w-0"><div className="truncate text-sm font-bold">{game.title}</div><div className="mt-1 inline-flex items-center gap-1 text-[11px] text-zinc-500"><Clock3 className="size-3" />{game.duration_hours} h</div></div></div><PreferenceButtons compact value={existing?.myChoice || null} onChange={choice => chooseSearch(game, choice)} /></article>;
             }) : <p className="p-10 text-center text-sm text-zinc-500">Busque pelo nome do jogo.</p>}</div>
-            <CatalogAttribution className="px-4 pb-4" />
           </DialogContent>
         </Dialog>}
       </section>

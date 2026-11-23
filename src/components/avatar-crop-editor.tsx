@@ -34,8 +34,9 @@ export function AvatarCropEditor({ imageUrl, name, crop: initialCrop, open, savi
     }));
   }
 
+  // Toda imagem que o editor abre é do catálogo: screenshot ou retrato.
   return <Dialog open={open} onOpenChange={onOpenChange}>
-    <DialogContent title="Ajustar avatar" description="Arraste a imagem para enquadrar e use o zoom para aproximar.">
+    <DialogContent title="Ajustar avatar" description="Arraste a imagem para enquadrar e use o zoom para aproximar." footer={<CatalogAttribution className="px-5 py-3" />}>
       {imageUrl && <div className="space-y-5 p-5">
         <div
           ref={previewRef}
@@ -61,8 +62,6 @@ export function AvatarCropEditor({ imageUrl, name, crop: initialCrop, open, savi
         </div>
         <div className="flex gap-2"><button type="button" onClick={() => setCrop(DEFAULT_AVATAR_SELECTION_CROP)} className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-white/5 px-3 text-xs font-bold text-zinc-300 transition hover:bg-white/10"><RotateCcw className="size-3.5" />Centralizar</button><button type="button" disabled={saving} onClick={() => onSave(crop)} className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-violet-600 px-3 text-xs font-extrabold text-white transition hover:bg-violet-500 disabled:opacity-50"><UserRound className="size-3.5" />{saving ? 'Salvando…' : 'Usar avatar'}</button></div>
       </div>}
-      {/* Toda imagem que o editor abre é do catálogo: screenshot ou retrato. */}
-      <CatalogAttribution className="px-5 pb-5" />
     </DialogContent>
   </Dialog>;
 }
