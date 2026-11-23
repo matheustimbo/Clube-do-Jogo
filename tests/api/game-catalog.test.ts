@@ -279,6 +279,22 @@ test('rawg platforms are stored with IGDB ids first and the untranslated ones ke
   assert.deepEqual(game.platform_ids, [6, 167]);
 });
 
+test('a RAWG id that does not exist comes back as null, like the IGDB contract', async () => {
+  useRAWG();
+  globalThis.fetch = (async () => new Response('{"detail":"Not found."}', { status: 404 })) as typeof fetch;
+  assert.equal(await getGameById(424242), null);
+});
+
+test('a RAWG failure reaches the caller with its status and without the raw body', async () => {
+  useRAWG();
+  globalThis.fetch = (async () => new Response('<html><body><h1>502 Bad Gateway</h1></body></html>', { status: 502 })) as typeof fetch;
+  await assert.rejects(searchGames('tunic'), (error: Error) => {
+    assert.match(error.message, /502/);
+    assert.doesNotMatch(error.message, /<html|Bad Gateway/);
+    return true;
+  });
+});
+
 test('rawg refuses to call the API without a key', async () => {
   useRAWG();
   delete process.env.RAWG_API_KEY;

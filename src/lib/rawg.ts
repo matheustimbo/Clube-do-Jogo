@@ -29,6 +29,15 @@ interface RAWGPage<T> {
 
 const API_ORIGIN = 'https://api.rawg.io';
 
+class RAWGRequestError extends Error {
+  constructor(readonly status: number, subject: string, body: string) {
+    // A mensagem chega ao cliente pelas rotas; o corpo (às vezes um HTML de 502) fica
+    // só no cause, que vai para o log do servidor. A URL fica de fora: leva a chave.
+    super(`Erro ${subject} na RAWG (HTTP ${status}).`, { cause: body.slice(0, 500) });
+    this.name = 'RAWGRequestError';
+  }
+}
+
 async function rawgFetch<T>(path: string, params: URLSearchParams, subject: string): Promise<T> {
   const key = process.env.RAWG_API_KEY;
   if (!key) throw new Error('RAWG_API_KEY não configurado.');
@@ -36,8 +45,7 @@ async function rawgFetch<T>(path: string, params: URLSearchParams, subject: stri
   const response = await fetch(`${API_ORIGIN}${path}?${params.toString()}`, {
     headers: { Accept: 'application/json' },
   });
-  // O corpo da resposta é seguro de propagar; a URL não, porque leva a chave na query.
-  if (!response.ok) throw new Error(`Erro ${subject} na RAWG: ${await response.text()}`);
+  if (!response.ok) throw new RAWGRequestError(response.status, subject, await response.text());
   return response.json() as Promise<T>;
 }
 
@@ -160,7 +168,11 @@ export async function browseGamesWithRAWG(options: CatalogBrowseOptions): Promis
 export async function getGameByRAWGId(id: number): Promise<CatalogGame | null> {
   const gameId = Math.trunc(id);
   const [game, screenshots] = await Promise.all([
-    rawgFetch<RAWGGame>(`/api/games/${gameId}`, new URLSearchParams(), 'na busca por id'),
+    // Id inexistente é null, como na IGDB; outras falhas continuam sendo erro.
+    rawgFetch<RAWGGame>(`/api/games/${gameId}`, new URLSearchParams(), 'na busca por id').catch(error => {
+      if (error instanceof RAWGRequestError && error.status === 404) return null;
+      throw error;
+    }),
     rawgFetch<RAWGPage<{ image?: string }>>(`/api/games/${gameId}/screenshots`, new URLSearchParams({ page_size: '6' }), 'ao buscar screenshots')
       .catch(() => ({ results: [] as Array<{ image?: string }> })),
   ]);
