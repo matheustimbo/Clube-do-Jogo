@@ -3,9 +3,10 @@ import test from 'node:test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { cacheCatalogGames } from '../../src/lib/game-cache';
 import { CatalogSchemaError, type CatalogGame } from '../../src/lib/game-catalog';
+import { gamesRest, type GamesRow } from './fake-games-rest';
 
 type UpsertPayload = Record<string, unknown>;
-type StoredRow = UpsertPayload & { id: string };
+type StoredRow = UpsertPayload & { id: string; title?: string };
 type UpsertCall = { rows: UpsertPayload[]; columns: string[]; onConflict: string };
 
 function catalogGame(overrides: Partial<CatalogGame> = {}): CatalogGame {
@@ -40,7 +41,7 @@ type FakeOptions = {
   existingByTitle?: Map<string, StoredRow>;
   // Colunas que o banco ainda não tem, como rawg_id antes da migration.
   missingColumns?: string[];
-  // Cada update que o cache manda para uma linha que já existia.
+  // Cada update que o cache manda, tenha ele mudado uma linha ou não.
   updates?: Array<{ id: string; patch: UpsertPayload }>;
   // Erro que o banco devolve a todo upsert, como o Postgres por trás do PostgREST.
   upsertError?: { code: string; message: string };
@@ -70,6 +71,7 @@ function fakeSupabase(payloads: UpsertPayload[], options: FakeOptions = {}): Sup
     const existing = existingByTitle.get(String(payload.title));
     return Boolean(existing && existing[key] !== payload[key]);
   };
+  const rest = gamesRest({ rows: existingByTitle as Map<string, GamesRow>, missingColumns, patches: updates, onRequest: trip });
   const client = {
     from() {
       return {
@@ -95,35 +97,10 @@ function fakeSupabase(payloads: UpsertPayload[], options: FakeOptions = {}): Sup
             ),
           };
         },
-        select() {
-          return {
-            eq: (_column: string, title: string) => ({
-              maybeSingle: async () => {
-                trip();
-                return { data: existingByTitle.get(title) ?? null, error: null };
-              },
-            }),
-            in: async (_column: string, titles: string[]) => {
-              trip();
-              return { data: titles.flatMap(title => (existingByTitle.has(title) ? [{ ...existingByTitle.get(title)! }] : [])), error: null };
-            },
-          };
-        },
-        update(metadata: UpsertPayload) {
-          return {
-            eq: (_column: string, id: string) => ({
-              select: () => ({
-                single: async () => {
-                  trip();
-                  updates?.push({ id, patch: metadata });
-                  const existing = [...existingByTitle.values()].find(row => row.id === id);
-                  if (existing) Object.assign(existing, metadata);
-                  return { data: existing ? { ...existing } : null, error: null };
-                },
-              }),
-            }),
-          };
-        },
+        // Leituras e reivindicações vão pelo supabase-js de verdade, então a URL que chega
+        // ao banco é a que o postgrest-js monta.
+        select: (columns?: string) => rest.from('games').select(columns),
+        update: (metadata: UpsertPayload) => rest.from('games').update(metadata),
       };
     },
   };
