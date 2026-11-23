@@ -295,6 +295,13 @@ test('a RAWG failure reaches the caller with its status and without the raw body
   });
 });
 
+test('a metacritic of 0 is no score, so the community rating stands in', async () => {
+  useRAWG();
+  recordFetch({ '/api/games': { results: [{ ...TUNIC, metacritic: 0, rating: 4.35 }] } });
+  const [game] = await searchGames('tunic');
+  assert.equal(game.average_rating, 87);
+});
+
 test('rawg refuses to call the API without a key', async () => {
   useRAWG();
   delete process.env.RAWG_API_KEY;

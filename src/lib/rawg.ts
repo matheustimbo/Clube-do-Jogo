@@ -88,7 +88,8 @@ function mapRAWGGame(game: RAWGGame, screenshotUrls?: string[]): CatalogGame {
     id: game.id,
     title: game.name,
     duration_hours: game.playtime && game.playtime > 0 ? game.playtime : 10,
-    average_rating: typeof game.metacritic === 'number' ? game.metacritic : communityRating,
+    // A RAWG manda metacritic 0 para jogo sem nota, não para nota zero.
+    average_rating: typeof game.metacritic === 'number' && game.metacritic > 0 ? game.metacritic : communityRating,
     release_year: releaseYear,
     image_url: imageUrl,
     description: game.description_raw?.trim() || 'Sem descrição disponível.',
