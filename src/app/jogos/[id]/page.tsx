@@ -11,6 +11,7 @@ import { byChoice, choiceParticipants, countChoices, emptyChoiceProfiles, gameCo
 import { createClient } from '@/lib/supabase/client';
 import { demoRanking } from '@/lib/demo-data';
 import { fetchGame, fetchUserPlatforms } from '@/lib/data';
+import { needsMediaEnrichment } from '@/lib/game-media';
 import type { Profile, UserPlatform, VoteChoice, VoteParticipant, VoteReason } from '@/lib/types';
 import { ACTIVE_RANKING_FORMULA, rankingScore } from '@/lib/ranking';
 import { shiftMonth, youtubeEmbedUrl } from '@/lib/utils';
@@ -98,7 +99,7 @@ export default function GamePage() {
   const [activeTab, setActiveTab] = useUrlTab('section', ['overview', 'progress', 'notes'] as const, 'overview');
 
   useEffect(() => {
-    if (isDemo || !game || ((game.screenshot_urls?.length || 0) >= 3 && game.genres?.length && game.platforms?.length && game.platform_ids?.length) || mediaRequested.current.has(game.id)) return;
+    if (isDemo || !game || !needsMediaEnrichment(game) || mediaRequested.current.has(game.id)) return;
     mediaRequested.current.add(game.id);
     void apiFetch(`/api/games/${game.id}/media`, { method: 'POST' })
       .then(response => response.ok ? response.json() : null)
