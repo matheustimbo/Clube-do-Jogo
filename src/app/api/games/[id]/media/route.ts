@@ -21,7 +21,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       description: metadata.description || game.description,
       image_url: metadata.image_url || game.image_url,
       screenshot_urls: metadata.screenshot_urls,
-      trailer_url: metadata.trailer_url,
+      // Catálogo sem trailer (a RAWG não tem YouTube) não apaga o que já estava gravado.
+      trailer_url: metadata.trailer_url ?? game.trailer_url,
       genres: metadata.genres,
       platforms: metadata.platforms,
       platform_ids: metadata.platform_ids,

@@ -113,6 +113,16 @@ test('under RAWG the media route looks a game up by its rawg_id', async () => {
   assert.equal(Object.hasOwn(database.updates[0], 'igdb_id'), false);
 });
 
+test('a catalog without trailers keeps the trailer the row already has', async () => {
+  useRAWG({ '/api/games/23027': TUNIC, '/api/games/23027/screenshots': { results: [] } });
+  database.row = { id: 'jogo', title: 'Tunic', igdb_id: null, rawg_id: 23027, trailer_url: 'https://www.youtube.com/watch?v=tunic' };
+
+  const updated = await enrich();
+
+  assert.equal(database.updates[0].trailer_url, 'https://www.youtube.com/watch?v=tunic');
+  assert.equal(updated.trailer_url, 'https://www.youtube.com/watch?v=tunic');
+});
+
 test('a row no catalog owns is matched by exact title and gets the rawg_id, not the igdb_id', async () => {
   useRAWG({ '/api/games': { results: [{ ...TUNIC, id: 999, name: 'Tunic Remix' }, TUNIC] } });
   database.row = { id: 'jogo', title: 'Tunic', igdb_id: null, rawg_id: null, trailer_url: null };
