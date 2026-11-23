@@ -1,0 +1,150 @@
+import assert from 'node:assert/strict';
+import { afterEach, beforeEach, mock, test } from 'node:test';
+
+// Caminho real das rotas e do catálogo. Só a borda é falsa: o banco (uma linha de
+// games) e a rede (fetch), que grava cada URL pedida.
+type Row = Record<string, unknown> & { id: string; title: string };
+const database: { row: Row | null; updates: Array<Record<string, unknown>> } = { row: null, updates: [] };
+
+const supabase = {
+  from() {
+    return {
+      select() {
+        return { eq: () => ({ maybeSingle: async () => ({ data: database.row, error: null }) }) };
+      },
+      update(patch: Record<string, unknown>) {
+        database.updates.push(patch);
+        return { eq: () => ({ select: () => ({ single: async () => ({ data: { ...database.row, ...patch }, error: null }) }) }) };
+      },
+    };
+  },
+};
+
+mock.module('../../src/lib/supabase/server', {
+  exports: { createRequestContext: async () => ({ supabase, userId: 'membro' }) },
+});
+
+const mediaRoute = import('../../src/app/api/games/[id]/media/route');
+const mugshotsRoute = import('../../src/app/api/games/[id]/mugshots/route');
+
+const savedEnvironment = {
+  provider: process.env.GAME_CATALOG_PROVIDER,
+  offline: process.env.IGDB_OFFLINE_CATALOG,
+  key: process.env.RAWG_API_KEY,
+};
+const realFetch = globalThis.fetch;
+let requested: string[] = [];
+
+function restore(variable: string, value: string | undefined) {
+  if (value === undefined) delete process.env[variable];
+  else process.env[variable] = value;
+}
+
+beforeEach(() => {
+  database.row = null;
+  database.updates = [];
+  requested = [];
+});
+
+afterEach(() => {
+  restore('GAME_CATALOG_PROVIDER', savedEnvironment.provider);
+  restore('IGDB_OFFLINE_CATALOG', savedEnvironment.offline);
+  restore('RAWG_API_KEY', savedEnvironment.key);
+  globalThis.fetch = realFetch;
+});
+
+const TUNIC = {
+  id: 23027,
+  name: 'Tunic',
+  released: '2022-03-16',
+  background_image: 'https://media.rawg.io/media/games/tunic.jpg',
+  metacritic: 85,
+  playtime: 12,
+  description_raw: 'Uma raposinha e um manual indecifrável.',
+  genres: [{ name: 'Adventure' }],
+  platforms: [{ platform: { id: 4, name: 'PC' } }],
+};
+
+function useRAWG(bodies: Record<string, unknown> = {}) {
+  delete process.env.IGDB_OFFLINE_CATALOG;
+  process.env.GAME_CATALOG_PROVIDER = 'rawg';
+  process.env.RAWG_API_KEY = 'chave-de-teste';
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = new URL(String(input));
+    requested.push(url.origin + url.pathname);
+    const body = bodies[url.pathname];
+    if (body === undefined) return new Response('{"detail":"Not found."}', { status: 404 });
+    return Response.json(body);
+  }) as typeof fetch;
+}
+
+const params = (id: string) => ({ params: Promise.resolve({ id }) });
+
+async function enrich(id = 'jogo') {
+  const { POST } = await mediaRoute;
+  return (await POST(new Request('http://localhost/api/games/jogo/media', { method: 'POST' }), params(id))).json();
+}
+
+async function mugshots(id = 'jogo') {
+  const { GET } = await mugshotsRoute;
+  return (await GET(new Request('http://localhost/api/games/jogo/mugshots'), params(id))).json();
+}
+
+test('a row with only igdb_id 26192 never reaches rawg.io/api/games/26192', async () => {
+  useRAWG({ '/api/games/26192': { ...TUNIC, id: 26192, name: 'Outro jogo da RAWG' } });
+  database.row = { id: 'jogo', title: 'Outer Wilds', igdb_id: 26192, rawg_id: null, trailer_url: 'https://www.youtube.com/watch?v=ow' };
+
+  assert.deepEqual(await enrich(), database.row);
+  assert.deepEqual(await mugshots(), { mugshots: [] });
+
+  assert.deepEqual(requested, []);
+  assert.deepEqual(database.updates, []);
+});
+
+test('under RAWG the media route looks a game up by its rawg_id', async () => {
+  useRAWG({ '/api/games/23027': TUNIC, '/api/games/23027/screenshots': { results: [] } });
+  database.row = { id: 'jogo', title: 'Tunic', igdb_id: null, rawg_id: 23027, trailer_url: null };
+
+  await enrich();
+
+  assert.deepEqual(requested, ['https://api.rawg.io/api/games/23027', 'https://api.rawg.io/api/games/23027/screenshots']);
+  assert.equal(database.updates.length, 1);
+  assert.equal(database.updates[0].description, 'Uma raposinha e um manual indecifrável.');
+  assert.equal(Object.hasOwn(database.updates[0], 'igdb_id'), false);
+});
+
+test('a row no catalog owns is matched by exact title and gets the rawg_id, not the igdb_id', async () => {
+  useRAWG({ '/api/games': { results: [{ ...TUNIC, id: 999, name: 'Tunic Remix' }, TUNIC] } });
+  database.row = { id: 'jogo', title: 'Tunic', igdb_id: null, rawg_id: null, trailer_url: null };
+
+  await enrich();
+
+  assert.equal(database.updates.length, 1);
+  assert.equal(database.updates[0].rawg_id, 23027);
+  assert.equal(Object.hasOwn(database.updates[0], 'igdb_id'), false);
+});
+
+test('before the rawg_id migration the media route reaches neither RAWG nor the database', async () => {
+  useRAWG({ '/api/games': { results: [TUNIC] } });
+  // select('*') num banco sem a coluna devolve a linha sem a chave rawg_id.
+  database.row = { id: 'jogo', title: 'Tunic', igdb_id: null, trailer_url: null };
+
+  assert.deepEqual(await enrich(), database.row);
+  assert.deepEqual(requested, []);
+  assert.deepEqual(database.updates, []);
+});
+
+test('the IGDB-numbered catalog still enriches a row by its igdb_id', async () => {
+  delete process.env.GAME_CATALOG_PROVIDER;
+  process.env.IGDB_OFFLINE_CATALOG = '1';
+  globalThis.fetch = (async () => { throw new Error('o catálogo offline não sai para a rede'); }) as typeof fetch;
+  database.row = { id: 'jogo', title: 'Celeste', igdb_id: 900003, trailer_url: null };
+
+  await enrich();
+  const { mugshots: portraits } = await mugshots();
+
+  assert.equal(database.updates.length, 1);
+  assert.equal(database.updates[0].igdb_id, 900003);
+  assert.equal(Object.hasOwn(database.updates[0], 'rawg_id'), false);
+  assert.equal(portraits.length, 2);
+});

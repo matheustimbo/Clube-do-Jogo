@@ -117,6 +117,30 @@ export function hasNoCatalogId(row: CatalogIds) {
   return CATALOG_KEYS.every(key => row[key] == null);
 }
 
+/** How the active catalog may find a stored games row. */
+export type CatalogLookup =
+  | { by: 'id'; id: number }
+  | { by: 'title'; title: string }
+  /** Another catalog owns the row; its id means nothing to the active one. */
+  | { by: 'none' };
+
+export function catalogLookupFor(row: CatalogIds & { title: string }): CatalogLookup {
+  const key = activeCatalogKey();
+  // select('*') só traz a chave quando a coluna existe.
+  if (!(key in row)) throw new CatalogSchemaError(key);
+  const id = row[key];
+  if (id) return { by: 'id', id };
+  return hasNoCatalogId(row) ? { by: 'title', title: row.title } : { by: 'none' };
+}
+
+function normalizedTitle(value: string) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+export async function findGameByExactTitle(title: string): Promise<CatalogGame | null> {
+  return (await searchGames(title)).find(candidate => normalizedTitle(candidate.title) === normalizedTitle(title)) ?? null;
+}
+
 export function searchGames(query: string): Promise<CatalogGame[]> {
   return activeProvider().searchGames(query);
 }
