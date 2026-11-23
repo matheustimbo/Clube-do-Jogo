@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import test, { afterEach } from 'node:test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { cacheCatalogGames } from '../../src/lib/game-cache';
-import type { CatalogGame } from '../../src/lib/game-catalog';
+import { CatalogSchemaError, type CatalogGame } from '../../src/lib/game-catalog';
 
 type UpsertPayload = Record<string, unknown>;
 type StoredRow = UpsertPayload & { id: string };
-type UpsertCall = { rows: UpsertPayload[]; columns: string[] };
+type UpsertCall = { rows: UpsertPayload[]; columns: string[]; onConflict: string };
 
 function catalogGame(overrides: Partial<CatalogGame> = {}): CatalogGame {
   return {
@@ -33,8 +33,12 @@ type FakeOptions = {
   failFirstWith?: { code: string };
   roundTrips?: { count: number };
   // Linhas que já estão no banco, por título. Upsert de um jogo com esse título e
-  // outro igdb_id bate na unique de título (23505), como no banco de verdade.
+  // outra chave de catálogo bate na unique de título (23505), como no banco de verdade.
   existingByTitle?: Map<string, StoredRow>;
+  // Colunas que o banco ainda não tem, como rawg_id antes da migration.
+  missingColumns?: string[];
+  // Cada update que o cache manda para uma linha que já existia.
+  updates?: Array<{ id: string; patch: UpsertPayload }>;
 };
 
 // Imita o postgrest-js: num upsert em lote, `columns` é a união das chaves das
@@ -43,30 +47,33 @@ type FakeOptions = {
 // Devolve as linhas do lote fora de ordem, que é o que o PostgREST pode fazer:
 // se a rota passar a depender da ordem do retorno, o teste pega.
 function fakeSupabase(payloads: UpsertPayload[], options: FakeOptions = {}): SupabaseClient {
-  const { calls, failFirstWith, roundTrips, existingByTitle = new Map() } = options;
-  const stored = (payload: UpsertPayload, columns: string[]) => ({
-    id: `stored-${payload.igdb_id}`,
+  const { calls, failFirstWith, roundTrips, existingByTitle = new Map(), missingColumns = [], updates } = options;
+  const stored = (payload: UpsertPayload, columns: string[], key: string) => ({
+    id: `stored-${payload[key]}`,
     image_url: STORED_COVER,
     ...Object.fromEntries(columns.map(column => [column, Object.hasOwn(payload, column) ? payload[column] : null])),
   });
-  const titleConflict = (payload: UpsertPayload) => {
+  const titleConflict = (payload: UpsertPayload, key: string) => {
     const existing = existingByTitle.get(String(payload.title));
-    return Boolean(existing && existing.igdb_id !== payload.igdb_id);
+    return Boolean(existing && existing[key] !== payload[key]);
   };
   const client = {
     from() {
       return {
-        upsert(payload: UpsertPayload | UpsertPayload[]) {
+        upsert(payload: UpsertPayload | UpsertPayload[], { onConflict = 'id' }: { onConflict?: string } = {}) {
           const batch = Array.isArray(payload) ? payload : [payload];
           const columns = [...new Set(batch.flatMap(one => Object.keys(one)))];
           batch.forEach(one => payloads.push(one));
-          calls?.push({ rows: batch, columns });
+          calls?.push({ rows: batch, columns, onConflict });
           if (roundTrips) roundTrips.count += 1;
+          // O PostgREST de verdade (v12) responde assim a uma coluna que o schema não tem.
+          const missing = [...columns, onConflict].find(column => missingColumns.includes(column));
+          const missingError = missing ? { code: 'PGRST204', message: `Could not find the '${missing}' column of 'games' in the schema cache` } : null;
           // Coluna que falta é problema de schema, não de sorte: recusa toda vez que
           // ela chega, senão o teste do retorno ao schema antigo passa por acidente.
           const schemaError = failFirstWith && batch.some(one => Object.hasOwn(one, 'average_rating')) ? failFirstWith : null;
-          const error = schemaError ?? (batch.some(titleConflict) ? { code: '23505' } : null);
-          const rows = batch.map(one => stored(one, columns)).reverse();
+          const error = missingError ?? schemaError ?? (batch.some(one => titleConflict(one, onConflict)) ? { code: '23505' } : null);
+          const rows = batch.map(one => stored(one, columns, onConflict)).reverse();
           return {
             select: () => Object.assign(
               Promise.resolve(error ? { data: null, error } : { data: rows, error: null }),
@@ -86,6 +93,7 @@ function fakeSupabase(payloads: UpsertPayload[], options: FakeOptions = {}): Sup
             eq: (_column: string, id: string) => ({
               select: () => ({
                 single: async () => {
+                  updates?.push({ id, patch: metadata });
                   const existing = [...existingByTitle.values()].find(row => row.id === id);
                   return { data: existing ? { ...existing, ...metadata } : null, error: null };
                 },
@@ -205,4 +213,99 @@ test('jogo que cai na linha de mesmo título com outro igdb_id continua no resul
   ]);
   assert.deepEqual(saved.map(game => game.title), ['Antes', 'Celeste', 'Depois']);
   assert.equal(saved[1].id, 'stored-legado');
+});
+
+const savedCatalog = { provider: process.env.GAME_CATALOG_PROVIDER, offline: process.env.IGDB_OFFLINE_CATALOG };
+afterEach(() => {
+  if (savedCatalog.provider === undefined) delete process.env.GAME_CATALOG_PROVIDER;
+  else process.env.GAME_CATALOG_PROVIDER = savedCatalog.provider;
+  if (savedCatalog.offline === undefined) delete process.env.IGDB_OFFLINE_CATALOG;
+  else process.env.IGDB_OFFLINE_CATALOG = savedCatalog.offline;
+});
+
+function underRAWG() {
+  delete process.env.IGDB_OFFLINE_CATALOG;
+  process.env.GAME_CATALOG_PROVIDER = 'rawg';
+}
+
+test('under RAWG every upsert is keyed by rawg_id and no RAWG id lands in igdb_id', async () => {
+  underRAWG();
+  const calls: UpsertCall[] = [];
+  const saved = await cacheCatalogGames(fakeSupabase([], { calls }), [
+    catalogGame({ id: 26192, title: 'Tunic', image_url: 'https://media.rawg.io/media/games/tunic.jpg' }),
+    catalogGame({ id: 3328, title: 'The Witcher 3', image_url: null }),
+  ]);
+  assert.deepEqual(calls.map(call => call.onConflict), ['rawg_id', 'rawg_id']);
+  const rows = calls.flatMap(call => call.rows);
+  assert.deepEqual(rows.map(row => row.rawg_id).sort(), [26192, 3328]);
+  assert.ok(rows.every(row => !Object.hasOwn(row, 'igdb_id')), JSON.stringify(rows));
+  assert.deepEqual(saved.map(game => game.title), ['Tunic', 'The Witcher 3']);
+});
+
+test('under IGDB the cache never names rawg_id, so it works before the migration', async () => {
+  delete process.env.GAME_CATALOG_PROVIDER;
+  const calls: UpsertCall[] = [];
+  const saved = await cacheCatalogGames(fakeSupabase([], { calls, missingColumns: ['rawg_id'] }), [catalogGame({ id: 26192 })]);
+  assert.deepEqual(calls.map(call => call.onConflict), ['igdb_id']);
+  assert.equal(calls[0].rows[0].igdb_id, 26192);
+  assert.equal(Object.hasOwn(calls[0].rows[0], 'rawg_id'), false);
+  assert.equal(saved.length, 1);
+});
+
+test('RAWG without the rawg_id column fails with a schema error and writes no igdb_id', async () => {
+  underRAWG();
+  const payloads: UpsertPayload[] = [];
+  await assert.rejects(
+    cacheCatalogGames(fakeSupabase(payloads, { missingColumns: ['rawg_id'] }), [catalogGame({ id: 26192 })]),
+    CatalogSchemaError,
+  );
+  assert.ok(payloads.every(payload => !Object.hasOwn(payload, 'igdb_id')), JSON.stringify(payloads));
+});
+
+test('a RAWG game never takes over the IGDB row that owns its title', async () => {
+  underRAWG();
+  const updates: Array<{ id: string; patch: UpsertPayload }> = [];
+  const owner: StoredRow = { id: 'linha-igdb', igdb_id: 12517, rawg_id: null, title: 'Outer Wilds', release_year: 2019, image_url: STORED_COVER };
+  const saved = await cacheCatalogGames(fakeSupabase([], { existingByTitle: new Map([['Outer Wilds', owner]]), updates }), [
+    catalogGame({ id: 26192, title: 'Outer Wilds', release_year: 2019 }),
+  ]);
+  assert.deepEqual(updates, []);
+  assert.equal(saved[0].id, 'linha-igdb');
+});
+
+test('a RAWG game claims a same-title row no catalog owns when the release year agrees', async () => {
+  underRAWG();
+  const updates: Array<{ id: string; patch: UpsertPayload }> = [];
+  const manual: StoredRow = { id: 'linha-manual', igdb_id: null, rawg_id: null, title: 'Celeste', release_year: 2018, average_rating: null, image_url: STORED_COVER };
+  const saved = await cacheCatalogGames(fakeSupabase([], { existingByTitle: new Map([['Celeste', manual]]), updates }), [
+    catalogGame({ id: 9600, title: 'Celeste', release_year: 2018, average_rating: 88 }),
+  ]);
+  assert.equal(updates.length, 1);
+  assert.equal(updates[0].id, 'linha-manual');
+  assert.equal(updates[0].patch.rawg_id, 9600);
+  assert.equal(updates[0].patch.average_rating, 88);
+  assert.equal(Object.hasOwn(updates[0].patch, 'igdb_id'), false);
+  assert.equal(saved[0].id, 'linha-manual');
+});
+
+test('a same-title row from another year is another game and keeps its ids', async () => {
+  underRAWG();
+  const updates: Array<{ id: string; patch: UpsertPayload }> = [];
+  const original: StoredRow = { id: 'linha-1996', igdb_id: null, rawg_id: null, title: 'Resident Evil', release_year: 1996, image_url: STORED_COVER };
+  await cacheCatalogGames(fakeSupabase([], { existingByTitle: new Map([['Resident Evil', original]]), updates }), [
+    catalogGame({ id: 2002, title: 'Resident Evil', release_year: 2002 }),
+  ]);
+  assert.deepEqual(updates, []);
+});
+
+test('under IGDB a same-title row no catalog owns still gets the igdb_id', async () => {
+  delete process.env.GAME_CATALOG_PROVIDER;
+  const updates: Array<{ id: string; patch: UpsertPayload }> = [];
+  const manual: StoredRow = { id: 'linha-manual', igdb_id: null, title: 'Celeste', release_year: null, image_url: STORED_COVER };
+  await cacheCatalogGames(fakeSupabase([], { existingByTitle: new Map([['Celeste', manual]]), updates }), [
+    catalogGame({ id: 26226, title: 'Celeste', release_year: 2018 }),
+  ]);
+  assert.equal(updates.length, 1);
+  assert.equal(updates[0].patch.igdb_id, 26226);
+  assert.equal(Object.hasOwn(updates[0].patch, 'rawg_id'), false);
 });

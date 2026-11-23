@@ -35,6 +35,7 @@ export interface AdminUser extends Profile {
 export interface Game {
   id: string;
   igdb_id?: number | null;
+  rawg_id?: number | null;
   title: string;
   duration_hours: number;
   average_rating?: number | null;
