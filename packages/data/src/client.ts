@@ -249,7 +249,8 @@ function dedupeDiscoveryItems(items: DiscoverItem[]) {
   });
 }
 
-function discoveryPageFromPayload(payload: unknown, offset: number, limit: number): DiscoveryPage {
+/** A página de /api/discover pedida em `offset`, com o cursor que o servidor mandou ou `offset + limit`. */
+export function discoveryPageFromPayload(payload: unknown, offset: number, limit: number): DiscoveryPage {
   if (Array.isArray(payload)) {
     const items = dedupeDiscoveryItems(payload as DiscoverItem[]);
     return { items, hasMore: false, nextOffset: offset + items.length };

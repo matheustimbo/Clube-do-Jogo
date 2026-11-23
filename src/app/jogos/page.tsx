@@ -3,6 +3,7 @@
 import { apiFetch } from '@/lib/api-client';
 
 import { useMemo, useState } from 'react';
+import { discoveryPageFromPayload } from '@clube-do-jogo/data';
 import { uniqueDiscoverItems } from '@clube-do-jogo/domain';
 import { CalendarClock, Check, Filter, Flame, Search, Sparkles, Star } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -25,6 +26,7 @@ const sources: Array<{ value: DiscoverSource; label: string; Icon: typeof Flame 
   { value: 'anticipated', label: 'Em breve', Icon: CalendarClock },
 ];
 
+const PAGE_SIZE = 24;
 const genres = [['', 'Todos'], ['12', 'RPG'], ['31', 'Aventura'], ['32', 'Indie'], ['8', 'Plataforma'], ['9', 'Puzzle'], ['15', 'Estratégia'], ['5', 'Tiro']];
 const platforms = [['', 'Todas'], ['6', 'PC'], ['167', 'PlayStation 5'], ['169', 'Xbox Series'], ['130', 'Nintendo Switch']];
 
@@ -62,11 +64,12 @@ export default function AllGamesPage() {
       const items = demoDiscover(source, search, genre, platform, year);
       return { items, hasMore: false, nextOffset: items.length };
     }
-    const params = new URLSearchParams({ source, q: search, genre, platform, year, month: voteMonth, limit: '24' });
+    const params = new URLSearchParams({ source, q: search, genre, platform, year, month: voteMonth, limit: String(PAGE_SIZE) });
     const response = await apiFetch(`/api/discover?${params}`);
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error || 'Não foi possível carregar os jogos.');
-    return payload as DiscoverPage;
+    // Servidor anterior ao cursor não manda nextOffset; a página anda PAGE_SIZE, como no app.
+    return discoveryPageFromPayload(payload, 0, PAGE_SIZE);
   });
   const library = useStaleQuery(`discover-library:${user?.id}:${voteMonth}`, () => fetchProfileWithGames(supabase, user!.id, isDemo, voteMonth), Boolean(user));
   const loaded = pagination.key === queryKey ? pagination : null;
@@ -84,11 +87,11 @@ export default function AllGamesPage() {
     try {
       // O cursor vem do servidor: o cache pode tirar jogos de uma página, e contar os
       // cards pediria de novo a página que acabou de chegar.
-      const params = new URLSearchParams({ source, q: search, genre, platform, year, month: voteMonth, limit: '24', offset: String(nextOffset) });
+      const params = new URLSearchParams({ source, q: search, genre, platform, year, month: voteMonth, limit: String(PAGE_SIZE), offset: String(nextOffset) });
       const response = await apiFetch(`/api/discover?${params}`);
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || 'Não foi possível carregar mais jogos.');
-      const page = payload as DiscoverPage;
+      const page = discoveryPageFromPayload(payload, nextOffset, PAGE_SIZE);
       setPagination({ key: queryKey, items: [...extra, ...page.items], hasMore: page.hasMore, nextOffset: page.nextOffset });
     } finally { setLoadingMore(false); }
   }
