@@ -40,7 +40,7 @@ test('demo discovery pages apply filters, preserve metadata, and stop at the fin
     filters: { search: 'jogo-que-nao-existe' },
     limit: 24,
   });
-  assert.deepEqual(noMatches, { items: [], hasMore: false });
+  assert.deepEqual(noMatches, { items: [], hasMore: false, nextOffset: 0 });
 });
 
 test('real discovery sends GET filters and returns the API page shape', async () => {
@@ -64,7 +64,8 @@ test('real discovery sends GET filters and returns the API page shape', async ()
     limit: 24,
   });
 
-  assert.deepEqual(page, { items: [{ game: demoGames[0] }], hasMore: false });
+  // Servidor anterior ao cursor não manda nextOffset: a próxima página anda `limit`.
+  assert.deepEqual(page, { items: [{ game: demoGames[0] }], hasMore: false, nextOffset: 48 });
   assert.equal(calls.length, 1);
   assert.equal(calls[0]?.method, 'GET');
   const url = new URL(`https://example.test${calls[0]?.path || ''}`);
