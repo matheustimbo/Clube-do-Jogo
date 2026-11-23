@@ -29,7 +29,7 @@ import { voteChoiceOptions } from '@/components/vote-choice-options';
 import { getCanonicalGameUrl } from '@/features/media/canonical-url';
 import { getRankingFormula } from '@/platform/config';
 import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
-import { emptyChoiceProfiles, gameCoverUrl, type AvatarCrop, type GameMugshot, type ProgressStatus, type RatingDetails, type RatingMode, type VoteChoice, type VoteReason } from '@clube-do-jogo/domain';
+import { emptyChoiceProfiles, gameCoverUrl, gameDescription, NO_DESCRIPTION_TEXT, type AvatarCrop, type GameMugshot, type ProgressStatus, type RatingDetails, type RatingMode, type VoteChoice, type VoteReason } from '@clube-do-jogo/domain';
 
 const rankingFormula = getRankingFormula();
 const DESCRIPTION_EXPAND_THRESHOLD = 180;
@@ -248,7 +248,7 @@ export default function GameDetailScreen() {
         </View>
       ) : null}
 
-      <Text style={styles.description} numberOfLines={descriptionExpanded ? undefined : 3}>{game.description || 'Sem descrição disponível.'}</Text>
+      <Text style={styles.description} numberOfLines={descriptionExpanded ? undefined : 3}>{gameDescription(game) ?? NO_DESCRIPTION_TEXT}</Text>
       {game.description && game.description.length > DESCRIPTION_EXPAND_THRESHOLD ? (
         <Pressable onPress={() => setDescriptionExpanded(value => !value)} accessibilityRole="button" style={styles.descriptionToggle}>
           <Text style={styles.descriptionToggleLabel}>{descriptionExpanded ? 'Ver menos' : 'Ver mais'}</Text>

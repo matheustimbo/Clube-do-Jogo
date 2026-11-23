@@ -7,7 +7,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import * as Tabs from '@radix-ui/react-tabs';
 import { CalendarDays, CheckCircle2, Clock3, Gamepad2, Heart, ImageIcon, LayoutDashboard, ListChecks, NotebookPen, Share2, Trash2 } from 'lucide-react';
-import { byChoice, choiceParticipants, countChoices, emptyChoiceProfiles, gameCoverUrl, isVoteChoice, moveParticipant } from '@clube-do-jogo/domain';
+import { byChoice, choiceParticipants, countChoices, emptyChoiceProfiles, gameCoverUrl, gameDescription, isVoteChoice, moveParticipant, NO_DESCRIPTION_TEXT } from '@clube-do-jogo/domain';
 import { createClient } from '@/lib/supabase/client';
 import { demoRanking } from '@/lib/demo-data';
 import { fetchGame, fetchUserPlatforms } from '@/lib/data';
@@ -233,7 +233,7 @@ export default function GamePage() {
             <span className="game-detail-meta-chip inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/[.06] px-3 py-2">{ratingValue === null ? <span className="text-zinc-500">Sem nota</span> : <RatingDisplay value={ratingValue} className="text-xs" />}</span>
             {game.release_year && <span className="game-detail-meta-chip inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/[.06] px-3 py-2"><CalendarDays className="size-3.5 text-zinc-500" />{game.release_year}</span>}
           </div>
-          <p className={`game-detail-description mt-3 max-w-2xl text-sm leading-6 text-zinc-400 sm:text-[15px] sm:leading-7 ${descriptionExpanded ? '' : 'line-clamp-3'}`}>{game.description || 'Sem descrição disponível.'}</p>
+          <p className={`game-detail-description mt-3 max-w-2xl text-sm leading-6 text-zinc-400 sm:text-[15px] sm:leading-7 ${descriptionExpanded ? '' : 'line-clamp-3'}`}>{gameDescription(game) ?? NO_DESCRIPTION_TEXT}</p>
           {game.description && game.description.length > 180 && <button onClick={() => setDescriptionExpanded(value => !value)} className="mt-1 text-[11px] font-extrabold text-violet-300">{descriptionExpanded ? 'Ver menos' : 'Ver mais'}</button>}
           {!isPreview && <ClubGameAdminDialog game={game} className="mt-5" />}
         </section>
