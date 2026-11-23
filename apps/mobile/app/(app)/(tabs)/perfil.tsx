@@ -3,6 +3,7 @@ import { Alert, Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Screen } from '@/components/Screen';
+import { CatalogAttribution } from '@/components/CatalogAttribution';
 import { AppHeader } from '@/components/AppHeader';
 import { Avatar } from '@/components/Avatar';
 import { GameListRow } from '@/components/GameListRow';
@@ -208,6 +209,7 @@ export default function ProfileScreen() {
         onSave={saveProfile}
       />}
       <PlatformPicker visible={platformsOpen} onClose={() => setPlatformsOpen(false)} />
+      <CatalogAttribution />
     </Screen>
   );
 }

@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Screen } from '@/components/Screen';
+import { CatalogAttribution } from '@/components/CatalogAttribution';
 import { AppHeader } from '@/components/AppHeader';
 import { Chip } from '@/components/Chip';
 import { MonthTrigger } from '@/components/MonthTrigger';
@@ -284,6 +285,7 @@ export default function GameOfMonthScreen() {
         onClose={() => setPendingStatus(null)}
         onConfirm={confirmStatus}
       />
+      <CatalogAttribution />
     </Screen>
   );
 }

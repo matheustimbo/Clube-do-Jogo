@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ScrollView, Pressable, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { CatalogAttribution } from './CatalogAttribution';
 import { GameListRow } from './GameListRow';
 import { Sheet } from './Sheet';
 import { ErrorState, LoadingState } from './StateViews';
@@ -77,6 +78,7 @@ export function AddGameToLibrarySheet({ visible, onClose, libraryIds }: {
               );
             })
           )}
+          {games.length > 0 ? <CatalogAttribution /> : null}
         </ScrollView>
         {backlog.isError ? <Text style={styles.formError}>{backlog.error?.message}</Text> : null}
       </View>

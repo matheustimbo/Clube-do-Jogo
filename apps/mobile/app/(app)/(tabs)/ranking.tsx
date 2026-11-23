@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Screen } from '@/components/Screen';
+import { CatalogAttribution } from '@/components/CatalogAttribution';
 import { AppHeader } from '@/components/AppHeader';
 import { AddGameToVoteSheet } from '@/components/AddGameToVoteSheet';
 import { Chip } from '@/components/Chip';
@@ -309,7 +310,8 @@ export default function RankingScreen() {
           )
         }
         ListFooterComponent={
-          rankingGroups.length > 10 ? (
+          <>
+            {rankingGroups.length > 10 ? (
             <Pressable
               onPress={() => setShowAll(value => !value)}
               accessibilityRole="button"
@@ -321,7 +323,9 @@ export default function RankingScreen() {
                 {showAll ? `Mostrar 10 ${rankingView === 'recent' ? 'dias' : 'colocações'}` : `Ver todos os ${rankingGroups.length} ${rankingView === 'recent' ? 'dias' : 'colocações'}`}
               </Text>
             </Pressable>
-          ) : null
+          ) : null}
+            <CatalogAttribution />
+          </>
         }
       />
 

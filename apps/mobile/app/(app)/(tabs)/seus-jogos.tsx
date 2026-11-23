@@ -3,6 +3,7 @@ import { FlatList, Pressable, SectionList, Switch, Text, TextInput, View } from 
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Screen } from '@/components/Screen';
+import { CatalogAttribution } from '@/components/CatalogAttribution';
 import { AppHeader } from '@/components/AppHeader';
 import { Chip } from '@/components/Chip';
 import { GameListRow } from '@/components/GameListRow';
@@ -236,6 +237,7 @@ export default function YourGamesScreen() {
             <EmptyState icon="library-outline" title="Nenhum jogo encontrado" description="Toque em Adicionar para buscar um jogo." />
           )
         }
+        ListFooterComponent={<CatalogAttribution />}
       />
 
       <Sheet visible={sortSheetOpen} title="Ordenar" onClose={() => setSortSheetOpen(false)}>

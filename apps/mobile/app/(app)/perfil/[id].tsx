@@ -2,6 +2,7 @@ import { Share, Text, View, Pressable } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '@/components/Screen';
+import { CatalogAttribution } from '@/components/CatalogAttribution';
 import { AppHeader } from '@/components/AppHeader';
 import { Avatar } from '@/components/Avatar';
 import { GameListRow } from '@/components/GameListRow';
@@ -156,6 +157,7 @@ export default function MemberProfileScreen() {
           <EmptyState icon="flag-outline" title="Nenhum jogo finalizado ainda." />
         )}
       </Section>
+      <CatalogAttribution />
     </Screen>
   );
 }

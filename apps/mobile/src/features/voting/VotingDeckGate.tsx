@@ -13,6 +13,7 @@ import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { gameCoverUrl, type VoteChoice } from '@clube-do-jogo/domain';
+import { CatalogAttribution } from '@/components/CatalogAttribution';
 import { useApp } from '@/state/app-provider';
 import { useRanking, useVote } from '@/state/queries';
 import { radii, spacing, themedStyles, typography, useThemeColors } from '@/theme';
@@ -204,6 +205,7 @@ export function VotingDeckGate() {
           {vote.isPending ? <ActivityIndicator color={colors.violet300} style={styles.loading} /> : null}
           {vote.isError ? <Text style={styles.error} accessibilityRole="alert">{vote.error.message}</Text> : null}
           <Text style={styles.progress}>{dismissedGameIds.size + 1} de {dismissedGameIds.size + cards.length}</Text>
+          <CatalogAttribution />
         </View>
       </View>
     </Modal>

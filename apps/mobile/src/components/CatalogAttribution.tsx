@@ -1,18 +1,19 @@
 import { Linking, Pressable, Text } from 'react-native';
-import { getCatalogProvider } from '@/platform/config';
+import { useCatalogAttribution } from '@/state/catalog-queries';
 import { spacing, themedStyles, typography } from '@/theme';
 
 /** Os termos da RAWG exigem um link ativo em toda tela que mostra dados dela. */
 export function CatalogAttribution() {
   const styles = useStyles();
-  if (getCatalogProvider() !== 'rawg') return null;
+  const attribution = useCatalogAttribution().data;
+  if (!attribution) return null;
   return (
     <Pressable
-      onPress={() => { void Linking.openURL('https://rawg.io'); }}
+      onPress={() => { void Linking.openURL(attribution.url); }}
       accessibilityRole="link"
-      accessibilityLabel="Abrir rawg.io, fonte dos dados de jogos"
+      accessibilityLabel={`Abrir ${attribution.name}, fonte dos dados de jogos`}
     >
-      <Text style={styles.text}>Dados de jogos por RAWG.</Text>
+      <Text style={styles.text}>Dados de jogos por {attribution.name}.</Text>
     </Pressable>
   );
 }
