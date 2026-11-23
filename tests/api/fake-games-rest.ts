@@ -4,16 +4,18 @@ export type GamesRow = Record<string, unknown> & { id: string; title: string };
 export type GamesPatch = { id: string; patch: Record<string, unknown> };
 
 /**
- * Lê a lista de um filtro `in.(…)` como o PostgREST v12 lê. Um valor entre aspas, em
- * que `\` escapa o caractere seguinte, só vale se vier seguido de `,` ou `)`; senão o
- * valor é lido sem aspas até a próxima `,` ou `)`. O primeiro `)` fora de aspas fecha a
- * lista, e o PostgREST ignora o que vem depois. Só a lista que nunca fecha é erro de
- * sintaxe (PGRST100), e aí a função devolve null.
+ * Lê a lista de um filtro `in.(…)` como o PostgREST v12 lê. Espaços e tabs logo depois
+ * do `(` não contam. Um valor entre aspas, em que `\` escapa o caractere seguinte, só
+ * vale se vier seguido de `,` ou `)`; senão o valor é lido sem aspas até a próxima `,`
+ * ou `)`. O primeiro `)` fora de aspas fecha a lista, e o PostgREST ignora o que vem
+ * depois. Uma lista que é só um valor vazio, `()` ou `("")`, é a lista vazia. Só a lista
+ * que nunca fecha é erro de sintaxe (PGRST100), e aí a função devolve null.
  */
 export function parseInList(text: string): string[] | null {
   if (!text.startsWith('(')) return null;
   const values: string[] = [];
   let at = 1;
+  while (text[at] === ' ' || text[at] === '\t') at += 1;
   for (;;) {
     let value: string | null = null;
     if (text[at] === '"') {
@@ -40,7 +42,8 @@ export function parseInList(text: string): string[] | null {
       at += 1;
       continue;
     }
-    return text[at] === ')' ? values : null;
+    if (text[at] !== ')') return null;
+    return values.length === 1 && values[0] === '' ? [] : values;
   }
 }
 
@@ -98,7 +101,9 @@ export function gamesRest(options: RestOptions): SupabaseClient {
       const missing = Object.keys(patch).find(column => missingColumns.includes(column));
       if (missing) return fail(400, 'PGRST204', `Could not find the '${missing}' column of 'games' in the schema cache`);
       if (patchError) return fail(400, patchError.code, patchError.message);
-      const taken = UNIQUE_COLUMNS.find(column => patch[column] != null
+      // Como no Postgres, só a linha que o UPDATE acha passa pelas uniques: um PATCH que
+      // não acha nada volta [] mesmo com um valor que outra linha já tem.
+      const taken = matched.length > 0 && UNIQUE_COLUMNS.find(column => patch[column] != null
         && [...rows.values()].some(row => !matched.includes(row) && row[column] === patch[column]));
       if (taken) return fail(409, '23505', `duplicate key value violates unique constraint "games_${taken}_key"`);
       matched.forEach(row => Object.assign(row, patch));
