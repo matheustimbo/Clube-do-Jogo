@@ -3,6 +3,7 @@ import { GOTY_2026_CURATED_CATALOG, gameDescription, type GotySearchGameResult }
 import { createClient } from '@/lib/supabase/server';
 import { searchGoty2026GamesWithIGDB } from '@/lib/igdb';
 import { cacheCatalogGameRows } from '@/lib/game-cache';
+import { isSameRelease } from '@/lib/game-catalog';
 import type { Game } from '@/lib/types';
 
 function normalize(value: string): string {
@@ -21,14 +22,17 @@ function searchCurated2026(query: string): GotySearchGameResult[] {
 
 // O mesmo jogo chega por três caminhos: da IGDB, com o id da linha em que caiu; da busca
 // local, que numa linha da RAWG não traz igdb_id; e do catálogo curado, com id próprio.
-// Casa pelo id da linha, pelo igdb_id ou pelo título.
+// Casa pelo id da linha, pelo igdb_id ou pelo título do mesmo lançamento: Resident Evil 4
+// de 2005 e o de 2023 dividem o título, não o jogo. Item sem ano casa com qualquer ano.
 function deduplicateGames(items: GotySearchGameResult[]): GotySearchGameResult[] {
   const seen = new Set<string>();
   const result: GotySearchGameResult[] = [];
   for (const item of items) {
     const title = normalize(item.title);
-    const keys = [`id:${item.id}`, ...(item.igdb_id ? [`igdb:${item.igdb_id}`] : []), ...(title ? [`title:${title}`] : [])];
-    if (keys.some(key => seen.has(key))) continue;
+    const keys = [`id:${item.id}`, ...(item.igdb_id ? [`igdb:${item.igdb_id}`] : [])];
+    const sameRelease = (kept: GotySearchGameResult) => Boolean(title) && normalize(kept.title) === title
+      && (isSameRelease(kept, item) || isSameRelease(item, kept));
+    if (keys.some(key => seen.has(key)) || result.some(sameRelease)) continue;
     keys.forEach(key => seen.add(key));
     result.push(item);
   }

@@ -28,12 +28,13 @@ const supabase = {
         return { select: () => Object.assign(Promise.resolve(result), { single: async () => (error ? result : { data: saved[0], error: null }) }) };
       },
       select() {
-        // A busca local da rota: título parecido, 2026, por nota.
+        // A busca local da rota: título parecido, 2026 só sem "incluir outros anos", por nota.
+        let only2026 = false;
         const local = {
           limit: () => local,
           ilike: () => local,
-          eq: () => local,
-          order: async () => ({ data: [...stored.values()].filter(row => row.release_year === 2026), error: null }),
+          eq: () => { only2026 = true; return local; },
+          order: async () => ({ data: [...stored.values()].filter(row => !only2026 || row.release_year === 2026), error: null }),
         };
         return {
           ...local,
@@ -86,13 +87,13 @@ afterEach(() => {
   stored.clear();
 });
 
-function useIGDB(game: Record<string, unknown> = IGDB_GAME_2026) {
+function useIGDB(...games: Array<Record<string, unknown>>) {
   process.env.IGDB_CLIENT_ID = 'cliente';
   process.env.IGDB_CLIENT_SECRET = 'segredo';
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = new URL(String(input));
     if (url.hostname === 'id.twitch.tv') return Response.json({ access_token: 'token', expires_in: 3600 });
-    if (url.pathname === '/v4/games') return Response.json([game]);
+    if (url.pathname === '/v4/games') return Response.json(games.length ? games : [IGDB_GAME_2026]);
     if (url.pathname === '/v4/game_time_to_beats') return Response.json([]);
     throw new Error(`fetch inesperado: ${url}`);
   }) as typeof fetch;
@@ -173,4 +174,62 @@ test('a RAWG row of a curated game comes back once, as the stored row', async ()
 
   const gta = body.items.filter((item: { title: string }) => item.title === 'Grand Theft Auto VI');
   assert.deepEqual(gta.map((item: { id: string }) => item.id), ['linha-rawg-gta']);
+});
+
+// Um jogo da IGDB lançado na data dada, com capa.
+function igdbGame(id: number, name: string, year: number) {
+  const date = Math.floor(Date.UTC(year, 2, 24) / 1000);
+  return { id, name, summary: `${name} de ${year}.`, cover: { image_id: `capa${id}` }, first_release_date: date, game_type: 0, release_dates: [{ date, y: year }] };
+}
+
+test('two games with one title from different years both come back when other years are included', async () => {
+  delete process.env.IGDB_OFFLINE_CATALOG;
+  delete process.env.GAME_CATALOG_PROVIDER;
+  useIGDB(igdbGame(974, 'Resident Evil 4', 2005), igdbGame(132181, 'Resident Evil 4', 2023));
+  // O de 2005 já tem a linha do título; o remake não cabe nela e volta só da IGDB.
+  stored.set('Resident Evil 4', { id: 'linha-974', title: 'Resident Evil 4', igdb_id: 974, release_year: 2005 });
+  const { GET } = await import('../../src/app/api/goty/search-games/route');
+
+  const body = await (await GET(new Request('http://localhost/api/goty/search-games?q=resident%20evil%204&includeAllYears=true'))).json();
+
+  const residentEvil4 = body.items.filter((item: { title: string }) => item.title === 'Resident Evil 4');
+  assert.deepEqual(residentEvil4.map((item: { igdb_id: number; release_year: number }) => [item.igdb_id, item.release_year]), [[974, 2005], [132181, 2023]]);
+});
+
+test('a curated game the IGDB dates in another year still comes back once, by its igdb_id', async () => {
+  delete process.env.IGDB_OFFLINE_CATALOG;
+  delete process.env.GAME_CATALOG_PROVIDER;
+  // A IGDB adiou GTA VI para 2027; o catálogo curado ainda diz 2026.
+  useIGDB(igdbGame(52189, 'Grand Theft Auto VI', 2027));
+  const { GET } = await import('../../src/app/api/goty/search-games/route');
+
+  const body = await (await GET(new Request('http://localhost/api/goty/search-games?q=grand%20theft&includeAllYears=true'))).json();
+
+  const gta = body.items.filter((item: { igdb_id: number }) => item.igdb_id === 52189);
+  assert.deepEqual(gta.map((item: { id: string }) => item.id), ['linha-52189']);
+});
+
+test('a game without a year matches a same-title game of any year', async () => {
+  igdbDown();
+  // A linha local sem ano é o mesmo GTA VI do catálogo curado.
+  stored.set('Grand Theft Auto VI', { id: 'linha-sem-ano', title: 'Grand Theft Auto VI', igdb_id: null, rawg_id: 58550, release_year: null });
+  const { GET } = await import('../../src/app/api/goty/search-games/route');
+
+  const body = await (await GET(new Request('http://localhost/api/goty/search-games?q=grand%20theft&includeAllYears=true'))).json();
+
+  const gta = body.items.filter((item: { title: string }) => item.title === 'Grand Theft Auto VI');
+  assert.deepEqual(gta.map((item: { id: string }) => item.id), ['linha-sem-ano']);
+});
+
+test('a game without a year after a dated game of the same title is that game', async () => {
+  delete process.env.IGDB_OFFLINE_CATALOG;
+  delete process.env.GAME_CATALOG_PROVIDER;
+  const undated = { ...igdbGame(99001, 'Fable', 2026), first_release_date: undefined, release_dates: [] };
+  useIGDB(igdbGame(99000, 'Fable', 2026), undated);
+  const { GET } = await import('../../src/app/api/goty/search-games/route');
+
+  const body = await (await GET(new Request('http://localhost/api/goty/search-games?q=fable&includeAllYears=true'))).json();
+
+  const fable = body.items.filter((item: { title: string }) => item.title === 'Fable');
+  assert.deepEqual(fable.map((item: { igdb_id: number }) => item.igdb_id), [99000]);
 });
