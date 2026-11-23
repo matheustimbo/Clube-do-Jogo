@@ -9,6 +9,7 @@ import { useUrlDialog } from '@/hooks/use-url-state';
 import type { AvatarCrop } from '@/lib/types';
 import { useApp } from './app-provider';
 import { ImageGalleryDialog } from './game-gallery';
+import { CatalogAttribution } from './catalog-attribution';
 import { AvatarCropEditor, DEFAULT_AVATAR_SELECTION_CROP } from './avatar-crop-editor';
 import { normalizeAvatarCrop } from './ui/avatar';
 
@@ -76,7 +77,7 @@ export function GameMugshots({ gameId, title }: { gameId: string; title: string 
         </div>
       )}
       <p className="mt-4 text-[10px] font-medium text-zinc-500">Personagens associados a {title} pelo catálogo de jogos.</p>
-      <ImageGalleryDialog title={`Mugshots de ${title}`} images={images} open={gallery.open} onOpenChange={open => { if (!open) gallery.close(); }} activeIndex={activeIndex} onActiveIndexChange={index => gallery.setParam('image', index)} />
+      <ImageGalleryDialog title={`Mugshots de ${title}`} images={images} open={gallery.open} onOpenChange={open => { if (!open) gallery.close(); }} activeIndex={activeIndex} onActiveIndexChange={index => gallery.setParam('image', index)} footer={<CatalogAttribution className="mt-0" />} />
       <AvatarCropEditor key={cropTarget?.id ?? 'empty'} imageUrl={cropTarget?.image_url || null} name={cropTarget?.name || ''} crop={cropTarget ? cropFor(cropTarget) : DEFAULT_AVATAR_SELECTION_CROP} open={Boolean(cropTarget)} saving={Boolean(updatingUrl)} onOpenChange={open => { if (!open && !updatingUrl) setCropTarget(null); }} onSave={crop => { if (cropTarget) void chooseAvatar(cropTarget, crop); }} />
     </section>
   );

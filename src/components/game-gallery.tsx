@@ -1,21 +1,24 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { AnimatePresence, motion } from 'motion/react';
 import { Check, ChevronLeft, ChevronRight, UserRound, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { useUrlDialog } from '@/hooks/use-url-state';
 import { useApp } from './app-provider';
+import { CatalogAttribution } from './catalog-attribution';
 import { AvatarCropEditor, DEFAULT_AVATAR_SELECTION_CROP } from './avatar-crop-editor';
 import { normalizeAvatarCrop } from './ui/avatar';
 
-export function ImageGalleryDialog({ title, images, open, onOpenChange, activeIndex, onActiveIndexChange }: {
+export function ImageGalleryDialog({ title, images, open, onOpenChange, activeIndex, onActiveIndexChange, footer }: {
   title: string;
   images: string[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   activeIndex: number;
   onActiveIndexChange: (index: number) => void;
+  /** Vai por cima das imagens; quem abre imagens do catálogo passa o crédito dele. */
+  footer?: ReactNode;
 }) {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -154,6 +157,7 @@ export function ImageGalleryDialog({ title, images, open, onOpenChange, activeIn
           {images.length > 1 && <div className="flex max-w-full gap-2 overflow-x-auto px-1 pb-1">
             {images.map((url, index) => <button key={`${url}-${index}`} onClick={() => selectImage(index)} aria-label={`Abrir imagem ${index + 1}`} className={`h-14 w-20 shrink-0 cursor-pointer overflow-hidden rounded-lg border-2 transition ${index === activeIndex ? 'border-white' : 'border-transparent opacity-55 hover:opacity-100'}`}><img src={url} alt="" className="size-full object-cover" /></button>)}
           </div>}
+          {footer}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
@@ -214,7 +218,7 @@ export function GameGallery({ title, images }: { title: string; images: string[]
         </>}
       </div>
 
-      <ImageGalleryDialog title={title} images={images} open={gallery.open} onOpenChange={open => { if (!open) gallery.close(); }} activeIndex={activeIndex} onActiveIndexChange={index => gallery.setParam('image', index)} />
+      <ImageGalleryDialog title={title} images={images} open={gallery.open} onOpenChange={open => { if (!open) gallery.close(); }} activeIndex={activeIndex} onActiveIndexChange={index => gallery.setParam('image', index)} footer={<CatalogAttribution className="mt-0" />} />
       <AvatarCropEditor key={avatarTarget || 'empty'} imageUrl={avatarTarget} name={`Imagem de ${title}`} crop={avatarTarget ? cropFor(avatarTarget) : DEFAULT_AVATAR_SELECTION_CROP} open={Boolean(avatarTarget)} saving={updatingAvatar} onOpenChange={open => { if (!open && !updatingAvatar) setAvatarTarget(null); }} onSave={crop => { void saveAvatar(crop); }} />
     </>
   );

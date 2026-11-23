@@ -7,6 +7,7 @@ import { apiFetch } from '@/lib/api-client';
 import { demoGames } from '@/lib/demo-data';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { CatalogAttribution } from '@/components/catalog-attribution';
 import { GotyPosterArt } from './goty-poster-art';
 
 function normalize(value: string): string {
@@ -258,6 +259,7 @@ export function GotyGamePickerDialog({
             )}
           </div>
         </div>
+        <CatalogAttribution className="px-4 pb-4" />
       </DialogContent>
     </Dialog>
   );

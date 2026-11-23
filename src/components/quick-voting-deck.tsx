@@ -13,6 +13,7 @@ import { useStaleQuery } from '@/hooks/use-stale-query';
 import { useApp } from './app-provider';
 import { shiftMonth } from '@/lib/utils';
 import { apiFetch } from '@/lib/api-client';
+import { CatalogAttribution } from './catalog-attribution';
 
 const SWIPE_THRESHOLD = 90;
 
@@ -123,6 +124,7 @@ export function QuickVotingDeck() {
           <VoteButton label="Jogaria" icon={<ThumbsUp className="size-4" />} tone="text-emerald-300" onClick={() => choose('would_play')} />
         </div>
         <p className="mt-4 text-center text-[10px] font-black uppercase tracking-[.16em] text-zinc-600">{position} de {total}</p>
+        <CatalogAttribution className="mt-2" />
       </section>
     </div>
   );

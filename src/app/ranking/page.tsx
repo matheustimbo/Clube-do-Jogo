@@ -17,6 +17,7 @@ import { formatMonth, formatShortDate, shiftMonth } from '@/lib/utils';
 import { useStaleQuery } from '@/hooks/use-stale-query';
 import { useApp } from '@/components/app-provider';
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
+import { CatalogAttribution } from '@/components/catalog-attribution';
 import { ListSkeleton, Skeleton } from '@/components/ui/skeleton';
 import { PreferenceParticipantsDialog } from '@/components/preference-participants-dialog';
 import { useUrlDialog } from '@/hooks/use-url-state';
@@ -243,6 +244,7 @@ export default function RankingPage() {
               const existing = ranking.find(item => item.game.id === game.id);
               return <article key={game.id} className="rounded-2xl border border-white/8 bg-white/[0.025] p-3"><div className="mb-3 flex min-w-0 items-center gap-3"><img src={gameCoverUrl(game.image_url)} alt="" className="h-16 w-12 shrink-0 rounded-lg object-cover" /><div className="min-w-0"><div className="truncate text-sm font-bold">{game.title}</div><div className="mt-1 inline-flex items-center gap-1 text-[11px] text-zinc-500"><Clock3 className="size-3" />{game.duration_hours} h</div></div></div><PreferenceButtons compact value={existing?.myChoice || null} onChange={choice => chooseSearch(game, choice)} /></article>;
             }) : <p className="p-10 text-center text-sm text-zinc-500">Busque pelo nome do jogo.</p>}</div>
+            <CatalogAttribution className="px-4 pb-4" />
           </DialogContent>
         </Dialog>}
       </section>
