@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { useSharedValue } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { avatarPanOffset, DEFAULT_AVATAR_CROP, normalizeAvatarCrop, type AvatarCrop } from '@clube-do-jogo/domain';
+import { avatarCropAfterPan, avatarPreviewOffset, DEFAULT_AVATAR_CROP, normalizeAvatarCrop, type AvatarCrop, type AvatarImageSize } from '@clube-do-jogo/domain';
 import { Sheet } from '@/components/Sheet';
 import { Button } from '@/components/Button';
 import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
@@ -15,6 +15,7 @@ const PREVIEW_SIZE = 240;
 
 // Fixo de propósito. contentPosition é prop do expo-image, e mexer nela durante o
 // gesto remontava a imagem a cada quadro, deixando o círculo vazio até o dedo parar.
+// O recorte vive no transform, e avatarPreviewOffset faz ele bater com o Avatar.
 const CONTENT_POSITION = { top: '50%', left: '50%' } as const;
 
 export function AvatarCropEditor({ visible, imageUrl, name, crop: initialCrop, saving, onClose, onSave }: {
@@ -30,19 +31,16 @@ export function AvatarCropEditor({ visible, imageUrl, name, crop: initialCrop, s
   const styles = useStyles();
   const [crop, setCrop] = useState(initialCrop);
   const dragStart = useSharedValue(initialCrop);
-  const deslocamento = avatarPanOffset(crop, PREVIEW_SIZE);
-
-
+  // Tamanho natural da imagem aberta. Até o onLoad dela, a prévia trata como quadrada.
+  const [loaded, setLoaded] = useState<{ uri: string; size: AvatarImageSize } | null>(null);
+  const imageSize = loaded && loaded.uri === imageUrl ? loaded.size : null;
+  const offset = avatarPreviewOffset(PREVIEW_SIZE, imageSize, crop);
 
   const pan = Gesture.Pan()
     .runOnJS(true)
     .onStart(() => { dragStart.value = crop; })
     .onUpdate(event => {
-      setCrop(current => normalizeAvatarCrop({
-        ...current,
-        x: dragStart.value.x - (event.translationX / PREVIEW_SIZE) * 100,
-        y: dragStart.value.y - (event.translationY / PREVIEW_SIZE) * 100,
-      }));
+      setCrop(current => avatarCropAfterPan({ ...dragStart.value, zoom: current.zoom }, { x: event.translationX, y: event.translationY }, PREVIEW_SIZE, imageSize));
     });
 
   const pinch = Gesture.Pinch()
@@ -64,10 +62,11 @@ export function AvatarCropEditor({ visible, imageUrl, name, crop: initialCrop, s
             <Image
               source={{ uri: imageUrl }}
               style={[StyleSheet.absoluteFill, {
-                transform: [{ scale: crop.zoom }, { translateX: deslocamento.x }, { translateY: deslocamento.y }],
+                transform: [{ translateX: offset.x }, { translateY: offset.y }, { scale: crop.zoom }],
               }]}
               contentFit="cover"
               contentPosition={CONTENT_POSITION}
+              onLoad={event => setLoaded({ uri: imageUrl, size: { width: event.source.width, height: event.source.height } })}
               accessibilityLabel={name}
             />
             <View pointerEvents="none" style={styles.previewRing} />
