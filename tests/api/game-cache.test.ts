@@ -5,6 +5,7 @@ import { cacheIGDBGames } from '../../src/lib/game-cache';
 import type { IGDBGameResult } from '../../src/lib/igdb';
 
 type UpsertPayload = Record<string, unknown>;
+type UpsertCall = { rows: UpsertPayload[]; columns: string[] };
 
 function igdbGame(overrides: Partial<IGDBGameResult> = {}): IGDBGameResult {
   return {
@@ -26,21 +27,37 @@ function igdbGame(overrides: Partial<IGDBGameResult> = {}): IGDBGameResult {
 
 const STORED_COVER = 'https://images.igdb.com/igdb/image/upload/t_cover_big/stored.jpg';
 
+type FakeOptions = {
+  calls?: UpsertCall[];
+  failFirstWith?: { code: string };
+  roundTrips?: { count: number };
+};
+
+// Imita o postgrest-js: num upsert em lote, `columns` é a união das chaves das
+// linhas, e com defaultToNull (o padrão) a chave que falta numa linha vira NULL no
+// ON CONFLICT DO UPDATE. Num objeto só, as colunas são as chaves dele.
 // Devolve as linhas do lote fora de ordem, que é o que o PostgREST pode fazer:
 // se a rota passar a depender da ordem do retorno, o teste pega.
-function fakeSupabase(payloads: UpsertPayload[], failFirstWith?: { code: string }, roundTrips?: { count: number }): SupabaseClient {
-  const stored = (payload: UpsertPayload) => ({ id: `stored-${payload.igdb_id}`, image_url: STORED_COVER, ...payload });
+function fakeSupabase(payloads: UpsertPayload[], options: FakeOptions = {}): SupabaseClient {
+  const { calls, failFirstWith, roundTrips } = options;
+  const stored = (payload: UpsertPayload, columns: string[]) => ({
+    id: `stored-${payload.igdb_id}`,
+    image_url: STORED_COVER,
+    ...Object.fromEntries(columns.map(column => [column, Object.hasOwn(payload, column) ? payload[column] : null])),
+  });
   const client = {
     from() {
       return {
         upsert(payload: UpsertPayload | UpsertPayload[]) {
           const batch = Array.isArray(payload) ? payload : [payload];
+          const columns = [...new Set(batch.flatMap(one => Object.keys(one)))];
           batch.forEach(one => payloads.push(one));
+          calls?.push({ rows: batch, columns });
           if (roundTrips) roundTrips.count += 1;
           // Coluna que falta é problema de schema, não de sorte: recusa toda vez que
           // ela chega, senão o teste do retorno ao schema antigo passa por acidente.
           const error = failFirstWith && batch.some(one => Object.hasOwn(one, 'average_rating')) ? failFirstWith : null;
-          const rows = batch.map(stored).reverse();
+          const rows = batch.map(one => stored(one, columns)).reverse();
           return {
             select: () => Object.assign(
               Promise.resolve(error ? { data: null, error } : { data: rows, error: null }),
@@ -90,11 +107,11 @@ test('a game with art is upserted with exactly that url', async () => {
 
 test('the legacy-column retry keeps the same cover decision', async () => {
   const withoutArt: UpsertPayload[] = [];
-  await cacheIGDBGames(fakeSupabase(withoutArt, { code: 'PGRST204' }), [igdbGame({ image_url: null })]);
+  await cacheIGDBGames(fakeSupabase(withoutArt, { failFirstWith: { code: 'PGRST204' } }), [igdbGame({ image_url: null })]);
   assert.deepEqual(Object.keys(withoutArt.at(-1)!), ['igdb_id', 'title', 'duration_hours', 'description']);
 
   const withArt: UpsertPayload[] = [];
-  await cacheIGDBGames(fakeSupabase(withArt, { code: 'PGRST204' }), [
+  await cacheIGDBGames(fakeSupabase(withArt, { failFirstWith: { code: 'PGRST204' } }), [
     igdbGame({ image_url: 'https://images.igdb.com/igdb/image/upload/t_cover_big/co65ac.jpg' }),
   ]);
   assert.deepEqual(Object.keys(withArt.at(-1)!), ['igdb_id', 'title', 'duration_hours', 'image_url', 'description']);
@@ -120,7 +137,7 @@ test('uma página inteira não vira uma ida ao banco por jogo', async () => {
     title: `Jogo ${index}`,
     image_url: index % 2 === 0 ? `https://images.igdb.com/igdb/image/upload/t_cover_big/capa${index}.jpg` : null,
   }));
-  const saved = await cacheIGDBGames(fakeSupabase([], undefined, roundTrips), page);
+  const saved = await cacheIGDBGames(fakeSupabase([], { roundTrips }), page);
   assert.equal(saved.length, 24);
   assert.ok(roundTrips.count <= 2, `esperava no máximo 2 idas ao banco, foram ${roundTrips.count}`);
 });
@@ -132,11 +149,14 @@ test('a ordem que a IGDB devolveu é a ordem que o cliente recebe', async () => 
 });
 
 test('jogo com capa e jogo sem capa não viajam no mesmo lote', async () => {
-  const payloads: UpsertPayload[] = [];
-  await cacheIGDBGames(fakeSupabase(payloads), [
+  const calls: UpsertCall[] = [];
+  const saved = await cacheIGDBGames(fakeSupabase([], { calls }), [
     igdbGame({ id: 1, title: 'Com capa', image_url: 'https://images.igdb.com/igdb/image/upload/t_cover_big/co65ac.jpg' }),
     igdbGame({ id: 2, title: 'Sem capa', image_url: null }),
   ]);
-  const semCapa = payloads.find(payload => payload.title === 'Sem capa');
-  assert.equal(Object.hasOwn(semCapa!, 'image_url'), false);
+  for (const call of calls) {
+    const withCover = call.rows.filter(row => Object.hasOwn(row, 'image_url')).length;
+    assert.ok(withCover === 0 || withCover === call.rows.length, `um upsert misturou linhas com e sem image_url: ${JSON.stringify(call.columns)}`);
+  }
+  assert.equal(saved.find(game => game.title === 'Sem capa')?.image_url, STORED_COVER);
 });
