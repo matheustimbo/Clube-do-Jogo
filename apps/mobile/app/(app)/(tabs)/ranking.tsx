@@ -385,6 +385,7 @@ export default function RankingScreen() {
             ) : null}
           </View>
         ) : null}
+        <CatalogAttribution />
       </Sheet>
 
       {clubGameAdmin.sheet}

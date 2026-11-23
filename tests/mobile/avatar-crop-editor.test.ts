@@ -36,6 +36,7 @@ mock.module('react-native-gesture-handler', {
 });
 mock.module('@/components/Sheet', { exports: { Sheet: passthrough } });
 mock.module('@/components/Button', { exports: { Button: () => null } });
+mock.module('@/components/CatalogAttribution', { exports: { CatalogAttribution: () => null } });
 mock.module('@/theme', { exports: { themedStyles: () => () => ({}), useThemeColors: () => ({}), radii: {}, spacing: {}, typography: {} } });
 
 const editorModule = import('../../apps/mobile/src/features/profile/AvatarCropEditor');

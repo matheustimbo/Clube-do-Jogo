@@ -21,6 +21,7 @@ const SURFACES = [
   'src/components/AddGameToVoteSheet.tsx',
   'src/features/admin/AdminClubPanel.tsx',
   'src/features/admin/ClubGameChangeSheet.tsx',
+  'src/features/profile/AvatarCropEditor.tsx',
   'src/features/profile/PlatformPicker.tsx',
   'src/features/voting/VotingDeckGate.tsx',
 ];
@@ -41,7 +42,19 @@ const NOT_CATALOG: Record<string, string> = {
 
 // O TrailerModal fica de fora de propósito: mostra só o vídeo do YouTube, e a RAWG não
 // tem trailer (src/lib/rawg.ts grava trailer_url null).
-const CATALOG_DATA = /gameCoverUrl\(|<GameListRow|<PlatformRow|useSearchPlatforms|useUserPlatforms|useDiscovery|useAdminGameOptions|useGameMedia|useGameMugshots|useGameOfMonth|useGame\(|useLibrary|useProfile\(|screenshot_urls|<MugshotsGrid|<ScreenshotsCarousel|<ImageGalleryModal|\.image_url/;
+// Imagem do catálogo também chega por prop em camelCase (imageUrl, coverUrl).
+const CATALOG_DATA = /gameCoverUrl\(|<GameListRow|<PlatformRow|useSearchPlatforms|useUserPlatforms|useDiscovery|useAdminGameOptions|useGameMedia|useGameMugshots|useGameOfMonth|useGame\(|useLibrary|useProfile\(|screenshot_urls|<MugshotsGrid|<ScreenshotsCarousel|<ImageGalleryModal|\.image_url|\b\w*(?:[iI]mage|[cC]over|[sS]creenshot)(?:Url|Uri)s?\b/;
+
+/**
+ * Sheets e modais de superfície que não mostram nenhum dado do catálogo. Um sheet cobre
+ * a tela, então o crédito do rodapé dela não aparece: todo outro sheet ou modal de uma
+ * superfície credita o catálogo dentro dele. A chave é `arquivo#title`.
+ */
+const OVERLAYS_WITHOUT_CATALOG_DATA: Record<string, string> = {
+  'app/(app)/(tabs)/jogos.tsx#"Filtros"': 'só os controles de filtro',
+  'app/(app)/(tabs)/seus-jogos.tsx#"Ordenar"': 'só as opções de ordem',
+  'app/(app)/(tabs)/seus-jogos.tsx#"Filtros"': 'só os controles de filtro',
+};
 
 function sources(dir: string): string[] {
   return readdirSync(path.join(MOBILE, dir), { withFileTypes: true, recursive: true })
@@ -61,6 +74,31 @@ test('every file that touches game data is classified', () => {
 test('every surface that shows catalog data credits the catalog', () => {
   const uncredited = SURFACES.filter(file => !read(file).includes('<CatalogAttribution'));
   assert.deepEqual(uncredited, []);
+});
+
+/** Cada <Sheet> e <Modal> do arquivo: a chave `arquivo#title` e o JSX até o fechamento dele. */
+function overlays(file: string) {
+  const source = read(file);
+  return [...source.matchAll(/<(Sheet|Modal)\b/g)].map(match => {
+    const start = match.index;
+    const close = source.indexOf(`</${match[1]}>`, start);
+    assert.ok(close > start, `${file}: <${match[1]}> sem fechamento`);
+    const opening = source.slice(start, source.indexOf('>', start) + 1);
+    const title = opening.match(/\btitle=("[^"]*"|\{[^}]*\})/)?.[1] ?? match[1];
+    return { key: `${file}#${title}`, body: source.slice(start, close) };
+  });
+}
+
+test('every sheet and modal of a surface credits the catalog inside it', () => {
+  const found = SURFACES.flatMap(overlays);
+  const uncredited = found
+    .filter(overlay => !OVERLAYS_WITHOUT_CATALOG_DATA[overlay.key])
+    .filter(overlay => !overlay.body.includes('<CatalogAttribution'))
+    .map(overlay => overlay.key);
+  assert.deepEqual(uncredited, []);
+  // Uma exceção que não acha mais o sheet dela esconderia um sheet novo de mesmo título.
+  const keys = new Set(found.map(overlay => overlay.key));
+  assert.deepEqual(Object.keys(OVERLAYS_WITHOUT_CATALOG_DATA).filter(key => !keys.has(key)), []);
 });
 
 test('every part is rendered only inside a credited surface', () => {

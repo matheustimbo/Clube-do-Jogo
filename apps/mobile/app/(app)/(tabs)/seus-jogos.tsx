@@ -321,6 +321,7 @@ export default function YourGamesScreen() {
             </Pressable>
           </View>
         ) : null}
+        <CatalogAttribution />
       </Sheet>
 
       <Sheet visible={Boolean(removeTarget)} title="Remover de Meus Jogos" onClose={() => setRemoveTarget(null)}>
@@ -345,6 +346,7 @@ export default function YourGamesScreen() {
             </Pressable>
           </View>
         </View>
+        <CatalogAttribution />
       </Sheet>
 
       <PlatformPicker visible={platformsOpen} onClose={() => setPlatformsOpen(false)} />

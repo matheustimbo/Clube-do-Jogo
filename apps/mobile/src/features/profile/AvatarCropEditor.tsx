@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { avatarPreviewOffset, DEFAULT_AVATAR_CROP, normalizeAvatarCrop, type AvatarCrop, type AvatarImageSize } from '@clube-do-jogo/domain';
 import { Sheet } from '@/components/Sheet';
+import { CatalogAttribution } from '@/components/CatalogAttribution';
 import { Button } from '@/components/Button';
 import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
 import { createAvatarCropGesture } from './avatar-crop-gesture';
@@ -102,6 +103,8 @@ export function AvatarCropEditor({ visible, imageUrl, name, crop: initialCrop, s
             style={styles.actionButton}
           />
         </View>
+        {/* Toda imagem que o editor abre é do catálogo: capa, screenshot ou retrato. */}
+        <CatalogAttribution />
       </View>
     </Sheet>
   );
