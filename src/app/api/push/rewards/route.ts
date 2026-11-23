@@ -6,7 +6,7 @@ import { dispatchPushNotification, isAdminUser, isPushConfigured } from '@/lib/p
 type RequestBody = { clubMonth?: unknown };
 
 export async function POST(request: Request) {
-  const { userId } = await createRequestContext();
+  const { userId } = await createRequestContext({ checkRevocation: true });
   if (!userId) return NextResponse.json({ error: 'Nao autorizado.' }, { status: 401 });
 
   let body: RequestBody;

@@ -28,7 +28,7 @@ function isAllowedEndpoint(endpoint: string) {
 }
 
 export async function POST(request: Request) {
-  const { supabase, userId } = await createRequestContext();
+  const { supabase, userId } = await createRequestContext({ checkRevocation: true });
   if (!userId) return NextResponse.json({ error: 'Nao autorizado.' }, { status: 401 });
 
   let body: PushSubscriptionPayload;

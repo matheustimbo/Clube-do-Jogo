@@ -8,7 +8,7 @@ import { byChoice } from '@clube-do-jogo/domain';
 type RequestBody = { voteMonth?: unknown; previousLeaderId?: unknown; leaderId?: unknown };
 
 export async function POST(request: Request) {
-  const { userId } = await createRequestContext();
+  const { userId } = await createRequestContext({ checkRevocation: true });
   if (!userId) return NextResponse.json({ error: 'Nao autorizado.' }, { status: 401 });
 
   let body: RequestBody;

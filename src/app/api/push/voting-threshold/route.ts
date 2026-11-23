@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { createClient } from '@/lib/supabase/server';
+import { createRequestContext } from '@/lib/supabase/server';
 import { dispatchPushNotification } from '@/lib/push';
 
 type RequestBody = { action?: unknown; voteMonth?: unknown; gameId?: unknown };
@@ -14,9 +14,8 @@ function validMonth(value: unknown): value is string {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Nao autorizado.' }, { status: 401 });
+  const { supabase, userId } = await createRequestContext({ checkRevocation: true });
+  if (!userId) return NextResponse.json({ error: 'Nao autorizado.' }, { status: 401 });
 
   let body: RequestBody;
   try {
@@ -47,11 +46,11 @@ export async function POST(request: Request) {
     .eq('game_id', gameId)
     .order('created_at', { ascending: true });
   if (votesError) return NextResponse.json({ error: 'Nao foi possivel validar o jogo.' }, { status: 500 });
-  if (!votes?.length || votes[0].user_id !== user.id) return NextResponse.json({ sent: 0, changed: false });
+  if (!votes?.length || votes[0].user_id !== userId) return NextResponse.json({ sent: 0, changed: false });
 
   const { data: recipients, error: recipientsError } = await admin.rpc('claim_vote_threshold_notifications', {
     target_vote_month: body.voteMonth,
-    source_user_id: user.id,
+    source_user_id: userId,
   });
   if (recipientsError) return NextResponse.json({ error: 'Nao foi possivel registrar os avisos.' }, { status: 500 });
 

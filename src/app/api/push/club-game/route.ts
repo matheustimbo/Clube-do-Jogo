@@ -6,7 +6,7 @@ import { dispatchPushNotification, formatPushMonth, isAdminUser, isPushConfigure
 type RequestBody = { gameId?: unknown; month?: unknown };
 
 export async function POST(request: Request) {
-  const { userId } = await createRequestContext();
+  const { userId } = await createRequestContext({ checkRevocation: true });
   if (!userId) return NextResponse.json({ error: 'Nao autorizado.' }, { status: 401 });
 
   let body: RequestBody;

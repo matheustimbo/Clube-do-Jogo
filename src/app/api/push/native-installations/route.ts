@@ -8,7 +8,7 @@ import {
 import { createRequestContext } from '@/lib/supabase/server';
 
 async function authenticatedClient() {
-  const { supabase: client, userId } = await createRequestContext();
+  const { supabase: client, userId } = await createRequestContext({ checkRevocation: true });
   return userId ? client : null;
 }
 
