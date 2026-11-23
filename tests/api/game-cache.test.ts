@@ -42,6 +42,8 @@ type FakeOptions = {
   missingColumns?: string[];
   // Cada update que o cache manda para uma linha que já existia.
   updates?: Array<{ id: string; patch: UpsertPayload }>;
+  // Erro que o banco devolve a todo upsert, como o Postgres por trás do PostgREST.
+  upsertError?: { code: string; message: string };
 };
 
 // Imita o postgrest-js: num upsert em lote, `columns` é a união das chaves das
@@ -50,7 +52,7 @@ type FakeOptions = {
 // Devolve as linhas do lote fora de ordem, que é o que o PostgREST pode fazer:
 // se a rota passar a depender da ordem do retorno, o teste pega.
 function fakeSupabase(payloads: UpsertPayload[], options: FakeOptions = {}): SupabaseClient {
-  const { calls, failFirstWith, roundTrips, existingByTitle = new Map(), missingColumns = [], updates } = options;
+  const { calls, failFirstWith, roundTrips, existingByTitle = new Map(), missingColumns = [], updates, upsertError } = options;
   const stored = (payload: UpsertPayload, columns: string[], key: string) => ({
     id: `stored-${payload[key]}`,
     image_url: STORED_COVER,
@@ -77,7 +79,7 @@ function fakeSupabase(payloads: UpsertPayload[], options: FakeOptions = {}): Sup
           // Coluna que falta é problema de schema, não de sorte: recusa toda vez que
           // ela chega, senão o teste do retorno ao schema antigo passa por acidente.
           const schemaError = failFirstWith && batch.some(one => Object.hasOwn(one, 'average_rating')) ? failFirstWith : null;
-          const error = missingError ?? schemaError ?? (batch.some(one => titleConflict(one, onConflict)) ? { code: '23505' } : null);
+          const error = upsertError ?? missingError ?? schemaError ?? (batch.some(one => titleConflict(one, onConflict)) ? { code: '23505' } : null);
           const rows = batch.map(one => stored(one, columns, onConflict)).reverse();
           return {
             select: () => Object.assign(
@@ -349,4 +351,22 @@ test('an IGDB game still gives a same-title row no catalog owns its igdb_id', as
   assert.equal(updates.length, 1);
   assert.equal(updates[0].patch.igdb_id, 26226);
   assert.equal(Object.hasOwn(updates[0].patch, 'rawg_id'), false);
+});
+
+test('a database without the catalog column or its unique index fails with a schema error', async () => {
+  const errors = [
+    // Postgres: a coluna do ON CONFLICT não existe.
+    { code: '42703', message: 'column "rawg_id" does not exist' },
+    // Postgres: nenhuma unique serve ao ON CONFLICT (rawg_id).
+    { code: '42P10', message: 'there is no unique or exclusion constraint matching the ON CONFLICT specification' },
+  ];
+  for (const upsertError of errors) {
+    const payloads: UpsertPayload[] = [];
+    await assert.rejects(
+      cacheCatalogGames(fakeSupabase(payloads, { upsertError }), [catalogGame({ id: 26192 })], 'rawg_id'),
+      CatalogSchemaError,
+      upsertError.code,
+    );
+    assert.ok(payloads.every(payload => !Object.hasOwn(payload, 'igdb_id')), JSON.stringify(payloads));
+  }
 });

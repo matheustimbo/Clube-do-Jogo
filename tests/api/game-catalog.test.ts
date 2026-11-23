@@ -294,6 +294,12 @@ test('a RAWG id that does not exist comes back as null, like the IGDB contract',
   assert.equal(await getGameById(424242), null);
 });
 
+test('a RAWG server error on a game by id is an error, not a missing game', async () => {
+  useRAWG();
+  globalThis.fetch = (async () => new Response('{"detail":"Server error."}', { status: 500 })) as typeof fetch;
+  await assert.rejects(getGameById(23027), /500/);
+});
+
 test('a RAWG failure reaches the caller with its status and without the raw body', async () => {
   useRAWG();
   globalThis.fetch = (async () => new Response('<html><body><h1>502 Bad Gateway</h1></body></html>', { status: 502 })) as typeof fetch;

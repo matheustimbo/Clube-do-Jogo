@@ -225,3 +225,16 @@ test('mugshots never come from a same-title game of another year', async () => {
   database.row = { id: 'jogo', title: 'Celeste', release_year: 2018, igdb_id: null };
   assert.equal((await mugshots()).mugshots.length, 2);
 });
+
+test('under the IGDB-numbered catalog mugshots skip a row only RAWG owns and look a row no one owns up by title', async () => {
+  delete process.env.GAME_CATALOG_PROVIDER;
+  process.env.IGDB_OFFLINE_CATALOG = '1';
+  globalThis.fetch = (async () => { throw new Error('o catálogo offline não sai para a rede'); }) as typeof fetch;
+
+  // O rawg_id 900003 é o id da Celeste na fixture, mas na numeração da RAWG.
+  database.row = { id: 'jogo', title: 'Celeste', release_year: 2018, igdb_id: null, rawg_id: 900003 };
+  assert.deepEqual(await mugshots(), { mugshots: [] });
+
+  database.row = { id: 'jogo', title: 'Celeste', release_year: 2018, igdb_id: null, rawg_id: null };
+  assert.equal((await mugshots()).mugshots.length, 2);
+});
