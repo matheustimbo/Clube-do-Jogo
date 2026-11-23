@@ -1,6 +1,6 @@
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import type { Game } from './types';
-import { CATALOG_KEYS, CatalogSchemaError, hasNoCatalogId, isSameRelease, type CatalogGame, type CatalogKey } from './game-catalog';
+import { CATALOG_KEYS, CatalogSchemaError, hasNoCatalogId, isSameRelease, normalizedTitle, type CatalogGame, type CatalogKey } from './game-catalog';
 
 function payloadFor(game: CatalogGame, key: CatalogKey) {
   return {
@@ -70,6 +70,18 @@ export function updateUnownedRow(supabase: SupabaseClient, row: Game, patch: Rec
 }
 
 /**
+ * 23505 no claim: o id do jogo já está noutra linha, gravada com outra grafia do título.
+ * Ela é o jogo quando o título normalizado e o ano batem (Okami HD e Ōkami HD); senão
+ * mostrá-la poria outro título na página, e o jogo sai do resultado.
+ */
+async function rowHoldingId(supabase: SupabaseClient, game: CatalogGame, key: CatalogKey): Promise<Game | null> {
+  const { data: holder } = await supabase.from('games').select('*').eq(key, game.id).maybeSingle();
+  if (holder && normalizedTitle(holder.title) === normalizedTitle(game.title) && isSameRelease(holder, game)) return holder as Game;
+  console.warn('Jogo do catálogo fora do resultado: o id dele já está numa linha de outro título.', { [key]: game.id, title: game.title, row: holder?.id });
+  return null;
+}
+
+/**
  * Dá à linha sem dono o id do jogo. Quem chega depois relê a linha e fica com o que o
  * banco tem; null tira o jogo do resultado.
  */
@@ -84,21 +96,23 @@ async function claim(supabase: SupabaseClient, row: Game, game: CatalogGame, key
     platforms: row.platforms?.length ? row.platforms : game.platforms,
     platform_ids: row.platform_ids?.length ? row.platform_ids : game.platform_ids,
   };
+  // A coluna do catálogo existe: a consulta por título ou o upsert do lote já pararam
+  // com CatalogSchemaError antes de qualquer claim num banco sem ela.
   const { data, error } = await updateUnownedRow(supabase, row, metadata);
-  throwIfKeyMissing(error, key);
   const [claimed] = (data ?? []) as Game[];
   if (claimed) return claimed;
-  // 23505: o id do jogo já está noutra linha. Sem erro: outro pedido chegou antes.
-  if (error && error.code !== '23505') {
+  if (error?.code === '23505') return rowHoldingId(supabase, game, key);
+  if (error) {
     console.error('Erro ao reivindicar linha para o catálogo:', error);
     return null;
   }
+  // Sem erro e sem linha: outro pedido chegou antes, ou a linha sumiu.
   const { data: current } = await supabase.from('games').select('*').eq('id', row.id).maybeSingle();
   if (!current) return null;
   const clash = clashWith(current as Game, game, key);
   if (clash.kind === 'own' || clash.kind === 'stand-in') return current as Game;
   if (clash.kind === 'other-release') warnOtherRelease(game, current as Game, key);
-  else console.error('Linha sem dono que o banco não deixou reivindicar:', { [key]: game.id, row: row.id, error });
+  else console.error('Linha sem dono que o banco não deixou reivindicar:', { [key]: game.id, row: row.id });
   return null;
 }
 

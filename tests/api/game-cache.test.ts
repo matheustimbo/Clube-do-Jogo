@@ -621,3 +621,35 @@ test('a listing refreshes the cover and the rating of the row the game already o
   assert.equal(saved[0].image_url, 'https://media.rawg.io/nova.jpg');
   assert.equal(saved[0].average_rating, 91);
 });
+
+test('a claim whose game id sits on a row with another spelling of its title shows that row', async () => {
+  const manual: StoredRow = { id: 'linha-manual', igdb_id: null, rawg_id: null, title: 'Okami HD', release_year: 2017, image_url: STORED_COVER };
+  // O jogo já foi gravado com o macron; a unique do igdb_id recusa o claim (23505).
+  const spelled: StoredRow = { id: 'linha-okami', igdb_id: 26592, rawg_id: null, title: 'Ōkami HD', release_year: 2017, image_url: STORED_COVER };
+  const existingByTitle = new Map([['Okami HD', manual], ['Ōkami HD', spelled]]);
+  const saved = await cacheCatalogGames(fakeSupabase([], { existingByTitle }), [
+    catalogGame({ id: 26592, title: 'Okami HD', release_year: 2017 }),
+  ], 'igdb_id');
+  assert.equal(existingByTitle.get('Okami HD')!.igdb_id, null);
+  assert.deepEqual(saved, [spelled]);
+});
+
+test('a claim whose game id sits on a row of another year shows nothing', async () => {
+  const manual: StoredRow = { id: 'linha-manual', igdb_id: null, rawg_id: null, title: 'Okami HD', release_year: 2017, image_url: STORED_COVER };
+  const original: StoredRow = { id: 'linha-okami', igdb_id: 26592, rawg_id: null, title: 'Ōkami HD', release_year: 2012, image_url: STORED_COVER };
+  const saved = await cacheCatalogGames(fakeSupabase([], { existingByTitle: new Map([['Okami HD', manual], ['Ōkami HD', original]]) }), [
+    catalogGame({ id: 26592, title: 'Okami HD', release_year: 2017 }),
+  ], 'igdb_id');
+  assert.deepEqual(saved, []);
+});
+
+test('a database without rawg_id stops every path to a claim with a schema error before writing', async () => {
+  const updates: Array<{ id: string; patch: UpsertPayload }> = [];
+  // A linha sem dono só aparece depois da consulta por título: o lote é quem acusa o schema.
+  const manual: StoredRow = { id: 'linha-manual', igdb_id: null, title: 'Jogo 2', release_year: 2022, image_url: STORED_COVER };
+  await assert.rejects(
+    cacheCatalogGames(fakeSupabase([], { racedByTitle: new Map([['Jogo 2', manual]]), updates, missingColumns: ['rawg_id'] }), pageOf24(7000).slice(0, 4), 'rawg_id'),
+    CatalogSchemaError,
+  );
+  assert.deepEqual(updates, []);
+});

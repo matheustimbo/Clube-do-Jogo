@@ -154,7 +154,7 @@ export function catalogLookupFor(row: CatalogIds & { title: string; release_year
 
 // Tira os acentos latinos e recompõe o resto (o dakuten de ゼ continua em ゼ); fica
 // letra e número de qualquer escrita, para um título em japonês não virar vazio.
-function normalizedTitle(value: string) {
+export function normalizedTitle(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').normalize('NFC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 }
 
