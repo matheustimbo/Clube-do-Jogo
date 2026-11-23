@@ -19,4 +19,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS games_rawg_id_key ON public.games (rawg_id);
 -- translates RAWG platform ids into IGDB ids before anything is stored, and
 -- drops platforms it cannot translate, so that column keeps one numbering.
 
+-- Outside a transaction (psql -f, the SQL editor) the SET above would last for the
+-- whole session.
+RESET lock_timeout;
+
 NOTIFY pgrst, 'reload schema';

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { CatalogSchemaError } from '../../src/lib/game-catalog';
@@ -18,4 +18,17 @@ test('the schema error points at a migration that exists', () => {
   const named = message.match(/supabase\/migrations\/(\S+\.sql)/)?.[1];
   assert.ok(named, message);
   assert.ok(existsSync(path.join(MIGRATIONS, named)), `${named} não existe em supabase/migrations`);
+});
+
+test('a migration that sets lock_timeout puts it back before it ends', () => {
+  // Rodando fora de transação (psql -f, o SQL editor), o SET vale para a sessão inteira
+  // e cada comando seguinte desistiria em 5s.
+  const leaking = readdirSync(MIGRATIONS)
+    .filter(name => name.endsWith('.sql'))
+    .filter(name => {
+      const sql = readFileSync(path.join(MIGRATIONS, name), 'utf8');
+      const set = sql.search(/^\s*SET\s+lock_timeout\b/im);
+      return set >= 0 && !/^\s*RESET\s+lock_timeout\s*;/im.test(sql.slice(set));
+    });
+  assert.deepEqual(leaking, []);
 });
