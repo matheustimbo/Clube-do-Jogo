@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { gameDescription } from '@clube-do-jogo/domain';
 import { createRequestContext } from '@/lib/supabase/server';
 import { activeCatalogKey, CatalogSchemaError, catalogLookupFor, findGameByTitle, getGameById } from '@/lib/game-catalog';
 
@@ -20,7 +21,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     const key = activeCatalogKey();
     const patch = {
       [key]: game[key] ?? metadata.id,
-      description: metadata.description || game.description,
+      description: metadata.description || gameDescription(game),
       image_url: metadata.image_url || game.image_url,
       screenshot_urls: metadata.screenshot_urls,
       // Catálogo sem trailer (a RAWG não tem YouTube) não apaga o que já estava gravado.

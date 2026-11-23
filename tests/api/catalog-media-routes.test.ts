@@ -188,6 +188,16 @@ test('a catalog with no description keeps the one the row already has', async ()
   assert.equal(database.updates[0].description, 'Descrição escrita à mão.');
 });
 
+test('a catalog with no description never writes back the old placeholder', async () => {
+  useRAWG({ '/api/games/23027': TUNIC_LISTED, '/api/games/23027/screenshots': { results: [] } });
+  database.row = { id: 'jogo', title: 'Tunic', igdb_id: null, rawg_id: 23027, description: 'Sem descrição disponível.', trailer_url: null };
+
+  const updated = await enrich();
+
+  assert.equal(database.updates[0].description, null);
+  assert.equal(updated.description, null);
+});
+
 const RESIDENT_EVIL_2002 = { ...TUNIC_LISTED, id: 2002, name: 'Resident Evil', released: '2002-03-22' };
 const RESIDENT_EVIL_1996 = { ...TUNIC_LISTED, id: 1996, name: 'Resident Evil', released: '1996-03-22' };
 
