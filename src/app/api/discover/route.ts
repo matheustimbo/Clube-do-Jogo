@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createRequestContext } from '@/lib/supabase/server';
-import { browseGames, type CatalogBrowseSort } from '@/lib/game-catalog';
+import { activeCatalogKey, browseGames, type CatalogBrowseSort } from '@/lib/game-catalog';
 import { cacheCatalogGames } from '@/lib/game-cache';
 import type { DiscoverItem, DiscoverSource, Game } from '@/lib/types';
 
@@ -41,7 +41,7 @@ export async function GET(request: Request) {
 
     if (catalogSources.has(source)) {
       const external = await browseGames({ query, sort: source as CatalogBrowseSort, genre, platform, year, offset, limit });
-      const games = await cacheCatalogGames(supabase, external);
+      const games = await cacheCatalogGames(supabase, external, activeCatalogKey());
       return NextResponse.json({ items: games.map(game => ({ game } satisfies DiscoverItem)), hasMore: external.length === limit });
     }
 

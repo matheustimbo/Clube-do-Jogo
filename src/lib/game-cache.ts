@@ -1,6 +1,6 @@
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import type { Game } from './types';
-import { activeCatalogKey, CatalogSchemaError, hasNoCatalogId, type CatalogGame, type CatalogKey } from './game-catalog';
+import { CatalogSchemaError, hasNoCatalogId, type CatalogGame, type CatalogKey } from './game-catalog';
 
 function payloadFor(game: CatalogGame, key: CatalogKey) {
   return {
@@ -101,9 +101,12 @@ async function cacheBatch(supabase: SupabaseClient, games: CatalogGame[], key: C
   });
 }
 
-export async function cacheCatalogGames(supabase: SupabaseClient, games: CatalogGame[]): Promise<Game[]> {
+/**
+ * `key` é a coluna do catálogo de onde os jogos vieram, não a do catálogo ativo: a
+ * busca GOTY lê sempre a IGDB, mesmo quando o app explora pela RAWG.
+ */
+export async function cacheCatalogGames(supabase: SupabaseClient, games: CatalogGame[], key: CatalogKey): Promise<Game[]> {
   if (!games.length) return [];
-  const key = activeCatalogKey();
   // Um lote só para quem tem capa e outro para quem não tem: o postgrest-js manda
   // `columns` com a união das chaves do lote, então misturar os dois faria a capa
   // ausente de um apagar a capa gravada do outro.

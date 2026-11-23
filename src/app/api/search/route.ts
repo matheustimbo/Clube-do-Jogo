@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createRequestContext } from '@/lib/supabase/server';
-import { searchGames } from '@/lib/game-catalog';
+import { activeCatalogKey, searchGames } from '@/lib/game-catalog';
 import { cacheCatalogGames } from '@/lib/game-cache';
 
 export async function GET(request: Request) {
@@ -50,7 +50,7 @@ export async function GET(request: Request) {
     const catalogResults = await searchGames(query);
 
     // 4. Persistir o catálogo externo para que qualquer card possa abrir a página do jogo.
-    const savedGames = await cacheCatalogGames(supabase, catalogResults);
+    const savedGames = await cacheCatalogGames(supabase, catalogResults, activeCatalogKey());
 
     const finalResults = savedGames.length > 0 ? savedGames : (cachedGames || []);
     return NextResponse.json(finalResults);

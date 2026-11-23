@@ -58,7 +58,7 @@ export async function GET(request: Request) {
 
       if (igdbGames.length > 0) {
         source = 'igdb';
-        const cached = await cacheCatalogGames(supabase, igdbGames);
+        const cached = await cacheCatalogGames(supabase, igdbGames, 'igdb_id');
         const byIgdbId = new Map<number, Game>(
           cached.flatMap(item => (item.igdb_id ? [[item.igdb_id, item] as const] : [])),
         );
