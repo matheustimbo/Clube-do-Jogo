@@ -55,6 +55,19 @@ interface IGDBCharacter {
   };
 }
 
+class IGDBRequestError extends Error {
+  constructor(readonly status: number, subject: string, body: string) {
+    // A mensagem chega ao cliente pelas rotas; o corpo (às vezes um HTML de 502) fica
+    // só no cause, que vai para o log do servidor.
+    super(`Erro ${subject} (HTTP ${status}).`, { cause: body.slice(0, 500) });
+    this.name = 'IGDBRequestError';
+  }
+}
+
+async function requestError(response: Response, subject: string) {
+  return new IGDBRequestError(response.status, subject, await response.text());
+}
+
 // Cache do token de acesso em memória para evitar requisições repetidas
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
@@ -76,10 +89,7 @@ async function getTwitchToken(): Promise<string> {
     { method: 'POST' }
   );
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Erro ao obter token do Twitch: ${err}`);
-  }
+  if (!res.ok) throw await requestError(res, 'ao obter token do Twitch');
 
   const data = await res.json();
   cachedToken = {
@@ -169,7 +179,7 @@ export async function searchPlatformsWithIGDB(query: string): Promise<CatalogPla
     },
     body: `search "${escapeSearchQuery(query)}"; fields name, abbreviation, platform_logo.image_id; limit 12;`,
   });
-  if (!response.ok) throw new Error(`Erro na busca de plataformas IGDB: ${await response.text()}`);
+  if (!response.ok) throw await requestError(response, 'na busca de plataformas IGDB');
   const platforms: IGDBPlatform[] = await response.json();
   return (platforms || []).map(platform => ({
     igdb_platform_id: platform.id,
@@ -203,10 +213,7 @@ export async function searchGamesWithIGDB(query: string): Promise<CatalogGame[]>
     `,
   });
 
-  if (!gamesRes.ok) {
-    const err = await gamesRes.text();
-    throw new Error(`Erro na busca IGDB: ${err}`);
-  }
+  if (!gamesRes.ok) throw await requestError(gamesRes, 'na busca IGDB');
 
   const games: IGDBGame[] = await gamesRes.json();
   if (!games || games.length === 0) return [];
@@ -258,7 +265,7 @@ export async function browseGamesWithIGDB(options: CatalogBrowseOptions): Promis
       ${search ? '' : `sort ${order};`}
       limit ${limit}; offset ${offset};`,
   });
-  if (!response.ok) throw new Error(`Erro ao explorar a IGDB: ${await response.text()}`);
+  if (!response.ok) throw await requestError(response, 'ao explorar a IGDB');
   const games: IGDBGame[] = await response.json();
   const durations = await fetchGameDurations(clientId, token, games.map(game => game.id));
   return games.map(game => mapIGDBGame(game, durations.get(game.id)));
@@ -282,7 +289,7 @@ export async function getGameMugshotsByIGDBId(igdbGameId: number): Promise<Catal
       limit 24;
     `,
   });
-  if (!response.ok) throw new Error(`Erro ao buscar personagens na IGDB: ${await response.text()}`);
+  if (!response.ok) throw await requestError(response, 'ao buscar personagens na IGDB');
   const characters: IGDBCharacter[] = await response.json();
   return characters.flatMap(character => {
     const imageId = character.mug_shot?.image_id;
@@ -316,10 +323,7 @@ export async function getGameByIGDBId(igdbId: number): Promise<CatalogGame | nul
     `,
   });
 
-  if (!gameRes.ok) {
-    const err = await gameRes.text();
-    throw new Error(`Erro na busca IGDB por ID: ${err}`);
-  }
+  if (!gameRes.ok) throw await requestError(gameRes, 'na busca IGDB por ID');
 
   const games: IGDBGame[] = await gameRes.json();
   if (!games || games.length === 0) return null;
@@ -450,9 +454,7 @@ export async function searchGoty2026GamesWithIGDB(options: {
     `,
   });
 
-  if (!response.ok) {
-    throw new Error(`Erro na busca GOTY 2026 IGDB: ${await response.text()}`);
-  }
+  if (!response.ok) throw await requestError(response, 'na busca GOTY 2026 IGDB');
 
   const games: IGDBGame[] = await response.json();
   if (!games || games.length === 0) return [];

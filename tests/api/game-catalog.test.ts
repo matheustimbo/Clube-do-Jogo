@@ -366,3 +366,22 @@ test('an IGDB summary is the description', async () => {
   useIGDB([{ id: 7346, name: 'Com resumo', summary: 'Um resumo de verdade.' }]);
   assert.equal((await searchGames('com resumo'))[0].description, 'Um resumo de verdade.');
 });
+
+test('an IGDB failure reaches the caller with its status, and the raw body only in the cause', async () => {
+  const body = '<html><body><h1>502 Bad Gateway</h1></body></html>';
+  useIGDB([]);
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = new URL(String(input));
+    if (url.hostname === 'id.twitch.tv') return Response.json({ access_token: 'token', expires_in: 3600 });
+    return new Response(body, { status: 502 });
+  }) as typeof fetch;
+  const calls = { searchGames: () => searchGames('tunic'), browseGames: () => browseGames({ limit: 24, offset: 0 }), getGameById: () => getGameById(1), searchPlatforms: () => searchPlatforms('switch'), getGameMugshots: () => getGameMugshots(1) };
+  for (const [name, call] of Object.entries(calls)) {
+    await assert.rejects(call(), (error: Error) => {
+      assert.match(error.message, /502/, name);
+      assert.doesNotMatch(error.message, /<html|Bad Gateway/, name);
+      assert.equal(error.cause, body, name);
+      return true;
+    });
+  }
+});
