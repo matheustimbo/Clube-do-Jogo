@@ -8,13 +8,9 @@ import { Sheet } from '@/components/Sheet';
 import { Button } from '@/components/Button';
 import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
 import { createAvatarCropGesture } from './avatar-crop-gesture';
+import { IMAGE_FRAME, PREVIEW_BORDER, PREVIEW_SIZE } from './avatar-preview-frame';
 
 export const DEFAULT_AVATAR_SELECTION_CROP: AvatarCrop = { ...DEFAULT_AVATAR_CROP, zoom: 1.1 };
-
-const PREVIEW_SIZE = 240;
-const PREVIEW_BORDER = 2;
-// A borda fica dentro do quadro, então a imagem ocupa só o miolo dele.
-const IMAGE_FRAME = PREVIEW_SIZE - PREVIEW_BORDER * 2;
 
 // Fixo de propósito. contentPosition é prop do expo-image, e mexer nela durante o
 // gesto remontava a imagem a cada quadro, deixando o círculo vazio até o dedo parar.

@@ -53,3 +53,10 @@ test('o arrasto acompanha o zoom que a pinça mudou no meio dele', () => {
   const pinched = gesture.pinch(start, 1.5);
   assert.equal(gesture.pan(pinched, { x: 0, y: 0 }, LANDSCAPE).zoom, pinched.zoom);
 });
+
+test('the preview image fills the circle inside its border, not the whole circle', async () => {
+  const { IMAGE_FRAME, PREVIEW_BORDER, PREVIEW_SIZE } = await import('../../apps/mobile/src/features/profile/avatar-preview-frame');
+  // O borderWidth do React Native fica dentro do width: a imagem mede o círculo menos as duas bordas.
+  assert.ok(PREVIEW_BORDER > 0);
+  assert.equal(IMAGE_FRAME + PREVIEW_BORDER * 2, PREVIEW_SIZE);
+});
