@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
-import { useSharedValue } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { avatarCropAfterPan, avatarPreviewOffset, DEFAULT_AVATAR_CROP, normalizeAvatarCrop, type AvatarCrop, type AvatarImageSize } from '@clube-do-jogo/domain';
+import { avatarPreviewOffset, DEFAULT_AVATAR_CROP, normalizeAvatarCrop, type AvatarCrop, type AvatarImageSize } from '@clube-do-jogo/domain';
 import { Sheet } from '@/components/Sheet';
 import { Button } from '@/components/Button';
 import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
+import { createAvatarCropGesture } from './avatar-crop-gesture';
 
 export const DEFAULT_AVATAR_SELECTION_CROP: AvatarCrop = { ...DEFAULT_AVATAR_CROP, zoom: 1.1 };
 
@@ -30,7 +30,7 @@ export function AvatarCropEditor({ visible, imageUrl, name, crop: initialCrop, s
   const colors = useThemeColors();
   const styles = useStyles();
   const [crop, setCrop] = useState(initialCrop);
-  const dragStart = useSharedValue(initialCrop);
+  const [gesture] = useState(() => createAvatarCropGesture(PREVIEW_SIZE));
   // Tamanho natural da imagem aberta. Até o onLoad dela, a prévia trata como quadrada.
   const [loaded, setLoaded] = useState<{ uri: string; size: AvatarImageSize } | null>(null);
   const imageSize = loaded && loaded.uri === imageUrl ? loaded.size : null;
@@ -38,16 +38,16 @@ export function AvatarCropEditor({ visible, imageUrl, name, crop: initialCrop, s
 
   const pan = Gesture.Pan()
     .runOnJS(true)
-    .onStart(() => { dragStart.value = crop; })
+    .onStart(() => gesture.startPan(crop))
     .onUpdate(event => {
-      setCrop(current => avatarCropAfterPan({ ...dragStart.value, zoom: current.zoom }, { x: event.translationX, y: event.translationY }, PREVIEW_SIZE, imageSize));
+      setCrop(current => gesture.pan(current, { x: event.translationX, y: event.translationY }, imageSize));
     });
 
   const pinch = Gesture.Pinch()
     .runOnJS(true)
-    .onStart(() => { dragStart.value = crop; })
+    .onStart(() => gesture.startPinch(crop))
     .onUpdate(event => {
-      setCrop(current => normalizeAvatarCrop({ ...current, zoom: dragStart.value.zoom * event.scale }));
+      setCrop(current => gesture.pinch(current, event.scale));
     });
 
   const composed = Gesture.Simultaneous(pan, pinch);
