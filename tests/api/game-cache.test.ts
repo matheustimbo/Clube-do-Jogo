@@ -552,3 +552,26 @@ test('a game another request inserts while this one retries it alone still comes
   assert.deepEqual(saved.map(game => game.title), ['Antes', 'Tunic']);
   assert.equal(saved[1].id, 'linha-do-outro-pedido');
 });
+
+test('titles with quotes, backslashes, commas, parentheses or CJK are all found by the one title lookup', async () => {
+  const titles = [
+    'NieR:Automata "Become as Gods"',
+    'Doom (1993)',
+    "Please, Don't Touch Anything",
+    'Back\\slash (Edition)',
+    'Ōkami "HD" (2017)',
+    'ゼルダの伝説 ブレス オブ ザ ワイルド',
+  ];
+  // A IGDB já tem cada um; a página da RAWG só pode mostrar essas linhas no lugar.
+  const existingByTitle = new Map<string, StoredRow>(titles.map((title, index) => [
+    title, { id: `linha-igdb-${index}`, igdb_id: 500 + index, rawg_id: null, title, release_year: 2022, image_url: STORED_COVER },
+  ]));
+  const calls: UpsertCall[] = [];
+  const roundTrips = { count: 0 };
+  const saved = await cacheCatalogGames(fakeSupabase([], { existingByTitle, calls, roundTrips }), titles.map((title, index) => catalogGame({ id: 9000 + index, title })), 'rawg_id');
+  assert.deepEqual(saved.map(game => game.id), titles.map((_, index) => `linha-igdb-${index}`));
+  // Um título que a consulta perde vai para o lote, bate na unique de título e derruba a
+  // página inteira no caminho lento.
+  assert.deepEqual(calls, []);
+  assert.equal(roundTrips.count, 1);
+});

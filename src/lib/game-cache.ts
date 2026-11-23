@@ -148,10 +148,20 @@ async function cacheBatch(supabase: SupabaseClient, games: CatalogGame[], key: C
   });
 }
 
+/**
+ * A lista de um filtro `in` do PostgREST com cada valor entre aspas. O `.in()` do
+ * postgrest-js só põe aspas no valor que tem `,()` e não escapa `"` nem `\`: entre aspas,
+ * o PostgREST lê `\` como escape e fecha a lista no primeiro `)` que sobra, então
+ * `Ōkami "HD" (2017)` sumia da consulta junto com todo título depois dele.
+ */
+function quotedList(values: string[]) {
+  return `(${values.map(value => `"${value.replace(/[\\"]/g, '\\$&')}"`).join(',')})`;
+}
+
 // As linhas que já têm os títulos da página, numa consulta só. Sem elas (a consulta
 // falhou), todo jogo vai para o lote e um título repetido cai no caminho lento.
 async function rowsByTitle(supabase: SupabaseClient, games: CatalogGame[], key: CatalogKey): Promise<Map<string, Game>> {
-  const { data, error } = await supabase.from('games').select('*').in('title', [...new Set(games.map(game => game.title))]);
+  const { data, error } = await supabase.from('games').select('*').filter('title', 'in', quotedList([...new Set(games.map(game => game.title))]));
   if (error || !data) {
     if (error) console.error('Erro ao consultar os títulos do catálogo:', error);
     return new Map();

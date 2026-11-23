@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, mock, test } from 'node:test';
+import { parseInList } from './fake-games-rest';
 
 // Caminho real da rota de descoberta, do catálogo RAWG e do cache. Só a borda é falsa:
 // o banco, que já tem um Doom de 1993 da IGDB, e a rede, que responde como a RAWG.
@@ -12,7 +13,8 @@ const supabase = {
   from() {
     return {
       select: () => ({
-        in: async (_column: string, titles: string[]) => ({ data: titles.flatMap(title => (stored.has(title) ? [stored.get(title)!] : [])), error: null }),
+        // O filtro in como o PostgREST lê; uma lista que ele não lê falha o teste.
+        filter: async (_column: string, _operator: 'in', list: string) => ({ data: parseInList(list)!.flatMap(title => (stored.has(title) ? [stored.get(title)!] : [])), error: null }),
         eq: (_column: string, title: string) => ({ maybeSingle: async () => ({ data: stored.get(title) ?? null, error: null }) }),
       }),
       upsert(payload: Array<Record<string, unknown>> | Record<string, unknown>, { onConflict }: { onConflict: string }) {
