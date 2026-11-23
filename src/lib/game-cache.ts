@@ -1,6 +1,6 @@
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import type { Game } from './types';
-import { CatalogSchemaError, hasNoCatalogId, type CatalogGame, type CatalogKey } from './game-catalog';
+import { CatalogSchemaError, hasNoCatalogId, isSameRelease, type CatalogGame, type CatalogKey } from './game-catalog';
 
 function payloadFor(game: CatalogGame, key: CatalogKey) {
   return {
@@ -31,14 +31,6 @@ function throwIfKeyMissing(error: Pick<PostgrestError, 'code' | 'message'> | nul
   if (((error.code === 'PGRST204' || error.code === '42703') && namesKey) || error.code === '42P10') throw new CatalogSchemaError(key);
 }
 
-// A linha de mesmo título só recebe o id deste catálogo quando nenhum catálogo é dono
-// dela e o ano não desmente que seja o mesmo jogo. Linha de outro catálogo nunca muda
-// de dono: os upserts seguintes do catálogo ativo sobrescreveriam os dados dela.
-function canClaim(existing: Game, game: CatalogGame) {
-  const sameYear = existing.release_year == null || game.release_year == null || existing.release_year === game.release_year;
-  return hasNoCatalogId(existing) && sameYear;
-}
-
 // Cada jogo de entrada junto da linha que o representa no banco. A linha pode ter
 // outra chave (título repetido no fallback 23505), então ninguém casa pelo id dela.
 type CachedGame = [CatalogGame, Game];
@@ -63,7 +55,17 @@ async function cacheOneByOne(supabase: SupabaseClient, games: CatalogGame[], key
     if (error?.code === '23505') {
       const { data: existing } = await supabase.from('games').select('*').eq('title', game.title).maybeSingle();
       if (!existing) continue;
-      if (!canClaim(existing, game)) {
+      // A linha de outro ano é outro jogo, e devolvê-la poria o jogo errado na página.
+      // Sem linha própria (o título é único), este jogo fica fora do resultado.
+      if (!isSameRelease(existing, game)) {
+        console.warn('Jogo do catálogo fora do resultado: o título já é de um jogo de outro ano.', {
+          [key]: game.id, title: game.title, release_year: game.release_year, row: existing.id, row_release_year: existing.release_year,
+        });
+        continue;
+      }
+      // Linha de outro catálogo nunca muda de dono: os upserts seguintes do catálogo
+      // ativo sobrescreveriam os dados dela.
+      if (!hasNoCatalogId(existing)) {
         saved.push([game, existing as Game]);
         continue;
       }
@@ -117,5 +119,13 @@ export async function cacheCatalogGames(supabase: SupabaseClient, games: Catalog
     batches.set(keys, [...(batches.get(keys) ?? []), game]);
   }
   const saved = new Map((await Promise.all([...batches.values()].map(batch => cacheBatch(supabase, batch, key)))).flat());
-  return games.flatMap(game => saved.get(game) ?? []);
+  // Dois jogos da página podem cair na mesma linha de mesmo título; a lista usa o id
+  // da linha como key, então ela aparece uma vez só.
+  const rowIds = new Set<string>();
+  return games.flatMap(game => {
+    const row = saved.get(game);
+    if (!row || rowIds.has(row.id)) return [];
+    rowIds.add(row.id);
+    return [row];
+  });
 }

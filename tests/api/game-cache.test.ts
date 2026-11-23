@@ -100,7 +100,8 @@ function fakeSupabase(payloads: UpsertPayload[], options: FakeOptions = {}): Sup
                 single: async () => {
                   updates?.push({ id, patch: metadata });
                   const existing = [...existingByTitle.values()].find(row => row.id === id);
-                  return { data: existing ? { ...existing, ...metadata } : null, error: null };
+                  if (existing) Object.assign(existing, metadata);
+                  return { data: existing ? { ...existing } : null, error: null };
                 },
               }),
             }),
@@ -299,13 +300,44 @@ test('a RAWG game claims a same-title row no catalog owns when the release year 
   assert.equal(saved[0].id, 'linha-manual');
 });
 
-test('a same-title row from another year is another game and keeps its ids', async () => {
+test('a same-title row from another year is another game: it keeps its ids and the game leaves the result', async () => {
   const updates: Array<{ id: string; patch: UpsertPayload }> = [];
   const original: StoredRow = { id: 'linha-1996', igdb_id: null, rawg_id: null, title: 'Resident Evil', release_year: 1996, image_url: STORED_COVER };
-  await cacheCatalogGames(fakeSupabase([], { existingByTitle: new Map([['Resident Evil', original]]), updates }), [
+  const saved = await cacheCatalogGames(fakeSupabase([], { existingByTitle: new Map([['Resident Evil', original]]), updates }), [
     catalogGame({ id: 2002, title: 'Resident Evil', release_year: 2002 }),
   ], 'rawg_id');
   assert.deepEqual(updates, []);
+  // Um filtro year=2002 não pode devolver o jogo de 1996.
+  assert.deepEqual(saved, []);
+});
+
+test('a row another catalog owns from another year never stands in for the game', async () => {
+  const doom1993: StoredRow = { id: 'linha-doom-1993', igdb_id: 673, rawg_id: null, title: 'Doom', release_year: 1993, image_url: STORED_COVER };
+  const saved = await cacheCatalogGames(fakeSupabase([], { existingByTitle: new Map([['Doom', doom1993]]) }), [
+    catalogGame({ id: 1, title: 'Antes', release_year: 2020 }),
+    catalogGame({ id: 2454, title: 'Doom', release_year: 2016 }),
+  ], 'rawg_id');
+  assert.deepEqual(saved.map(game => game.title), ['Antes']);
+});
+
+test('two games of one page that land on the same row come back once', async () => {
+  const doom: StoredRow = { id: 'linha-doom', igdb_id: 673, rawg_id: null, title: 'Doom', release_year: null, image_url: STORED_COVER };
+  const saved = await cacheCatalogGames(fakeSupabase([], { existingByTitle: new Map([['Doom', doom]]) }), [
+    catalogGame({ id: 2454, title: 'Doom', release_year: 2016 }),
+    catalogGame({ id: 1201, title: 'Doom', release_year: 1993 }),
+  ], 'rawg_id');
+  assert.deepEqual(saved.map(game => game.id), ['linha-doom']);
+});
+
+test('a same-title row claimed by one game of the page is not claimed again by the next', async () => {
+  const updates: Array<{ id: string; patch: UpsertPayload }> = [];
+  const manual: StoredRow = { id: 'linha-manual', igdb_id: null, rawg_id: null, title: 'Doom', release_year: null, image_url: STORED_COVER };
+  const saved = await cacheCatalogGames(fakeSupabase([], { existingByTitle: new Map([['Doom', manual]]), updates }), [
+    catalogGame({ id: 2454, title: 'Doom', release_year: 2016 }),
+    catalogGame({ id: 1201, title: 'Doom', release_year: 1993 }),
+  ], 'rawg_id');
+  assert.deepEqual(updates.map(update => update.patch.rawg_id), [2454]);
+  assert.deepEqual(saved.map(game => game.id), ['linha-manual']);
 });
 
 test('an IGDB game still gives a same-title row no catalog owns its igdb_id', async () => {

@@ -127,28 +127,40 @@ export function hasNoCatalogId(row: CatalogIds) {
   return CATALOG_KEYS.every(key => row[key] == null);
 }
 
+/**
+ * Uma linha de mesmo título só é este jogo quando o ano não desmente: o mesmo ano, ou
+ * um dos dois sem ano. Doom de 1993 e Doom de 2016 dividem o título, não o jogo.
+ */
+export function isSameRelease(row: { release_year?: number | null }, game: { release_year?: number | null }) {
+  return row.release_year == null || game.release_year == null || row.release_year === game.release_year;
+}
+
 /** Como o catálogo ativo pode achar uma linha de games já gravada. */
 export type CatalogLookup =
   | { by: 'id'; id: number }
-  | { by: 'title'; title: string }
+  | { by: 'title'; title: string; releaseYear: number | null }
   /** Outro catálogo é dono da linha; o id dele não quer dizer nada para o ativo. */
   | { by: 'none' };
 
-export function catalogLookupFor(row: CatalogIds & { title: string }): CatalogLookup {
+export function catalogLookupFor(row: CatalogIds & { title: string; release_year?: number | null }): CatalogLookup {
   const key = activeCatalogKey();
   // select('*') só traz a chave quando a coluna existe.
   if (!(key in row)) throw new CatalogSchemaError(key);
   const id = row[key];
   if (id) return { by: 'id', id };
-  return hasNoCatalogId(row) ? { by: 'title', title: row.title } : { by: 'none' };
+  return hasNoCatalogId(row) ? { by: 'title', title: row.title, releaseYear: row.release_year ?? null } : { by: 'none' };
 }
 
 function normalizedTitle(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
-export async function findGameByExactTitle(title: string): Promise<CatalogGame | null> {
-  return (await searchGames(title)).find(candidate => normalizedTitle(candidate.title) === normalizedTitle(title)) ?? null;
+/** O jogo do catálogo com o título da linha e um ano que não desminta o dela. */
+export async function findGameByTitle(lookup: { title: string; releaseYear: number | null }): Promise<CatalogGame | null> {
+  const sameTitle = (await searchGames(lookup.title)).filter(candidate => normalizedTitle(candidate.title) === normalizedTitle(lookup.title));
+  return sameTitle.find(candidate => candidate.release_year === lookup.releaseYear)
+    ?? sameTitle.find(candidate => isSameRelease({ release_year: lookup.releaseYear }, candidate))
+    ?? null;
 }
 
 export function searchGames(query: string): Promise<CatalogGame[]> {

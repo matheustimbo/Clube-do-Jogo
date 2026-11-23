@@ -180,3 +180,41 @@ test('a catalog with no description keeps the one the row already has', async ()
 
   assert.equal(database.updates[0].description, 'Descrição escrita à mão.');
 });
+
+const RESIDENT_EVIL_2002 = { ...TUNIC_LISTED, id: 2002, name: 'Resident Evil', released: '2002-03-22' };
+const RESIDENT_EVIL_1996 = { ...TUNIC_LISTED, id: 1996, name: 'Resident Evil', released: '1996-03-22' };
+
+test('a title match from another year is another game and leaves the row alone', async () => {
+  useRAWG({ '/api/games': { results: [RESIDENT_EVIL_2002] }, '/api/games/2002': RESIDENT_EVIL_2002 });
+  database.row = { id: 'jogo', title: 'Resident Evil', release_year: 1996, igdb_id: null, rawg_id: null, trailer_url: null };
+
+  assert.deepEqual(await enrich(), database.row);
+  assert.deepEqual(database.updates, []);
+  assert.deepEqual(requested, ['https://api.rawg.io/api/games']);
+});
+
+test('a title match takes the candidate from the row year', async () => {
+  useRAWG({
+    '/api/games': { results: [RESIDENT_EVIL_2002, RESIDENT_EVIL_1996] },
+    '/api/games/1996': RESIDENT_EVIL_1996,
+    '/api/games/1996/screenshots': { results: [] },
+  });
+  database.row = { id: 'jogo', title: 'Resident Evil', release_year: 1996, igdb_id: null, rawg_id: null, trailer_url: null };
+
+  await enrich();
+
+  assert.equal(database.updates[0].rawg_id, 1996);
+  assert.equal(database.updates[0].release_year, 1996);
+});
+
+test('mugshots never come from a same-title game of another year', async () => {
+  delete process.env.GAME_CATALOG_PROVIDER;
+  process.env.IGDB_OFFLINE_CATALOG = '1';
+  globalThis.fetch = (async () => { throw new Error('o catálogo offline não sai para a rede'); }) as typeof fetch;
+  // A Celeste da fixture é de 2018.
+  database.row = { id: 'jogo', title: 'Celeste', release_year: 2016, igdb_id: null };
+  assert.deepEqual(await mugshots(), { mugshots: [] });
+
+  database.row = { id: 'jogo', title: 'Celeste', release_year: 2018, igdb_id: null };
+  assert.equal((await mugshots()).mugshots.length, 2);
+});

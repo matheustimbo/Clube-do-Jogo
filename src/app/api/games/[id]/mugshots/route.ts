@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createRequestContext } from '@/lib/supabase/server';
-import { catalogLookupFor, findGameByExactTitle, getGameMugshots } from '@/lib/game-catalog';
+import { catalogLookupFor, findGameByTitle, getGameMugshots } from '@/lib/game-catalog';
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -14,7 +14,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   try {
     const lookup = catalogLookupFor(game);
     const catalogId = lookup.by === 'id' ? lookup.id
-      : lookup.by === 'title' ? (await findGameByExactTitle(lookup.title))?.id
+      : lookup.by === 'title' ? (await findGameByTitle(lookup))?.id
         : undefined;
     if (!catalogId) return NextResponse.json({ mugshots: [] });
     return NextResponse.json({ mugshots: await getGameMugshots(catalogId) });

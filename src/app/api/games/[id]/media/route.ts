@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createRequestContext } from '@/lib/supabase/server';
-import { activeCatalogKey, catalogLookupFor, findGameByExactTitle, getGameById } from '@/lib/game-catalog';
+import { activeCatalogKey, catalogLookupFor, findGameByTitle, getGameById } from '@/lib/game-catalog';
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -13,7 +13,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     const lookup = catalogLookupFor(game);
     // A busca por título devolve o jogo da listagem, que na RAWG vem sem descrição.
     const catalogId = lookup.by === 'id' ? lookup.id
-      : lookup.by === 'title' ? (await findGameByExactTitle(lookup.title))?.id
+      : lookup.by === 'title' ? (await findGameByTitle(lookup))?.id
         : undefined;
     const metadata = catalogId ? await getGameById(catalogId) : null;
     if (!metadata) return NextResponse.json(game);
