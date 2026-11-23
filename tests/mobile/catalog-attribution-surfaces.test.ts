@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
+import { jsxElements } from '../support/jsx-elements';
 
 // Os termos da RAWG pedem o crédito em toda tela que mostra dados dela. Este teste lê
 // o código do app: cada arquivo que toca dado de jogo precisa estar classificado abaixo,
@@ -72,28 +73,23 @@ test('every file that touches game data is classified', () => {
 });
 
 test('every surface that shows catalog data credits the catalog', () => {
-  const uncredited = SURFACES.filter(file => !read(file).includes('<CatalogAttribution'));
+  const uncredited = SURFACES.filter(file => !jsxElements(path.join(MOBILE, file), ['CatalogAttribution']).length);
   assert.deepEqual(uncredited, []);
 });
 
-/** Cada <Sheet> e <Modal> do arquivo: a chave `arquivo#title` e o JSX até o fechamento dele. */
+/** Cada <Sheet> e <Modal> do arquivo, lido pelo parser do TypeScript: a chave `arquivo#title` e se ele credita o catálogo dentro dele. */
 function overlays(file: string) {
-  const source = read(file);
-  return [...source.matchAll(/<(Sheet|Modal)\b/g)].map(match => {
-    const start = match.index;
-    const close = source.indexOf(`</${match[1]}>`, start);
-    assert.ok(close > start, `${file}: <${match[1]}> sem fechamento`);
-    const opening = source.slice(start, source.indexOf('>', start) + 1);
-    const title = opening.match(/\btitle=("[^"]*"|\{[^}]*\})/)?.[1] ?? match[1];
-    return { key: `${file}#${title}`, body: source.slice(start, close) };
-  });
+  return jsxElements(path.join(MOBILE, file), ['Sheet', 'Modal']).map(element => ({
+    key: `${file}#${element.attribute('title') ?? element.tag}`,
+    credited: element.renders('CatalogAttribution'),
+  }));
 }
 
 test('every sheet and modal of a surface credits the catalog inside it', () => {
   const found = SURFACES.flatMap(overlays);
   const uncredited = found
     .filter(overlay => !OVERLAYS_WITHOUT_CATALOG_DATA[overlay.key])
-    .filter(overlay => !overlay.body.includes('<CatalogAttribution'))
+    .filter(overlay => !overlay.credited)
     .map(overlay => overlay.key);
   assert.deepEqual(uncredited, []);
   // Uma exceção que não acha mais o sheet dela esconderia um sheet novo de mesmo título.
