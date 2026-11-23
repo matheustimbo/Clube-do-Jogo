@@ -110,7 +110,10 @@ function fakeSupabase(payloads: UpsertPayload[], options: FakeOptions = {}): Sup
           // Coluna que falta é problema de schema, não de sorte: recusa toda vez que
           // ela chega, senão o teste do retorno ao schema antigo passa por acidente.
           const schemaError = failFirstWith && batch.some(one => Object.hasOwn(one, 'average_rating')) ? failFirstWith : null;
-          const error = upsertError ?? missingError ?? schemaError ?? (insertedNow || batch.some(one => titleConflict(one, onConflict)) ? { code: '23505' } : null);
+          // Dois jogos do mesmo lote com o mesmo título também batem na unique de título.
+          const sameTitleInBatch = new Set(batch.map(one => one.title)).size < batch.length;
+          const error = upsertError ?? missingError ?? schemaError
+            ?? (insertedNow || sameTitleInBatch || batch.some(one => titleConflict(one, onConflict)) ? { code: '23505' } : null);
           const rows = batch.map(one => stored(one, columns, onConflict)).reverse();
           return {
             select: () => Object.assign(
@@ -574,4 +577,47 @@ test('titles with quotes, backslashes, commas, parentheses or CJK are all found 
   // página inteira no caminho lento.
   assert.deepEqual(calls, []);
   assert.equal(roundTrips.count, 1);
+});
+
+test('a page that only meets rows no catalog owns fails on a missing rawg_id before writing anything', async () => {
+  const updates: Array<{ id: string; patch: UpsertPayload }> = [];
+  // Sem a coluna, select('*') não traz rawg_id na linha.
+  const manual: StoredRow = { id: 'linha-manual', igdb_id: null, title: 'Celeste', release_year: 2018, image_url: STORED_COVER };
+  await assert.rejects(
+    cacheCatalogGames(fakeSupabase([], { existingByTitle: new Map([['Celeste', manual]]), updates, missingColumns: ['rawg_id'] }), [
+      catalogGame({ id: 9600, title: 'Celeste', release_year: 2018 }),
+    ], 'rawg_id'),
+    CatalogSchemaError,
+  );
+  assert.deepEqual(updates, []);
+});
+
+test('two new games of one page with the same title cost no extra round trip', async () => {
+  const page = pageOf24(8000);
+  // Mesmo título e mesmos campos do Jogo 3, então cairiam no mesmo lote.
+  page[7] = catalogGame({ id: 8999, title: 'Jogo 3', image_url: null });
+  const roundTrips = { count: 0 };
+  const saved = await cacheCatalogGames(fakeSupabase([], { roundTrips }), page, 'rawg_id');
+  assert.ok(roundTrips.count <= 3, `esperava no máximo 3 idas ao banco, foram ${roundTrips.count}`);
+  assert.deepEqual(saved.map(game => game.rawg_id).filter(id => id === 8999), []);
+  assert.equal(saved.length, 23);
+});
+
+test('a row no catalog owns that appears between the lookup and the upsert is still claimed', async () => {
+  const manual: StoredRow = { id: 'linha-manual', igdb_id: null, rawg_id: null, title: 'Jogo 2', release_year: 2022, image_url: STORED_COVER };
+  const existingByTitle = new Map<string, StoredRow>();
+  const saved = await cacheCatalogGames(fakeSupabase([], { existingByTitle, racedByTitle: new Map([['Jogo 2', manual]]) }), pageOf24(7000).slice(0, 4), 'rawg_id');
+  assert.equal(existingByTitle.get('Jogo 2')!.rawg_id, 7002);
+  assert.deepEqual(saved.map(game => game.title), ['Jogo 0', 'Jogo 1', 'Jogo 2', 'Jogo 3']);
+  assert.deepEqual(saved[2], existingByTitle.get('Jogo 2'));
+});
+
+test('a listing refreshes the cover and the rating of the row the game already owns', async () => {
+  const owned: StoredRow = { id: 'linha-propria', igdb_id: null, rawg_id: 26192, title: 'Tunic', release_year: 2022, image_url: 'https://media.rawg.io/antiga.jpg', average_rating: 70 };
+  const saved = await cacheCatalogGames(fakeSupabase([], { existingByTitle: new Map([['Tunic', owned]]) }), [
+    catalogGame({ id: 26192, title: 'Tunic', image_url: 'https://media.rawg.io/nova.jpg', average_rating: 91 }),
+  ], 'rawg_id');
+  assert.equal(saved[0].id, 'linha-propria');
+  assert.equal(saved[0].image_url, 'https://media.rawg.io/nova.jpg');
+  assert.equal(saved[0].average_rating, 91);
 });
