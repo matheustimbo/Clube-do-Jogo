@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
-import { browseGames, getGameById, getGameMugshots, searchGames, searchPlatforms } from '../../src/lib/game-catalog';
+import { browseGames, findGameByTitle, getGameById, getGameMugshots, searchGames, searchPlatforms } from '../../src/lib/game-catalog';
 
 const FIXED_NOW = Date.UTC(2026, 8, 14);
 
@@ -426,4 +426,23 @@ test('a RAWG game on those platforms is stored with their IGDB ids', async () =>
   });
   const [game] = await searchGames('tunic');
   assert.deepEqual(game.platform_ids, OLDER_AND_MOBILE_PLATFORMS.map(([, igdb]) => igdb));
+});
+
+test('a title lookup tells CJK titles apart instead of reading them all as empty', async () => {
+  useRAWG();
+  recordFetch({ '/api/games': { results: [
+    { ...TUNIC, id: 1, name: 'ドラゴンクエスト 過ぎ去りし時を求めて' },
+    { ...TUNIC, id: 2, name: 'ゼルダの伝説 ブレス オブ ザ ワイルド' },
+  ] } });
+
+  const found = await findGameByTitle({ title: 'ゼルダの伝説 ブレス オブ ザ ワイルド', releaseYear: 2022 });
+
+  assert.equal(found?.id, 2);
+});
+
+test('a title with no letter or digit matches no catalog game', async () => {
+  useRAWG();
+  recordFetch({ '/api/games': { results: [{ ...TUNIC, id: 3, name: '???' }] } });
+
+  assert.equal(await findGameByTitle({ title: '!!!', releaseYear: 2022 }), null);
 });

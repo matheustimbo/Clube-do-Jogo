@@ -152,18 +152,23 @@ export function catalogLookupFor(row: CatalogIds & { title: string; release_year
   return hasNoCatalogId(row) ? { by: 'title', title: row.title, releaseYear: row.release_year ?? null } : { by: 'none' };
 }
 
+// Tira os acentos latinos e recompõe o resto (o dakuten de ゼ continua em ゼ); fica
+// letra e número de qualquer escrita, para um título em japonês não virar vazio.
 function normalizedTitle(value: string) {
-  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').normalize('NFC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 }
 
 /**
  * O primeiro jogo do catálogo com o título da linha e um ano que não desminta o dela.
  * Linha datada só aceita o jogo do mesmo ano; linha sem ano fica com o mais relevante.
+ * Título sem letra nem número não casa com nada: dois vazios não são o mesmo jogo.
  */
 export async function findGameByTitle(lookup: { title: string; releaseYear: number | null }): Promise<CatalogGame | null> {
+  const title = normalizedTitle(lookup.title);
+  if (!title) return null;
   const row = { release_year: lookup.releaseYear };
   return (await searchGames(lookup.title))
-    .find(candidate => normalizedTitle(candidate.title) === normalizedTitle(lookup.title) && isSameRelease(row, candidate)) ?? null;
+    .find(candidate => normalizedTitle(candidate.title) === title && isSameRelease(row, candidate)) ?? null;
 }
 
 export function searchGames(query: string): Promise<CatalogGame[]> {
