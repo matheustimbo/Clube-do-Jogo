@@ -21,7 +21,7 @@ import { useGameOfMonth, useProgress, useSetProgress } from '@/state/queries';
 import { useSetRating } from '@/state/library-queries';
 import { formatMonth, formatShortDate } from '@/lib/format';
 import { themedStyles, useThemeColors, radii, spacing, typography } from '@/theme';
-import { gameCoverUrl, type ProgressStatus, type RatingDetails, type RatingMode } from '@clube-do-jogo/domain';
+import { gameCoverUrl, gameDescription, type ProgressStatus, type RatingDetails, type RatingMode } from '@clube-do-jogo/domain';
 
 const statusOrder: ProgressStatus[] = ['not_started', 'started', 'finished'];
 
@@ -43,6 +43,7 @@ export default function GameOfMonthScreen() {
   const [monthPickerVisible, setMonthPickerVisible] = useState(false);
   const gameQuery = useGameOfMonth();
   const game = gameQuery.data ?? null;
+  const description = game ? gameDescription(game) : null;
   const progressQuery = useProgress(game?.id ?? '');
   const setProgress = useSetProgress();
   const setRating = useSetRating();
@@ -131,8 +132,8 @@ export default function GameOfMonthScreen() {
                 </View>
               ) : null}
             </View>
-            <Text style={styles.description} numberOfLines={2}>{game.description}</Text>
-            {(game.description?.length ?? 0) > 150 ? <Text style={styles.moreLink}>Ver mais</Text> : null}
+            {description ? <Text style={styles.description} numberOfLines={2}>{description}</Text> : null}
+            {description && description.length > 150 ? <Text style={styles.moreLink}>Ver mais</Text> : null}
             <View style={styles.detailLink}>
               <Text style={styles.detailLinkText}>Ver detalhes</Text>
               <Ionicons name="chevron-forward" size={14} color={colors.violet300} />
