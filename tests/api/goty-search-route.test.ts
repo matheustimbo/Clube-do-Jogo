@@ -141,3 +141,36 @@ test('the placeholder an older row saved never becomes the description of a GOTY
   assert.equal(body.items[0].id, 'linha-119171');
   assert.equal(body.items[0].description, null);
 });
+
+// A IGDB fora do ar: a busca cai nas linhas locais e no catálogo curado.
+function igdbDown() {
+  delete process.env.IGDB_OFFLINE_CATALOG;
+  delete process.env.GAME_CATALOG_PROVIDER;
+  process.env.IGDB_CLIENT_ID = 'cliente';
+  process.env.IGDB_CLIENT_SECRET = 'segredo';
+  globalThis.fetch = (async () => new Response('fora do ar', { status: 503 })) as typeof fetch;
+}
+
+test('a local row with the old placeholder reaches the GOTY search without a description', async () => {
+  igdbDown();
+  stored.set('Jogo antigo', { id: 'linha-antiga', title: 'Jogo antigo', igdb_id: 8800, release_year: 2026, description: 'Sem descrição disponível.' });
+  const { GET } = await import('../../src/app/api/goty/search-games/route');
+
+  const body = await (await GET(new Request('http://localhost/api/goty/search-games?q=jogo'))).json();
+
+  const local = body.items.find((item: { id: string }) => item.id === 'linha-antiga');
+  assert.ok(local, JSON.stringify(body.items));
+  assert.equal(local.description, null);
+});
+
+test('a RAWG row of a curated game comes back once, as the stored row', async () => {
+  igdbDown();
+  // A listagem da RAWG gravou GTA VI sem igdb_id; o catálogo curado tem o mesmo jogo pelo igdb_id.
+  stored.set('Grand Theft Auto VI', { id: 'linha-rawg-gta', title: 'Grand Theft Auto VI', igdb_id: null, rawg_id: 58550, release_year: 2026, description: 'Vice City.' });
+  const { GET } = await import('../../src/app/api/goty/search-games/route');
+
+  const body = await (await GET(new Request('http://localhost/api/goty/search-games?q=grand%20theft'))).json();
+
+  const gta = body.items.filter((item: { title: string }) => item.title === 'Grand Theft Auto VI');
+  assert.deepEqual(gta.map((item: { id: string }) => item.id), ['linha-rawg-gta']);
+});

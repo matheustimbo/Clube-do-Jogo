@@ -19,13 +19,15 @@ function searchCurated2026(query: string): GotySearchGameResult[] {
   );
 }
 
-// Um jogo da IGDB que caiu numa linha da RAWG leva o igdb_id dele, e a mesma linha
-// vinda da busca local não leva nenhum. O id da linha é o que os dois têm em comum.
+// O mesmo jogo chega por três caminhos: da IGDB, com o id da linha em que caiu; da busca
+// local, que numa linha da RAWG não traz igdb_id; e do catálogo curado, com id próprio.
+// Casa pelo id da linha, pelo igdb_id ou pelo título.
 function deduplicateGames(items: GotySearchGameResult[]): GotySearchGameResult[] {
   const seen = new Set<string>();
   const result: GotySearchGameResult[] = [];
   for (const item of items) {
-    const keys = [`id:${item.id}`, item.igdb_id ? `igdb:${item.igdb_id}` : `title:${normalize(item.title)}`];
+    const title = normalize(item.title);
+    const keys = [`id:${item.id}`, ...(item.igdb_id ? [`igdb:${item.igdb_id}`] : []), ...(title ? [`title:${title}`] : [])];
     if (keys.some(key => seen.has(key))) continue;
     keys.forEach(key => seen.add(key));
     result.push(item);
@@ -105,6 +107,7 @@ export async function GET(request: Request) {
           const is2026 = row.release_year === 2026;
           merged.push({
             ...row,
+            description: gameDescription(row),
             release_eligibility: is2026 ? 'commercial_2026' : 'manual_override',
             effective_release_year: row.release_year ?? null,
             effective_release_date: row.release_year ? `${row.release_year}` : null,
