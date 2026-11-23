@@ -3,12 +3,14 @@ import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import { youtubeEmbedUrl, isAllowedYoutubeOrigin } from '../../apps/mobile/src/features/media/youtube';
 
+const ORIGIN = 'https://clube-do-jogo-coral.vercel.app';
+
 test('trailers accept YouTube links and never carry input credentials or query parameters', () => {
   for (const url of ['https://youtu.be/dQw4w9WgXcQ?token=private', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'https://www.youtube.com/embed/dQw4w9WgXcQ']) {
-    assert.equal(youtubeEmbedUrl(url), 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?playsinline=1&rel=0&modestbranding=1&controls=1');
+    assert.equal(youtubeEmbedUrl(url, ORIGIN), `https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?playsinline=1&rel=0&modestbranding=1&controls=1&origin=${encodeURIComponent(ORIGIN)}`);
   }
   for (const url of ['javascript:alert(1)', 'https://youtube.com.evil.test/watch?v=dQw4w9WgXcQ', 'https://example.test/video', 'https://youtu.be/%22%3E']) {
-    assert.equal(youtubeEmbedUrl(url), null);
+    assert.equal(youtubeEmbedUrl(url, ORIGIN), null);
   }
   for (const url of ['javascript:alert(1)', 'https://youtube.com.evil.test/watch?v=dQw4w9WgXcQ', 'https://example.test/video', 'https://user:password@www.youtube.com', 'https://www.youtube.com:444']) {
     assert.equal(isAllowedYoutubeOrigin(url), false);

@@ -3,10 +3,12 @@ import { AppState, Modal, Pressable, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { themedStyles, useThemeColors, radii, spacing } from '@/theme';
-import { isAllowedYoutubeOrigin, youtubeEmbedUrl } from './youtube';
+import { getMobileSiteUrl } from '@/platform/config';
+import { isAllowedTrailerNavigation, trailerSource } from './youtube';
 
 // Let the request guard reject outside links; a whitelist rejection opens the system browser.
 const ORIGIN_WHITELIST = ['*'];
+const FALLBACK_ORIGIN = 'https://clube-do-jogo-coral.vercel.app';
 
 export function TrailerModal({ visible, url, title, onClose }: {
   visible: boolean;
@@ -16,7 +18,7 @@ export function TrailerModal({ visible, url, title, onClose }: {
 }) {
   const colors = useThemeColors();
   const styles = useStyles();
-  const embedUrl = youtubeEmbedUrl(url);
+  const source = trailerSource(url, getMobileSiteUrl() ?? FALLBACK_ORIGIN);
 
   useEffect(() => {
     if (!visible) return undefined;
@@ -26,7 +28,7 @@ export function TrailerModal({ visible, url, title, onClose }: {
     return () => subscription.remove();
   }, [visible, onClose]);
 
-  if (!visible || !embedUrl) return null;
+  if (!visible || !source) return null;
 
   return (
     <Modal visible={visible} animationType="fade" transparent statusBarTranslucent onRequestClose={onClose}>
@@ -42,11 +44,11 @@ export function TrailerModal({ visible, url, title, onClose }: {
             <Ionicons name="close" size={22} color={colors.white} />
           </Pressable>
           <WebView
-            key={embedUrl}
-            source={{ uri: embedUrl }}
+            key={url}
+            source={source}
             style={styles.webview}
             originWhitelist={ORIGIN_WHITELIST}
-            onShouldStartLoadWithRequest={request => isAllowedYoutubeOrigin(request.url)}
+            onShouldStartLoadWithRequest={request => isAllowedTrailerNavigation(request.url)}
             javaScriptEnabled
             allowsFullscreenVideo
             allowsInlineMediaPlayback

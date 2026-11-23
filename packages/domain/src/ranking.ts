@@ -1,6 +1,15 @@
 import type { Game, RankingFormula, RankingItem, VoteChoice, VoteParticipant } from './types';
 
-export const voteChoices: readonly VoteChoice[] = ['would_play', 'neutral', 'would_not_play'];
+// Ordem canônica da votação: Não, Neutro, Jogaria. Contadores, botões e abas leem
+// daqui porque, quando cada tela mantinha a própria lista, elas divergiram e o
+// número verde acabou em cima do botão vermelho.
+export const voteChoices: readonly VoteChoice[] = ['would_not_play', 'neutral', 'would_play'];
+
+export const voteChoiceLabels: Record<VoteChoice, string> = {
+  would_not_play: 'Não',
+  neutral: 'Neutro',
+  would_play: 'Jogaria',
+};
 
 export function isVoteChoice(value: unknown): value is VoteChoice {
   return voteChoices.includes(value as VoteChoice);
