@@ -1,21 +1,21 @@
 /**
- * IGDB → RAWG ids for the genres and platforms the app filters by and stores.
- * The app speaks IGDB ids everywhere (filters, games.platform_ids,
- * user_platforms.igdb_platform_id), so RAWG ids never leave src/lib/rawg.ts.
+ * Ids IGDB → RAWG dos gêneros e plataformas que o app filtra e grava. O app fala ids
+ * da IGDB em todo lugar (filtros, games.platform_ids, user_platforms.igdb_platform_id),
+ * então id da RAWG nunca sai de src/lib/rawg.ts.
  *
- * Sources, checked 2026-11-23:
- * - RAWG ids: the genre and platform lists rawg.io embeds in its own pages
- *   (https://rawg.io/games/pc). The API equivalents, /api/genres and
- *   /api/platforms, need a key.
- * - IGDB ids: https://api-docs.igdb.com, whose examples name PC 6, PS4 48,
- *   Xbox One 49, Switch 130 and RPG 12. The rest are the ids this app already
- *   sends to IGDB: the discover filters (src/app/jogos/page.tsx,
- *   apps/mobile/app/(app)/(tabs)/jogos.tsx), the discover route's genre names
- *   and the offline fixture.
+ * Fontes, conferidas em 2026-11-23:
+ * - Ids da RAWG: as listas de gêneros e plataformas que o rawg.io embute nas próprias
+ *   páginas (https://rawg.io/games/pc). Os equivalentes na API, /api/genres e
+ *   /api/platforms, exigem chave.
+ * - Ids da IGDB: https://api-docs.igdb.com, cujos exemplos nomeiam PC 6, PS4 48,
+ *   Xbox One 49, Switch 130 e RPG 12. Os demais são os ids que o app já manda para a
+ *   IGDB: os filtros de descoberta (src/app/jogos/page.tsx,
+ *   apps/mobile/app/(app)/(tabs)/jogos.tsx), os nomes de gênero da rota de descoberta
+ *   e a fixture offline.
  *
- * Add a row only after checking both ids at a source. A missing row is safe:
- * a filter without a translation returns no games, and a RAWG platform without
- * one keeps its name but no id.
+ * Só acrescente uma linha depois de conferir os dois ids numa fonte. Linha que falta é
+ * segura: filtro sem tradução não devolve jogos, e plataforma da RAWG sem tradução
+ * fica com o nome e sem id.
  */
 const GENRES: ReadonlyArray<readonly [igdb: number, rawg: number]> = [
   [12, 5], // Role-playing (RPG) → RPG

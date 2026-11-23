@@ -44,8 +44,8 @@ export interface CatalogBrowseOptions {
 }
 
 /**
- * The games column that holds each catalog's id. The numberings overlap, so a row
- * never keeps one catalog's id in another catalog's column.
+ * A coluna de games que guarda o id de cada catálogo. As numerações se sobrepõem,
+ * então uma linha nunca guarda o id de um catálogo na coluna de outro.
  */
 export type CatalogKey = 'igdb_id' | 'rawg_id';
 
@@ -83,7 +83,7 @@ const PROVIDERS: Record<CatalogProviderId, CatalogProvider> = {
     getGameMugshots: getGameMugshotsByRAWGId,
     searchPlatforms: searchPlatformsWithRAWG,
   },
-  // The fixture mirrors IGDB: its seed rows carry these ids in igdb_id.
+  // A fixture imita a IGDB: as linhas do seed guardam esses ids em igdb_id.
   offline: {
     key: 'igdb_id',
     attribution: null,
@@ -112,7 +112,7 @@ export function activeCatalogAttribution(): CatalogAttribution | null {
   return activeProvider().attribution;
 }
 
-/** The database has no column (or no unique index) for the active catalog's id yet. */
+/** O banco ainda não tem a coluna (ou a unique) do id do catálogo ativo. */
 export class CatalogSchemaError extends Error {
   constructor(readonly column: CatalogKey) {
     super(`games.${column} não existe ou não é única neste banco. Aplique supabase/migrations/20261123120000_catalog_provider_ids.sql antes de usar este catálogo.`);
@@ -122,16 +122,16 @@ export class CatalogSchemaError extends Error {
 
 type CatalogIds = Partial<Record<CatalogKey, number | null>>;
 
-/** A row with a catalog id belongs to that catalog; another catalog must not write its id there. */
+/** Linha com id de um catálogo pertence a ele; outro catálogo não grava o próprio id nela. */
 export function hasNoCatalogId(row: CatalogIds) {
   return CATALOG_KEYS.every(key => row[key] == null);
 }
 
-/** How the active catalog may find a stored games row. */
+/** Como o catálogo ativo pode achar uma linha de games já gravada. */
 export type CatalogLookup =
   | { by: 'id'; id: number }
   | { by: 'title'; title: string }
-  /** Another catalog owns the row; its id means nothing to the active one. */
+  /** Outro catálogo é dono da linha; o id dele não quer dizer nada para o ativo. */
   | { by: 'none' };
 
 export function catalogLookupFor(row: CatalogIds & { title: string }): CatalogLookup {
