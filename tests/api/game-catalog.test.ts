@@ -195,6 +195,23 @@ test('each discovery sort becomes the rawg ordering and date window it maps to',
   assert.ok(params.every(entry => entry.get('exclude_additions') === 'true' && entry.get('page_size') === '24'));
 });
 
+test('a year outside the recent or upcoming window returns no games and sends no request', async () => {
+  useRAWG();
+  failingFetch();
+  // Com a data fixa em 2026-09-14, lançamentos cobrem 2024-09-14 a 2026-09-14 e "em breve" 2026-09-15 a 2028-09-13.
+  assert.deepEqual(await browseGames({ sort: 'recent', year: 2020, limit: 24, offset: 0 }), []);
+  assert.deepEqual(await browseGames({ sort: 'anticipated', year: 2025, limit: 24, offset: 0 }), []);
+  assert.deepEqual(await browseGames({ sort: 'anticipated', year: 2030, limit: 24, offset: 0 }), []);
+});
+
+test('a year that overlaps the window narrows it to the overlap', async () => {
+  useRAWG();
+  const urls = recordFetch({ '/api/games': { results: [] } });
+  await browseGames({ sort: 'recent', year: 2026, limit: 24, offset: 0 });
+  await browseGames({ sort: 'anticipated', year: 2027, limit: 24, offset: 0 });
+  assert.deepEqual(urls.map(url => new URL(url).searchParams.get('dates')), ['2026-01-01,2026-09-14', '2027-01-01,2027-12-31']);
+});
+
 test('rawg platform search walks every page and answers with IGDB platform ids', async () => {
   useRAWG();
   const pages: Record<string, unknown> = {

@@ -133,6 +133,8 @@ export async function browseGamesWithRAWG(options: CatalogBrowseOptions): Promis
     from = from && from > yearStart ? from : yearStart;
     to = to && to < yearEnd ? to : yearEnd;
   }
+  // Ano fora da janela de lançamentos ou de "em breve": a interseção é vazia.
+  if (from && to && from > to) return [];
   if (from && to) params.set('dates', `${from},${to}`);
   // Os filtros chegam com ids da IGDB. Sem tradução conferida, nenhum jogo é a resposta
   // certa; mandar o número cru filtraria por outro gênero ou plataforma da RAWG.
