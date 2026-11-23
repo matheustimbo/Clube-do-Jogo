@@ -81,7 +81,9 @@ for (const check of checks) {
     console.log(`ok    ${check.name.padEnd(28)} ${await check.run()}`);
   } catch (error) {
     failed += 1;
-    console.log(`FALHA ${check.name.padEnd(28)} ${error instanceof Error ? error.message : String(error)}`);
+    // O corpo da resposta da IGDB fica no cause, fora da mensagem que as rotas devolvem.
+    const detail = error instanceof Error ? [error.message, error.cause].filter(Boolean).join(' ') : String(error);
+    console.log(`FALHA ${check.name.padEnd(28)} ${detail}`);
   }
 }
 
