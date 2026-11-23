@@ -459,3 +459,15 @@ test('a database without the catalog column or its unique index fails with a sch
     assert.ok(payloads.every(payload => !Object.hasOwn(payload, 'igdb_id')), JSON.stringify(payloads));
   }
 });
+
+test('a missing column other than the catalog key is not a catalog schema error', async () => {
+  // Só a coluna do catálogo aponta para a migration do rawg_id; outra coluna que falta é
+  // outro problema, e o jogo sai da página com o erro no log, como antes.
+  for (const upsertError of [
+    { code: '42703', message: 'column "average_rating" of relation "games" does not exist' },
+    { code: 'PGRST204', message: "Could not find the 'average_rating' column of 'games' in the schema cache" },
+  ]) {
+    const saved = await cacheCatalogGames(fakeSupabase([], { upsertError }), [catalogGame({ id: 26192 })], 'rawg_id');
+    assert.deepEqual(saved, [], upsertError.code);
+  }
+});
