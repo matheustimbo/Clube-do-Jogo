@@ -47,6 +47,10 @@ type FakeOptions = {
   upsertError?: { code: string; message: string };
   // Linhas que outro pedido grava entre a consulta por título e o upsert deste.
   racedByTitle?: Map<string, StoredRow>;
+  // Erro que o banco devolve a todo update.
+  updateError?: { code: string; message: string };
+  // Roda antes de cada leitura e update; pode segurar o pedido, como um banco ocupado.
+  beforeRequest?: (method: string) => void | Promise<void>;
 };
 
 // Imita o postgrest-js: num upsert em lote, `columns` é a união das chaves das
@@ -55,7 +59,7 @@ type FakeOptions = {
 // Devolve as linhas do lote fora de ordem, que é o que o PostgREST pode fazer:
 // se a rota passar a depender da ordem do retorno, o teste pega.
 function fakeSupabase(payloads: UpsertPayload[], options: FakeOptions = {}): SupabaseClient {
-  const { calls, failFirstWith, roundTrips, existingByTitle = new Map(), missingColumns = [], updates, upsertError, racedByTitle } = options;
+  const { calls, failFirstWith, roundTrips, existingByTitle = new Map(), missingColumns = [], updates, upsertError, racedByTitle, updateError, beforeRequest } = options;
   // Cada pedido ao PostgREST é uma ida ao banco: upsert, select e update.
   const trip = () => { if (roundTrips) roundTrips.count += 1; };
   const race = () => racedByTitle?.forEach((row, title) => existingByTitle.set(title, row));
@@ -71,7 +75,10 @@ function fakeSupabase(payloads: UpsertPayload[], options: FakeOptions = {}): Sup
     const existing = existingByTitle.get(String(payload.title));
     return Boolean(existing && existing[key] !== payload[key]);
   };
-  const rest = gamesRest({ rows: existingByTitle as Map<string, GamesRow>, missingColumns, patches: updates, onRequest: trip });
+  const rest = gamesRest({
+    rows: existingByTitle as Map<string, GamesRow>, missingColumns, patches: updates, patchError: updateError,
+    onRequest: async method => { trip(); await beforeRequest?.(method); },
+  });
   const client = {
     from() {
       return {
@@ -447,4 +454,71 @@ test('a missing column other than the catalog key is not a catalog schema error'
     const saved = await cacheCatalogGames(fakeSupabase([], { upsertError }), [catalogGame({ id: 26192 })], 'rawg_id');
     assert.deepEqual(saved, [], upsertError.code);
   }
+});
+
+// Segura cada leitura até `parties` pedidos terem lido: os dois veem a linha antes de
+// qualquer um gravar nela.
+function readTogether(parties: number) {
+  let arrived = 0;
+  let release = () => {};
+  const everyone = new Promise<void>(resolve => { release = resolve; });
+  return async (method: string) => {
+    if (method !== 'GET') return;
+    arrived += 1;
+    if (arrived === parties) release();
+    await everyone;
+  };
+}
+
+test('two catalogs that claim one row at once leave it a single owner, and both show it as stored', async () => {
+  const manual: StoredRow = { id: 'linha-manual', igdb_id: null, rawg_id: null, title: 'Celeste', release_year: 2018, image_url: STORED_COVER };
+  const existingByTitle = new Map([['Celeste', manual]]);
+  const beforeRequest = readTogether(2);
+  const [fromRawg, fromIgdb] = await Promise.all([
+    cacheCatalogGames(fakeSupabase([], { existingByTitle, beforeRequest }), [catalogGame({ id: 9600, title: 'Celeste', release_year: 2018 })], 'rawg_id'),
+    cacheCatalogGames(fakeSupabase([], { existingByTitle, beforeRequest }), [catalogGame({ id: 26226, title: 'Celeste', release_year: 2018 })], 'igdb_id'),
+  ]);
+  const row = existingByTitle.get('Celeste')!;
+  assert.equal([row.igdb_id, row.rawg_id].filter(id => id != null).length, 1, JSON.stringify(row));
+  // Quem perdeu mostra a linha do vencedor no lugar do jogo, como faz com toda linha de outro catálogo.
+  assert.deepEqual(fromRawg, [row]);
+  assert.deepEqual(fromIgdb, [row]);
+});
+
+test('a claim the database refuses never reaches the client as claimed', async () => {
+  const manual: StoredRow = { id: 'linha-manual', igdb_id: null, rawg_id: null, title: 'Celeste', release_year: 2018, image_url: STORED_COVER };
+  const existingByTitle = new Map([['Celeste', manual]]);
+  const updateError = { code: '42501', message: 'permission denied for table games' };
+  const saved = await cacheCatalogGames(fakeSupabase([], { existingByTitle, updateError }), [
+    catalogGame({ id: 9600, title: 'Celeste', release_year: 2018 }),
+  ], 'rawg_id');
+  assert.deepEqual(saved, []);
+  assert.equal(existingByTitle.get('Celeste')!.rawg_id, null);
+});
+
+test('a claim whose game id already sits on another row returns nothing the database does not have', async () => {
+  const manual: StoredRow = { id: 'linha-manual', igdb_id: null, rawg_id: null, title: 'Celeste', release_year: 2018, image_url: STORED_COVER };
+  // O jogo 9600 já foi gravado com o título antigo; a unique do rawg_id recusa o claim (23505).
+  const older: StoredRow = { id: 'linha-antiga', igdb_id: null, rawg_id: 9600, title: 'Celeste (2018)', release_year: 2018, image_url: STORED_COVER };
+  const existingByTitle = new Map([['Celeste', manual], ['Celeste (2018)', older]]);
+  const saved = await cacheCatalogGames(fakeSupabase([], { existingByTitle }), [
+    catalogGame({ id: 9600, title: 'Celeste', release_year: 2018 }),
+    catalogGame({ id: 9601, title: 'Celeste', release_year: 2018 }),
+  ], 'rawg_id');
+  assert.equal(existingByTitle.get('Celeste')!.rawg_id, null);
+  const storedById = new Map([...existingByTitle.values()].map(row => [row.id, row]));
+  for (const row of saved) assert.deepEqual(row, storedById.get(row.id), 'a rota devolveu uma linha que não está no banco');
+  // O banco diz que a linha sem dono não é este jogo; ela não entra no lugar dele.
+  assert.deepEqual(saved, []);
+});
+
+test('an IGDB claim still lands before the migration that adds rawg_id', async () => {
+  const updates: Array<{ id: string; patch: UpsertPayload }> = [];
+  const manual: StoredRow = { id: 'linha-manual', igdb_id: null, title: 'Celeste', release_year: 2018, image_url: STORED_COVER };
+  const existingByTitle = new Map([['Celeste', manual]]);
+  const saved = await cacheCatalogGames(fakeSupabase([], { existingByTitle, updates, missingColumns: ['rawg_id'] }), [
+    catalogGame({ id: 26226, title: 'Celeste', release_year: 2018 }),
+  ], 'igdb_id');
+  assert.equal(existingByTitle.get('Celeste')!.igdb_id, 26226);
+  assert.deepEqual(saved.map(game => game.id), ['linha-manual']);
 });

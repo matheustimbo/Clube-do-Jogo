@@ -49,7 +49,7 @@ export interface CatalogBrowseOptions {
  */
 export type CatalogKey = 'igdb_id' | 'rawg_id';
 
-const CATALOG_KEYS: readonly CatalogKey[] = ['igdb_id', 'rawg_id'];
+export const CATALOG_KEYS: readonly CatalogKey[] = ['igdb_id', 'rawg_id'];
 
 export interface CatalogProvider {
   key: CatalogKey;

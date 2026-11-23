@@ -1,6 +1,6 @@
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import type { Game } from './types';
-import { CatalogSchemaError, hasNoCatalogId, isSameRelease, type CatalogGame, type CatalogKey } from './game-catalog';
+import { CATALOG_KEYS, CatalogSchemaError, hasNoCatalogId, isSameRelease, type CatalogGame, type CatalogKey } from './game-catalog';
 
 function payloadFor(game: CatalogGame, key: CatalogKey) {
   return {
@@ -57,7 +57,12 @@ function warnOtherRelease(game: CatalogGame, row: Game, key: CatalogKey) {
   });
 }
 
-async function claim(supabase: SupabaseClient, row: Game, game: CatalogGame, key: CatalogKey): Promise<Game> {
+/**
+ * Dá à linha sem dono o id do jogo. O UPDATE só acha a linha enquanto ela não tem dono,
+ * então dois pedidos, de um catálogo ou de dois, nunca reivindicam a mesma linha. Quem
+ * chega depois relê a linha e fica com o que o banco tem; null tira o jogo do resultado.
+ */
+async function claim(supabase: SupabaseClient, row: Game, game: CatalogGame, key: CatalogKey): Promise<Game | null> {
   const metadata = {
     [key]: game.id,
     average_rating: row.average_rating ?? game.average_rating,
@@ -68,8 +73,25 @@ async function claim(supabase: SupabaseClient, row: Game, game: CatalogGame, key
     platforms: row.platforms?.length ? row.platforms : game.platforms,
     platform_ids: row.platform_ids?.length ? row.platform_ids : game.platform_ids,
   };
-  const { data: updated } = await supabase.from('games').update(metadata).eq('id', row.id).select().single();
-  return (updated || { ...row, ...metadata }) as Game;
+  let update = supabase.from('games').update(metadata).eq('id', row.id);
+  // Só as colunas que o banco tem: antes da migration não existe rawg_id.
+  for (const catalogKey of CATALOG_KEYS) if (catalogKey in row) update = update.is(catalogKey, null);
+  const { data, error } = await update.select();
+  throwIfKeyMissing(error, key);
+  const [claimed] = (data ?? []) as Game[];
+  if (claimed) return claimed;
+  // 23505: o id do jogo já está noutra linha. Sem erro: outro pedido chegou antes.
+  if (error && error.code !== '23505') {
+    console.error('Erro ao reivindicar linha para o catálogo:', error);
+    return null;
+  }
+  const { data: current } = await supabase.from('games').select('*').eq('id', row.id).maybeSingle();
+  if (!current) return null;
+  const clash = clashWith(current as Game, game, key);
+  if (clash.kind === 'own' || clash.kind === 'stand-in') return current as Game;
+  if (clash.kind === 'other-release') warnOtherRelease(game, current as Game, key);
+  else console.error('Linha sem dono que o banco não deixou reivindicar:', { [key]: game.id, row: row.id, error });
+  return null;
 }
 
 // Rede de segurança para a corrida em que outro pedido grava um título entre a
@@ -97,7 +119,10 @@ async function cacheOneByOne(supabase: SupabaseClient, games: CatalogGame[], key
       const clash = clashWith(existing as Game, game, key);
       if (clash.kind === 'other-release') warnOtherRelease(game, existing as Game, key);
       if (clash.kind === 'stand-in') saved.push([game, clash.row]);
-      if (clash.kind === 'claim') saved.push([game, await claim(supabase, clash.row, game, key)]);
+      if (clash.kind === 'claim') {
+        const claimed = await claim(supabase, clash.row, game, key);
+        if (claimed) saved.push([game, claimed]);
+      }
       continue;
     }
     if (error) console.error('Erro ao armazenar jogo do catálogo:', error);
@@ -142,17 +167,17 @@ export async function cacheCatalogGameRows(supabase: SupabaseClient, games: Cata
   // nunca mudam de dono. Classificar antes do upsert tira esses jogos do lote; senão
   // um 23505 derrubaria o lote inteiro para o caminho lento em toda página.
   const byTitle = await rowsByTitle(supabase, games, key);
-  const pending = new Set<string>();
+  // Títulos que um jogo da página já vai gravar, num upsert ou num claim. O próximo jogo
+  // com o mesmo título cairia na linha dele, que a página já mostra, ou seria de outro ano.
+  const writing = new Set<string>();
   const toUpsert: CatalogGame[] = [];
   const standIns: CachedGame[] = [];
-  const claims: Array<Promise<CachedGame>> = [];
+  const claims: Array<Promise<CachedGame | null>> = [];
   for (const game of games) {
+    if (writing.has(game.title)) continue;
     const row = byTitle.get(game.title);
     if (!row) {
-      // Outro jogo da página já vai gravar este título; este cairia na linha dele, que
-      // a página já mostra, ou seria de outro ano.
-      if (pending.has(game.title)) continue;
-      pending.add(game.title);
+      writing.add(game.title);
       toUpsert.push(game);
       continue;
     }
@@ -161,9 +186,8 @@ export async function cacheCatalogGameRows(supabase: SupabaseClient, games: Cata
     else if (clash.kind === 'other-release') warnOtherRelease(game, row, key);
     else if (clash.kind === 'stand-in') standIns.push([game, row]);
     else {
-      claims.push(claim(supabase, row, game, key).then(claimed => [game, claimed] satisfies CachedGame));
-      // O próximo jogo da página com este título acha a linha já com dono.
-      byTitle.set(game.title, { ...row, [key]: game.id, release_year: row.release_year ?? game.release_year });
+      writing.add(game.title);
+      claims.push(claim(supabase, row, game, key).then(claimed => (claimed ? [game, claimed] satisfies CachedGame : null)));
     }
   }
   // Um lote por conjunto de chaves: o postgrest-js manda `columns` com a união das
@@ -178,7 +202,7 @@ export async function cacheCatalogGameRows(supabase: SupabaseClient, games: Cata
     Promise.all([...batches.values()].map(batch => cacheBatch(supabase, batch, key))),
     Promise.all(claims),
   ]);
-  return new Map([...standIns, ...cached.flat(), ...claimed]);
+  return new Map([...standIns, ...cached.flat(), ...claimed.filter(entry => entry !== null)]);
 }
 
 /**
