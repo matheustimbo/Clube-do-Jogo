@@ -8,6 +8,7 @@ export type {
   ClubReward,
   CommentReaction,
   DiscoverItem,
+  DiscoverPage,
   DiscoverSource,
   Game,
   GameProgress,

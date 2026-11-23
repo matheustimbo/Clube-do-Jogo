@@ -228,7 +228,7 @@ export function useDiscoveryPages(
       offset: pageParam,
       limit: DISCOVERY_PAGE_SIZE,
     }),
-    getNextPageParam: (lastPage, pages) => lastPage.hasMore ? pages.length * DISCOVERY_PAGE_SIZE : undefined,
+    getNextPageParam: lastPage => lastPage.hasMore ? lastPage.nextOffset : undefined,
     select: data => {
       const seen = new Set<string>();
       return {

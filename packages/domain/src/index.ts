@@ -6,6 +6,7 @@ export * from './ratings';
 export * from './library';
 export * from './demo';
 export * from './game-cover';
+export * from './discover';
 export * from './avatar';
 export * from './product-updates';
 export * from './goty';

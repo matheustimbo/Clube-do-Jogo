@@ -109,6 +109,16 @@ export interface DiscoverItem {
   addedAt?: string | null;
 }
 
+export interface DiscoverPage {
+  items: DiscoverItem[];
+  hasMore: boolean;
+  /**
+   * Onde a próxima página começa na fonte. O cache pode tirar jogos da página do
+   * catálogo, então contar os itens recebidos pediria de novo a mesma página.
+   */
+  nextOffset: number;
+}
+
 export interface ProfileWithGames {
   profile: Profile | null;
   backlog: Game[];

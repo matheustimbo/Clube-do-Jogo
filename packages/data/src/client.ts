@@ -16,6 +16,7 @@ import type {
   CatalogAttribution,
   ClubCycle,
   DiscoverItem,
+  DiscoverPage,
   DiscoverSource,
   Game,
   GameProgress,
@@ -100,10 +101,7 @@ export interface DiscoveryPageQuery extends DataScope {
   limit?: number;
 }
 
-export interface DiscoveryPage {
-  items: DiscoverItem[];
-  hasMore: boolean;
-}
+export type DiscoveryPage = DiscoverPage;
 
 export interface VoteInput extends DataScope {
   month: string;
@@ -251,15 +249,21 @@ function dedupeDiscoveryItems(items: DiscoverItem[]) {
   });
 }
 
-function discoveryPageFromPayload(payload: unknown): DiscoveryPage {
+function discoveryPageFromPayload(payload: unknown, offset: number, limit: number): DiscoveryPage {
   if (Array.isArray(payload)) {
-    return { items: dedupeDiscoveryItems(payload as DiscoverItem[]), hasMore: false };
+    const items = dedupeDiscoveryItems(payload as DiscoverItem[]);
+    return { items, hasMore: false, nextOffset: offset + items.length };
   }
-  if (!payload || typeof payload !== 'object') return { items: [], hasMore: false };
-  const record = payload as { items?: unknown; hasMore?: unknown };
+  if (!payload || typeof payload !== 'object') return { items: [], hasMore: false, nextOffset: offset };
+  const record = payload as { items?: unknown; hasMore?: unknown; nextOffset?: unknown };
+  // Um servidor anterior ao cursor não manda nextOffset; nele cada página andava `limit`.
+  const nextOffset = typeof record.nextOffset === 'number' && Number.isInteger(record.nextOffset) && record.nextOffset > offset
+    ? record.nextOffset
+    : offset + limit;
   return {
     items: Array.isArray(record.items) ? dedupeDiscoveryItems(record.items as DiscoverItem[]) : [],
     hasMore: record.hasMore === true,
+    nextOffset,
   };
 }
 
@@ -867,7 +871,7 @@ export class DataClient {
       if (filters.year !== undefined) params.set('year', String(filters.year));
       if (filters.month?.trim()) params.set('month', filters.month.trim());
       const payload = await readApiJson<unknown>(this.transport('explorar jogos'), `/api/discover?${params.toString()}`, { method: 'GET' });
-      return discoveryPageFromPayload(payload);
+      return discoveryPageFromPayload(payload, offset, limit);
     });
   }
 

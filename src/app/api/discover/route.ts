@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createRequestContext } from '@/lib/supabase/server';
 import { activeCatalogKey, browseGames, type CatalogBrowseSort } from '@/lib/game-catalog';
 import { cacheCatalogGames } from '@/lib/game-cache';
-import type { DiscoverItem, DiscoverSource, Game } from '@/lib/types';
+import type { DiscoverItem, DiscoverPage, DiscoverSource, Game } from '@/lib/types';
 
 const catalogSources = new Set<DiscoverSource>(['popular', 'rated', 'recent', 'anticipated']);
 // Trecho que o nome do gênero tem nos dois catálogos: a IGDB grava "Role-playing (RPG)"
@@ -13,6 +13,11 @@ function integerParam(value: string | null) {
   if (!value) return undefined;
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function pageOf(items: DiscoverItem[], offset: number, limit: number): DiscoverPage {
+  const page = items.slice(offset, offset + limit);
+  return { items: page, hasMore: items.length > offset + limit, nextOffset: offset + page.length };
 }
 
 function matchesFilters(game: Game, query: string, genre?: number, platform?: number, year?: number) {
@@ -44,7 +49,11 @@ export async function GET(request: Request) {
     if (catalogSources.has(source)) {
       const external = await browseGames({ query, sort: source as CatalogBrowseSort, genre, platform, year, offset, limit });
       const games = await cacheCatalogGames(supabase, external, activeCatalogKey());
-      return NextResponse.json({ items: games.map(game => ({ game } satisfies DiscoverItem)), hasMore: external.length === limit });
+      return NextResponse.json({
+        items: games.map(game => ({ game } satisfies DiscoverItem)),
+        hasMore: external.length === limit,
+        nextOffset: offset + external.length,
+      } satisfies DiscoverPage);
     }
 
     if (source === 'friends') {
@@ -69,7 +78,7 @@ export async function GET(request: Request) {
         .filter(item => matchesFilters(item.game, query, genre, platform, year))
         .sort((a, b) => b.addedAt.localeCompare(a.addedAt))
         .map(item => ({ game: item.game, activityCount: item.userIds.size, people: Array.from(item.userIds).map(id => names.get(id) || 'Membro'), addedAt: item.addedAt } satisfies DiscoverItem));
-      return NextResponse.json({ items: items.slice(offset, offset + limit), hasMore: items.length > offset + limit });
+      return NextResponse.json(pageOf(items, offset, limit));
     }
 
     const month = searchParams.get('month') || '';
@@ -89,7 +98,7 @@ export async function GET(request: Request) {
       .filter(item => matchesFilters(item.game, query, genre, platform, year))
       .sort((a, b) => b.addedAt.localeCompare(a.addedAt))
       .map(item => ({ game: item.game, activityCount: item.userIds.size, addedAt: item.addedAt } satisfies DiscoverItem));
-    return NextResponse.json({ items: items.slice(offset, offset + limit), hasMore: items.length > offset + limit });
+    return NextResponse.json(pageOf(items, offset, limit));
   } catch (error) {
     console.error('Erro ao explorar jogos:', error);
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Não foi possível carregar os jogos.' }, { status: 500 });

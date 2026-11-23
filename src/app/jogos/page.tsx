@@ -3,12 +3,13 @@
 import { apiFetch } from '@/lib/api-client';
 
 import { useMemo, useState } from 'react';
+import { uniqueDiscoverItems } from '@clube-do-jogo/domain';
 import { CalendarClock, Check, Filter, Flame, Search, Sparkles, Star } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { demoGames, demoProfiles } from '@/lib/demo-data';
 import { fetchProfileWithGames } from '@/lib/data';
 import { shiftMonth } from '@/lib/utils';
-import type { DiscoverItem, DiscoverSource } from '@/lib/types';
+import type { DiscoverItem, DiscoverPage, DiscoverSource } from '@/lib/types';
 import { useStaleQuery } from '@/hooks/use-stale-query';
 import { useApp } from '@/components/app-provider';
 import { DiscoverGameCard } from '@/components/discover-game-card';
@@ -50,24 +51,30 @@ export default function AllGamesPage() {
   const [genre, setGenre] = usePersistentState('discover:genre', '');
   const [platform, setPlatform] = usePersistentState('discover:platform', '');
   const [year, setYear] = usePersistentState('discover:year', '');
-  const [pagination, setPagination] = useState<{ key: string; items: DiscoverItem[]; hasMore: boolean }>({ key: '', items: [], hasMore: false });
+  const [pagination, setPagination] = useState<DiscoverPage & { key: string }>({ key: '', items: [], hasMore: false, nextOffset: 0 });
   const [loadingMore, setLoadingMore] = useState(false);
   const [localLibrary, setLocalLibrary] = useState<string[]>([]);
   const [localRanking, setLocalRanking] = useState<string[]>([]);
   const voteMonth = shiftMonth(selectedMonth, 1);
   const queryKey = `${source}:${search}:${genre}:${platform}:${year}:${voteMonth}`;
-  const catalog = useStaleQuery(`discover:${queryKey}`, async () => {
-    if (isDemo) return { items: demoDiscover(source, search, genre, platform, year), hasMore: false };
+  const catalog = useStaleQuery(`discover:${queryKey}`, async (): Promise<DiscoverPage> => {
+    if (isDemo) {
+      const items = demoDiscover(source, search, genre, platform, year);
+      return { items, hasMore: false, nextOffset: items.length };
+    }
     const params = new URLSearchParams({ source, q: search, genre, platform, year, month: voteMonth, limit: '24' });
     const response = await apiFetch(`/api/discover?${params}`);
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error || 'Não foi possível carregar os jogos.');
-    return payload as { items: DiscoverItem[]; hasMore: boolean };
+    return payload as DiscoverPage;
   });
   const library = useStaleQuery(`discover-library:${user?.id}:${voteMonth}`, () => fetchProfileWithGames(supabase, user!.id, isDemo, voteMonth), Boolean(user));
-  const extra = pagination.key === queryKey ? pagination.items : [];
-  const items = [...(catalog.data?.items || []), ...extra];
-  const hasMore = pagination.key === queryKey ? pagination.hasMore : Boolean(catalog.data?.hasMore);
+  const loaded = pagination.key === queryKey ? pagination : null;
+  const extra = loaded?.items ?? [];
+  // A página seguinte pode trazer de novo um jogo que já está na tela; a key é o id.
+  const items = uniqueDiscoverItems([...(catalog.data?.items || []), ...extra]);
+  const hasMore = loaded ? loaded.hasMore : Boolean(catalog.data?.hasMore);
+  const nextOffset = loaded ? loaded.nextOffset : catalog.data?.nextOffset ?? 0;
   const myGameIds = new Set([...(library.data?.library.filter(item => item.inBacklog).map(item => item.game.id) || []), ...localLibrary]);
   const rankingIds = new Set([...(library.data?.rankingGameIds || []), ...localRanking]);
 
@@ -75,11 +82,14 @@ export default function AllGamesPage() {
     if (isDemo || loadingMore || !hasMore) return;
     setLoadingMore(true);
     try {
-      const params = new URLSearchParams({ source, q: search, genre, platform, year, month: voteMonth, limit: '24', offset: String(items.length) });
+      // O cursor vem do servidor: o cache pode tirar jogos de uma página, e contar os
+      // cards pediria de novo a página que acabou de chegar.
+      const params = new URLSearchParams({ source, q: search, genre, platform, year, month: voteMonth, limit: '24', offset: String(nextOffset) });
       const response = await apiFetch(`/api/discover?${params}`);
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || 'Não foi possível carregar mais jogos.');
-      setPagination({ key: queryKey, items: [...extra, ...payload.items], hasMore: payload.hasMore });
+      const page = payload as DiscoverPage;
+      setPagination({ key: queryKey, items: [...extra, ...page.items], hasMore: page.hasMore, nextOffset: page.nextOffset });
     } finally { setLoadingMore(false); }
   }
 

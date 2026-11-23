@@ -10,6 +10,7 @@ import type {
   AppRole,
   ClubCycle,
   DiscoverItem,
+  DiscoverPage,
   DiscoverSource,
   Game,
   GameMugshot,
@@ -233,7 +234,7 @@ export class DemoStore {
     });
   }
 
-  readDiscoveryPage(_userId: string, source: DiscoverSource, filters: DiscoveryFilters, offset: number, limit: number): { items: DiscoverItem[]; hasMore: boolean } {
+  readDiscoveryPage(_userId: string, source: DiscoverSource, filters: DiscoveryFilters, offset: number, limit: number): DiscoverPage {
     let games = [...demoGames];
     const normalized = filters.search?.trim().toLocaleLowerCase('pt-BR') || '';
     if (normalized) {
@@ -274,7 +275,7 @@ export class DemoStore {
     const safeOffset = Number.isFinite(offset) ? Math.max(0, Math.floor(offset)) : 0;
     const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.min(40, Math.max(1, Math.floor(limit))) : 24;
     const items = allItems.slice(safeOffset, safeOffset + safeLimit);
-    return { items, hasMore: safeOffset + items.length < allItems.length };
+    return { items, hasMore: safeOffset + items.length < allItems.length, nextOffset: safeOffset + items.length };
   }
 
   isBacklog(userId: string, gameId: string) {
