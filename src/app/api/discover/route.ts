@@ -5,7 +5,9 @@ import { cacheCatalogGames } from '@/lib/game-cache';
 import type { DiscoverItem, DiscoverSource, Game } from '@/lib/types';
 
 const catalogSources = new Set<DiscoverSource>(['popular', 'rated', 'recent', 'anticipated']);
-const genreNames = new Map([[12, 'role-playing'], [31, 'adventure'], [32, 'indie'], [8, 'platform'], [9, 'puzzle'], [15, 'strategy'], [5, 'shooter']]);
+// Trecho que o nome do gênero tem nos dois catálogos: a IGDB grava "Role-playing (RPG)"
+// e "Platform", a RAWG grava "RPG" e "Platformer".
+const genreNames = new Map([[12, 'rpg'], [31, 'adventure'], [32, 'indie'], [8, 'platform'], [9, 'puzzle'], [15, 'strategy'], [5, 'shooter']]);
 
 function integerParam(value: string | null) {
   if (!value) return undefined;
