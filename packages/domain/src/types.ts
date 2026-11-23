@@ -32,6 +32,12 @@ export interface AdminUser extends Profile {
   role: AppRole;
 }
 
+/** The credit a game catalog's licence requires wherever its data appears. */
+export interface CatalogAttribution {
+  name: string;
+  url: string;
+}
+
 export interface Game {
   id: string;
   igdb_id?: number | null;

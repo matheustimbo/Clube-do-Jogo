@@ -1,5 +1,6 @@
 import { isOfflineCatalogEnabled, offlineBrowseGames, offlineGameById, offlineGameMugshots, offlineSearchGames, offlineSearchPlatforms } from './igdb-offline';
 import { browseGamesWithIGDB, getGameByIGDBId, getGameMugshotsByIGDBId, searchGamesWithIGDB, searchPlatformsWithIGDB } from './igdb';
+import type { CatalogAttribution } from './types';
 import { browseGamesWithRAWG, getGameByRAWGId, getGameMugshotsByRAWGId, searchGamesWithRAWG, searchPlatformsWithRAWG } from './rawg';
 
 export interface CatalogGame {
@@ -52,6 +53,7 @@ const CATALOG_KEYS: readonly CatalogKey[] = ['igdb_id', 'rawg_id'];
 
 export interface CatalogProvider {
   key: CatalogKey;
+  attribution: CatalogAttribution | null;
   searchGames(query: string): Promise<CatalogGame[]>;
   browseGames(options: CatalogBrowseOptions): Promise<CatalogGame[]>;
   getGameById(id: number): Promise<CatalogGame | null>;
@@ -64,6 +66,7 @@ export type CatalogProviderId = 'igdb' | 'rawg' | 'offline';
 const PROVIDERS: Record<CatalogProviderId, CatalogProvider> = {
   igdb: {
     key: 'igdb_id',
+    attribution: null,
     searchGames: searchGamesWithIGDB,
     browseGames: browseGamesWithIGDB,
     getGameById: getGameByIGDBId,
@@ -72,6 +75,8 @@ const PROVIDERS: Record<CatalogProviderId, CatalogProvider> = {
   },
   rawg: {
     key: 'rawg_id',
+    // Os termos da RAWG pedem um link ativo para ela em toda tela que mostra os dados dela.
+    attribution: { name: 'RAWG', url: 'https://rawg.io' },
     searchGames: searchGamesWithRAWG,
     browseGames: browseGamesWithRAWG,
     getGameById: getGameByRAWGId,
@@ -81,6 +86,7 @@ const PROVIDERS: Record<CatalogProviderId, CatalogProvider> = {
   // The fixture mirrors IGDB: its seed rows carry these ids in igdb_id.
   offline: {
     key: 'igdb_id',
+    attribution: null,
     searchGames: async query => offlineSearchGames(query),
     browseGames: async options => offlineBrowseGames(options),
     getGameById: async id => offlineGameById(id),
@@ -100,6 +106,10 @@ function activeProvider(): CatalogProvider {
 
 export function activeCatalogKey(): CatalogKey {
   return activeProvider().key;
+}
+
+export function activeCatalogAttribution(): CatalogAttribution | null {
+  return activeProvider().attribution;
 }
 
 /** The database has no column (or no unique index) for the active catalog's id yet. */

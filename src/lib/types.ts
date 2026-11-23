@@ -2,6 +2,7 @@ export type {
   AdminUser,
   AppRole,
   AvatarCrop,
+  CatalogAttribution,
   ClubComment,
   ClubCycle,
   ClubReward,

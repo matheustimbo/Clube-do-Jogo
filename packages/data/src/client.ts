@@ -13,6 +13,7 @@ import {
   voteChoices,
 } from '@clube-do-jogo/domain';
 import type {
+  CatalogAttribution,
   ClubCycle,
   DiscoverItem,
   DiscoverSource,
@@ -34,6 +35,7 @@ import type {
   VoteReason,
 } from '@clube-do-jogo/domain';
 import { readApiJson, type ApiTransport } from './api';
+import { catalogAttributionFromPayload } from './catalog';
 import { DemoStore, type DemoVote } from './demo';
 import { DataError, requireValue, withDataErrors } from './errors';
 import type { GameMediaQuery } from './media';
@@ -677,6 +679,13 @@ export class DataClient {
       );
       return payload as Game | null;
     });
+  }
+
+  async readCatalogAttribution(isDemo: boolean): Promise<CatalogAttribution | null> {
+    if (isDemo) return null;
+    return withDataErrors('carregar a fonte dos jogos', 'Não foi possível saber a fonte dos dados de jogos.', async () => (
+      catalogAttributionFromPayload(await readApiJson<unknown>(this.transport('carregar a fonte dos jogos'), '/api/catalog', { method: 'GET' }))
+    ));
   }
 
   async readGameMugshots(input: GameMediaQuery): Promise<GameMugshot[]> {
