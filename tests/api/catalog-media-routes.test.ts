@@ -317,3 +317,15 @@ test('a row the GOTY search claims while the media route reads the catalog keeps
   // Quem perdeu devolve o que o banco tem, não o que tentou gravar.
   assert.deepEqual(answered, tunic);
 });
+
+test('a row the catalog already owns is enriched on the real PostgREST filters', async () => {
+  useRAWG({ '/api/games/23027': TUNIC, '/api/games/23027/screenshots': { results: [] } });
+  const tunic: GamesRow = { id: 'jogo', title: 'Tunic', igdb_id: null, rawg_id: 23027, release_year: 2022, description: null, trailer_url: null };
+  database.client = gamesRest({ rows: new Map([['Tunic', tunic]]) });
+
+  const answered = await enrich();
+
+  // A trava de linha sem dono só vale para a linha achada pelo título; esta já tem rawg_id.
+  assert.equal(tunic.description, 'Uma raposinha e um manual indecifrável.');
+  assert.equal(answered.description, 'Uma raposinha e um manual indecifrável.');
+});
