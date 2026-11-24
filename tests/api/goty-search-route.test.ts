@@ -221,7 +221,7 @@ test('a game without a year matches a same-title game of any year', async () => 
   assert.deepEqual(gta.map((item: { id: string }) => item.id), ['linha-sem-ano']);
 });
 
-test('a game without a year after a dated game of the same title is that game', async () => {
+test('two IGDB games with the same title stay apart even when one has no year', async () => {
   delete process.env.IGDB_OFFLINE_CATALOG;
   delete process.env.GAME_CATALOG_PROVIDER;
   const undated = { ...igdbGame(99001, 'Fable', 2026), first_release_date: undefined, release_dates: [] };
@@ -231,5 +231,18 @@ test('a game without a year after a dated game of the same title is that game', 
   const body = await (await GET(new Request('http://localhost/api/goty/search-games?q=fable&includeAllYears=true'))).json();
 
   const fable = body.items.filter((item: { title: string }) => item.title === 'Fable');
-  assert.deepEqual(fable.map((item: { igdb_id: number }) => item.igdb_id), [99000]);
+  assert.deepEqual(fable.map((item: { igdb_id: number }) => item.igdb_id), [99000, 99001]);
+});
+
+test('an undated IGDB game listed first does not swallow the dated games of the same title', async () => {
+  delete process.env.IGDB_OFFLINE_CATALOG;
+  delete process.env.GAME_CATALOG_PROVIDER;
+  const undated = { ...igdbGame(99001, 'Fable', 2026), first_release_date: undefined, release_dates: [] };
+  useIGDB(undated, igdbGame(100, 'Fable', 2004), igdbGame(99000, 'Fable', 2026));
+  const { GET } = await import('../../src/app/api/goty/search-games/route');
+
+  const body = await (await GET(new Request('http://localhost/api/goty/search-games?q=fable&includeAllYears=true'))).json();
+
+  const fable = body.items.filter((item: { title: string }) => item.title === 'Fable');
+  assert.deepEqual(fable.map((item: { igdb_id: number }) => item.igdb_id).sort((a: number, b: number) => a - b), [100, 99000, 99001]);
 });
