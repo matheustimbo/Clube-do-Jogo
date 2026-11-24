@@ -8,6 +8,7 @@ import { useUrlDialog } from '@/hooks/use-url-state';
 import { type ClubUndoPreview, useApp } from './app-provider';
 import { GameDialogPreview } from './game-dialog-preview';
 import { Dialog, DialogContent, DialogTrigger } from './ui/dialog';
+import { CatalogAttribution } from './catalog-attribution';
 import { cn } from '@/lib/utils';
 
 export function ClubGameAdminDialog({ game, variant = 'button', className }: {
@@ -89,7 +90,7 @@ export function ClubGameAdminDialog({ game, variant = 'button', className }: {
           <button className={cn('club-admin-trigger inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-amber-400/20 bg-amber-500/10 px-4 text-xs font-extrabold text-amber-200 transition hover:bg-amber-500/15', className)}><Crown className="size-4" />Gerenciar jogo do clube</button>
         )}
       </DialogTrigger>
-      <DialogContent title={dialogTitle} description={phase === 'choose' ? 'Escolha o que deve acontecer com o ciclo.' : phase === 'confirm-undo' ? 'Revise o que será removido antes de continuar.' : 'A alteração será registrada no histórico administrativo.'}>
+      <DialogContent title={dialogTitle} description={phase === 'choose' ? 'Escolha o que deve acontecer com o ciclo.' : phase === 'confirm-undo' ? 'Revise o que será removido antes de continuar.' : 'A alteração será registrada no histórico administrativo.'} footer={<CatalogAttribution className="px-4 py-3" />}>
         <div className="space-y-3 p-4">
           {!['confirm-undo', 'undone'].includes(phase) && <GameDialogPreview game={game} message="A escolha será registrada no histórico administrativo." />}
 

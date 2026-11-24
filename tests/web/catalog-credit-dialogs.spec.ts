@@ -156,5 +156,24 @@ for (const viewport of VIEWPORTS) {
       await expectCreditInside(dialog);
       await shoot(page, 'avatar-crop');
     });
+
+    test('searching consoles keeps the credit inside the dialog', async ({ page }) => {
+      await page.goto('/seus-jogos');
+      await page.getByRole('button', { name: 'Gerenciar consoles' }).click();
+      const dialog = page.getByRole('dialog', { name: 'Meus consoles' });
+      await search(dialog, 'Buscar console');
+      await expect(dialog.getByRole('button', { name: 'Console 11' })).toBeAttached();
+      await expectCreditInside(dialog);
+      await shoot(page, 'consoles');
+    });
+
+    test('managing the club game keeps the credit inside the dialog', async ({ page }) => {
+      await page.goto(`/jogos/${GAME.id}`);
+      await page.getByRole('button', { name: 'Gerenciar jogo do clube' }).click();
+      const dialog = page.getByRole('dialog', { name: 'Definir jogo do clube' });
+      await expect(dialog.getByRole('img', { name: `Capa de ${GAME.title}` })).toBeAttached();
+      await expectCreditInside(dialog);
+      await shoot(page, 'club-admin');
+    });
   });
 }

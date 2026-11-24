@@ -30,6 +30,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Avatar } from '@/components/ui/avatar';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { CatalogAttribution } from '@/components/catalog-attribution';
 import { GotyGamePickerDialog } from './goty-game-picker-dialog';
 import { GotyPosterArt } from './goty-poster-art';
 
@@ -635,9 +636,10 @@ export function GotyPersonalTab({
               : undefined
           }
           className="goty-dialog max-w-xl border-[#dfc06c]/30 bg-[#0b0a0f] text-[#faf4e4]"
+          footer={<CatalogAttribution className="px-4 py-3" />}
         >
           {selectedGameSummary && (
-            <div className="max-h-[calc(min(88dvh,760px)-88px)] space-y-4 overflow-y-auto p-5">
+            <div className="space-y-4 overflow-y-auto p-5">
               <div className="flex items-center gap-4 rounded-2xl border border-[#dfc06c]/20 bg-[#14131b] p-3.5">
                 <GotyPosterArt
                   title={selectedGameSummary.title}
@@ -703,9 +705,10 @@ export function GotyPersonalTab({
           title={selectedMember ? `GOTYs 2026 de ${selectedMember.profile.name || 'Membro'}` : 'GOTYs do Membro'}
           description={selectedMember ? `${selectedMember.picksCount} categorias preenchidas no Seu GOTY` : undefined}
           className="goty-dialog max-w-2xl border-[#dfc06c]/30 bg-[#0b0a0f] text-[#faf4e4]"
+          footer={<CatalogAttribution className="px-4 py-3" />}
         >
           {selectedMember && (
-            <div className="max-h-[calc(min(88dvh,760px)-88px)] space-y-2.5 overflow-y-auto p-4 sm:p-5">
+            <div className="space-y-2.5 overflow-y-auto p-4 sm:p-5">
               {selectedMember.picks.map(({ category, pick }) => {
                 const isShared =
                   selectedMember.user_id !== userId

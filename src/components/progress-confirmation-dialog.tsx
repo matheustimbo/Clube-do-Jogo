@@ -3,6 +3,7 @@
 import { Circle, Flag, PlayCircle } from 'lucide-react';
 import type { Game, ProgressStatus } from '@/lib/types';
 import { Dialog, DialogClose, DialogContent } from './ui/dialog';
+import { CatalogAttribution } from './catalog-attribution';
 import { GameDialogPreview } from './game-dialog-preview';
 
 const meta = {
@@ -31,7 +32,7 @@ export function ProgressConfirmationDialog({ open, onOpenChange, game, currentSt
         ? 'A data de início existente será preservada.'
         : 'A data de início será registrada apenas se ainda não existir.';
   return <Dialog open={open} onOpenChange={onOpenChange}>
-    <DialogContent title={`Marcar como ${target.label}`} className="max-w-sm">
+    <DialogContent title={`Marcar como ${target.label}`} className="max-w-sm" footer={<CatalogAttribution className="px-4 py-3" />}>
       <GameDialogPreview game={game} message={message} />
       <div className="flex gap-2 p-4"><DialogClose className="h-10 flex-1 rounded-xl bg-white/5 px-3 text-xs font-bold text-zinc-300">Cancelar</DialogClose><DialogClose onClick={onConfirm} className={`inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl px-3 text-xs font-extrabold text-white ${destructive ? 'bg-red-600' : 'bg-violet-600'}`}><TargetIcon className="size-3.5" />Confirmar</DialogClose></div>
     </DialogContent>
