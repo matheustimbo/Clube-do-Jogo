@@ -246,3 +246,29 @@ test('an undated IGDB game listed first does not swallow the dated games of the 
   const fable = body.items.filter((item: { title: string }) => item.title === 'Fable');
   assert.deepEqual(fable.map((item: { igdb_id: number }) => item.igdb_id).sort((a: number, b: number) => a - b), [100, 99000, 99001]);
 });
+
+test('a curated game whose igdb_id disagrees with the IGDB still joins the IGDB game of its title and year', async () => {
+  delete process.env.IGDB_OFFLINE_CATALOG;
+  delete process.env.GAME_CATALOG_PROVIDER;
+  // O curado guarda 325101; a IGDB conhece Forza Horizon 6 por 348330.
+  useIGDB(igdbGame(348330, 'Forza Horizon 6', 2026));
+  const { GET } = await import('../../src/app/api/goty/search-games/route');
+
+  const body = await (await GET(new Request('http://localhost/api/goty/search-games?q=forza%20horizon'))).json();
+
+  const forza = body.items.filter((item: { title: string }) => item.title === 'Forza Horizon 6');
+  assert.deepEqual(forza.map((item: { igdb_id: number }) => item.igdb_id), [348330]);
+});
+
+test('an IGDB game joins a same-title RAWG row of its year that has no igdb_id', async () => {
+  delete process.env.IGDB_OFFLINE_CATALOG;
+  delete process.env.GAME_CATALOG_PROVIDER;
+  stored.set('Jogo de Teste', { id: 'linha-rawg', title: 'Jogo de Teste', igdb_id: null, rawg_id: 777, release_year: 2026 });
+  useIGDB(igdbGame(99100, 'Jogo de Teste', 2026));
+  const { GET } = await import('../../src/app/api/goty/search-games/route');
+
+  const body = await (await GET(new Request('http://localhost/api/goty/search-games?q=jogo%20de%20teste'))).json();
+
+  const games = body.items.filter((item: { title: string }) => item.title === 'Jogo de Teste');
+  assert.equal(games.length, 1);
+});

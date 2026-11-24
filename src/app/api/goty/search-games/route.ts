@@ -24,7 +24,11 @@ function searchCurated2026(query: string): GotySearchGameResult[] {
 // local, que numa linha da RAWG não traz igdb_id; e do catálogo curado, com id próprio.
 // Casa pelo id da linha, pelo igdb_id ou pelo título do mesmo lançamento: Resident Evil 4
 // de 2005 e o de 2023 dividem o título, não o jogo. Item sem ano casa com qualquer ano.
-// Dois igdb_ids diferentes são dois jogos para a IGDB, mesmo com título igual.
+// Dois igdb_ids diferentes são dois jogos para a IGDB, mesmo com título igual. O igdb_id
+// do catálogo curado foi escrito à mão e às vezes não é o da IGDB, então não separa nada.
+const CURATED = new Set<GotySearchGameResult>(GOTY_2026_CURATED_CATALOG);
+const knownIgdbId = (item: GotySearchGameResult) => (CURATED.has(item) ? null : item.igdb_id);
+
 function deduplicateGames(items: GotySearchGameResult[]): GotySearchGameResult[] {
   const seen = new Set<string>();
   const result: GotySearchGameResult[] = [];
@@ -32,7 +36,7 @@ function deduplicateGames(items: GotySearchGameResult[]): GotySearchGameResult[]
     const title = normalize(item.title);
     const keys = [`id:${item.id}`, ...(item.igdb_id ? [`igdb:${item.igdb_id}`] : [])];
     const sameRelease = (kept: GotySearchGameResult) => Boolean(title) && normalize(kept.title) === title
-      && !(kept.igdb_id && item.igdb_id && kept.igdb_id !== item.igdb_id)
+      && !(knownIgdbId(kept) && knownIgdbId(item) && knownIgdbId(kept) !== knownIgdbId(item))
       && (isSameRelease(kept, item) || isSameRelease(item, kept));
     if (keys.some(key => seen.has(key)) || result.some(sameRelease)) continue;
     keys.forEach(key => seen.add(key));
