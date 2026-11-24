@@ -675,6 +675,16 @@ test('a claim whose game id sits on a row with another spelling of its title sho
   assert.deepEqual(saved, [spelled]);
 });
 
+test('a claim whose game id sits on a row whose title has no letter or digit shows nothing', async () => {
+  const manual: StoredRow = { id: 'linha-manual', igdb_id: null, rawg_id: null, title: '???', release_year: 2017, image_url: STORED_COVER };
+  // '???' e '!!!' normalizam para vazio; dois vazios não são o mesmo título.
+  const other: StoredRow = { id: 'linha-outra', igdb_id: 26592, rawg_id: null, title: '!!!', release_year: 2017, image_url: STORED_COVER };
+  const saved = await cacheCatalogGames(fakeSupabase([], { existingByTitle: new Map([['???', manual], ['!!!', other]]) }), [
+    catalogGame({ id: 26592, title: '???', release_year: 2017 }),
+  ], 'igdb_id');
+  assert.deepEqual(saved, []);
+});
+
 test('a claim whose game id sits on a row of another year shows nothing', async () => {
   const manual: StoredRow = { id: 'linha-manual', igdb_id: null, rawg_id: null, title: 'Okami HD', release_year: 2017, image_url: STORED_COVER };
   const original: StoredRow = { id: 'linha-okami', igdb_id: 26592, rawg_id: null, title: 'Ōkami HD', release_year: 2012, image_url: STORED_COVER };

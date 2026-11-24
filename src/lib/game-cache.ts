@@ -72,11 +72,13 @@ export function updateUnownedRow(supabase: SupabaseClient, row: Game, patch: Rec
 /**
  * 23505 no claim: o id do jogo já está noutra linha, gravada com outra grafia do título.
  * Ela é o jogo quando o título normalizado e o ano batem (Okami HD e Ōkami HD); senão
- * mostrá-la poria outro título na página, e o jogo sai do resultado.
+ * mostrá-la poria outro título na página, e o jogo sai do resultado. Título sem letra
+ * nem número não casa com nada, como em findGameByTitle.
  */
 async function rowHoldingId(supabase: SupabaseClient, game: CatalogGame, key: CatalogKey): Promise<Game | null> {
   const { data: holder } = await supabase.from('games').select('*').eq(key, game.id).maybeSingle();
-  if (holder && normalizedTitle(holder.title) === normalizedTitle(game.title) && isSameRelease(holder, game)) return holder as Game;
+  const title = normalizedTitle(game.title);
+  if (holder && title && normalizedTitle(holder.title) === title && isSameRelease(holder, game)) return holder as Game;
   console.warn('Jogo do catálogo fora do resultado: o id dele já está numa linha de outro título.', { [key]: game.id, title: game.title, row: holder?.id });
   return null;
 }
